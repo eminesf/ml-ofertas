@@ -1,0 +1,13 @@
+{
+  "name": "ml-afiliados",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": ["packages/*"],
+  "scripts": {
+    "dev": "concurrently \"npm run dev -w @ml-afiliados/backend\" \"npm run dev -w @ml-afiliados/frontend\"",
+    "build": "npm run build --workspaces --if-present"
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.0"
+  }
+}

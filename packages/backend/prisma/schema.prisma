@@ -1,0 +1,59 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+model Offer {
+  id                 String    @id @default(cuid())
+  externalId         String    @unique
+  provider           String
+  title              String
+  couponAmount       String?
+  couponCode         String?
+  couponExpiresAt    DateTime?
+  originalPrice      Float
+  salePrice          Float
+  discountPct        Int
+  imageUrl           String?
+  productUrl         String
+  affiliateUrl       String
+  category           String?
+  rating             Float?
+  aiScore            Int?
+  suggestedHighlight String?
+  telegramMessage    String?
+  whatsappMessage    String?
+  source             String    @default("offers-page")
+  createdAt          DateTime  @default(now())
+  posts              Post[]
+}
+
+model Coupon {
+  id        String    @id @default(cuid())
+  provider  String
+  code      String
+  discount  String
+  minValue  Float?
+  category  String?
+  expiresAt DateTime?
+  active    Boolean   @default(true)
+  createdAt DateTime  @default(now())
+
+  @@unique([code, provider])
+}
+
+model Post {
+  id              String    @id @default(cuid())
+  offerId         String
+  offer           Offer     @relation(fields: [offerId], references: [id])
+  channel         String
+  message         String
+  whatsappMessage String?
+  sentAt          DateTime  @default(now())
+  repostedAt      DateTime?
+  success         Boolean   @default(true)
+}
