@@ -1,6 +1,6 @@
 import { prisma } from '../utils/prisma'
 import { AffiliateProvider } from '../providers/base.provider'
-import { evaluateOffer, generatePostMessage, analyzeMarketValue } from '../ai'
+import { evaluateOffer, generatePostMessage, analyzeMarketValue, evaluateCouponOffer, generateCouponPostMessage, CouponContext } from '../ai'
 import { sendPhoto, sendMessage } from '../channels/telegram'
 import { Offer } from '@prisma/client'
 import { scrapeHubProducts } from '../providers/mercadolivre/scraper-hub'
@@ -35,53 +35,31 @@ export function shouldRepost(offer: Offer & { posts: { sentAt: Date; success: bo
   return true
 }
 
+function parseCouponDiscount(discountText: string): number {
+  const match = discountText.replace(/\./g, '').replace(',', '.').match(/[\d]+(?:\.\d+)?/)
+  return match ? parseFloat(match[0]) : 0
+}
+
 async function processOffer(
   raw: { externalId: string; title: string; originalPrice: number; salePrice: number; discountPct: number; imageUrl?: string; productUrl: string; rating?: number; couponAmount?: string; category?: string },
   provider: AffiliateProvider,
   couponCode?: string,
-  source: string = 'offers-page'
+  source: string = 'offers-page',
+  couponDiscount?: string,
+  couponMinValue?: number
 ) {
-  if (raw.discountPct < MIN_DISCOUNT) return
-
-  const existing = await prisma.offer.findUnique({
-    where: { externalId: raw.externalId },
-    include: { posts: { orderBy: { sentAt: 'desc' } } }
-  })
-
-  if (existing && existing.posts.length > 0) {
-    console.log(`[Job] Já postado: ${raw.externalId}`)
-    return
-  }
-
-  let evaluation
-  try {
-    evaluation = await evaluateOffer(raw)
-    console.log(`[Job] Score IA "${raw.title}": ${evaluation.score} — ${evaluation.reason}`)
-  } catch (err) {
-    console.error('[Job] Erro na avaliação IA:', err)
-    return
-  }
-
-  if (!evaluation.shouldPost || evaluation.score < MIN_AI_SCORE) return
-
-  let marketAnalysis
-  try {
-    marketAnalysis = await analyzeMarketValue(raw)
-  } catch {
-    marketAnalysis = { isCompetitive: true, reason: '', suggestedHighlight: '' }
-  }
-
+  const tag = `[Job][${raw.externalId}][${source}]`
   const affiliateUrl = provider.buildAffiliateLink(raw.productUrl)
 
-  let generated
-  try {
-    generated = await generatePostMessage(raw, affiliateUrl, couponCode, marketAnalysis.suggestedHighlight)
-  } catch (err) {
-    console.error('[Job] Erro ao gerar copy:', err)
+  // Verifica se já existe no banco com o mesmo preço
+  const existingRaw = await prisma.offer.findUnique({ where: { externalId: raw.externalId } })
+  if (existingRaw && existingRaw.salePrice === raw.salePrice) {
+    console.log(`${tag} Preço inalterado (R$${raw.salePrice}), pulando`)
     return
   }
 
-  const offer = await prisma.offer.upsert({
+  // Salva oferta bruta no banco (cria ou atualiza se preço mudou)
+  await prisma.offer.upsert({
     where: { externalId: raw.externalId },
     create: {
       externalId: raw.externalId,
@@ -95,38 +73,114 @@ async function processOffer(
       affiliateUrl,
       category: raw.category,
       rating: raw.rating,
-      aiScore: evaluation.score,
       couponAmount: raw.couponAmount,
       couponCode: couponCode || null,
-      suggestedHighlight: marketAnalysis.suggestedHighlight || null,
-      telegramMessage: generated.telegram,
-      whatsappMessage: generated.whatsapp,
       source,
     },
     update: {
-      aiScore: evaluation.score,
+      salePrice: raw.salePrice,
+      originalPrice: raw.originalPrice,
+      discountPct: raw.discountPct,
+      imageUrl: raw.imageUrl,
+      rating: raw.rating,
+      couponCode: couponCode || null,
+      aiScore: null,
+      telegramMessage: null,
+      whatsappMessage: null,
+    }
+  })
+
+  if (existingRaw) {
+    console.log(`${tag} Preço atualizado R$${existingRaw.salePrice} → R$${raw.salePrice}: "${raw.title}"`)
+  } else {
+    console.log(`${tag} Salvo no banco: "${raw.title}" | R$${raw.salePrice} | ${raw.discountPct}% OFF${couponCode ? ` | cupom: ${couponCode}` : ''}`)
+  }
+
+  // Produtos de cupom bypassam filtro de desconto mínimo (desconto é o próprio cupom)
+  const isCoupon = source === 'coupon'
+  if (!isCoupon && raw.discountPct < MIN_DISCOUNT) {
+    console.log(`${tag} Filtrado: desconto ${raw.discountPct}% abaixo do mínimo (${MIN_DISCOUNT}%)`)
+    return
+  }
+
+  const existing = await prisma.offer.findUnique({
+    where: { externalId: raw.externalId },
+    include: { posts: { orderBy: { sentAt: 'desc' } } }
+  })
+
+  if (existing && existing.posts.length > 0) {
+    console.log(`${tag} Filtrado: já tem post registrado`)
+    return
+  }
+
+  // Monta contexto de cupom se disponível
+  const couponCtx: CouponContext | undefined = (isCoupon && couponCode && couponDiscount)
+    ? (() => {
+        const discountAmount = parseCouponDiscount(couponDiscount)
+        // O cupom aplica ao carrinho total — produto sozinho só ativa o cupom se >= minValue
+        const canApplyAlone = !couponMinValue || raw.salePrice >= couponMinValue
+        const effectivePrice = canApplyAlone
+          ? Math.max(0, raw.salePrice - discountAmount)
+          : raw.salePrice
+        return { code: couponCode, discount: couponDiscount, effectivePrice, minValue: couponMinValue, canApplyAlone }
+      })()
+    : undefined
+
+  if (couponCtx) {
+    const minInfo = couponCtx.minValue ? ` | mínimo R$${couponCtx.minValue}` : ''
+    const applyNote = couponCtx.canApplyAlone
+      ? `preço efetivo R$${couponCtx.effectivePrice.toFixed(2)}`
+      : `produto abaixo do mínimo — cupom ativa no carrinho`
+    console.log(`${tag} Cupom: ${couponCtx.code} (${couponCtx.discount}) → ${applyNote}${minInfo}`)
+  }
+
+  let evaluation
+  try {
+    evaluation = couponCtx
+      ? await evaluateCouponOffer(raw, couponCtx)
+      : await evaluateOffer(raw)
+    const status = evaluation.score >= MIN_AI_SCORE ? 'APROVADO' : 'REPROVADO'
+    console.log(`${tag} IA score: ${evaluation.score}/10 [${status}] — ${evaluation.reason}`)
+  } catch (err) {
+    console.error(`${tag} Erro na avaliação IA:`, err)
+    return
+  }
+
+  await prisma.offer.update({
+    where: { externalId: raw.externalId },
+    data: { aiScore: evaluation.score }
+  })
+
+  if (!evaluation.shouldPost || evaluation.score < MIN_AI_SCORE) return
+
+  let marketAnalysis
+  try {
+    marketAnalysis = await analyzeMarketValue(raw)
+    console.log(`${tag} Análise de mercado: ${marketAnalysis.suggestedHighlight || 'sem destaque'}`)
+  } catch {
+    marketAnalysis = { isCompetitive: true, reason: '', suggestedHighlight: '' }
+  }
+
+  let generated
+  try {
+    generated = couponCtx
+      ? await generateCouponPostMessage(raw, affiliateUrl, couponCtx, marketAnalysis.suggestedHighlight)
+      : await generatePostMessage(raw, affiliateUrl, couponCode, marketAnalysis.suggestedHighlight)
+  } catch (err) {
+    console.error(`${tag} Erro ao gerar copy:`, err)
+    return
+  }
+
+  await prisma.offer.update({
+    where: { externalId: raw.externalId },
+    data: {
+      suggestedHighlight: marketAnalysis.suggestedHighlight || null,
       telegramMessage: generated.telegram,
       whatsappMessage: generated.whatsapp,
-      suggestedHighlight: marketAnalysis.suggestedHighlight || null,
     }
   })
 
-  const success = raw.imageUrl
-    ? await sendPhoto(raw.imageUrl, generated.telegram)
-    : await sendMessage(generated.telegram)
-
-  await prisma.post.create({
-    data: {
-      offerId: offer.id,
-      channel: 'telegram',
-      message: generated.telegram,
-      whatsappMessage: generated.whatsapp,
-      success
-    }
-  })
-
-  console.log(`[Job] Postado: "${raw.title}" (score: ${evaluation.score})`)
-  await new Promise(r => setTimeout(r, 2000))
+  console.log(`${tag} ✓ Copy gerado — pronto para posting`)
 }
 
 export async function runOffersJob(provider: AffiliateProvider) {
@@ -177,9 +231,10 @@ export async function runHubJob(providers: AffiliateProvider[]) {
     const couponData = await scrapeCouponsAndProducts(ctx, (url) => mlProvider.buildAffiliateLink(url))
 
     const allCouponProducts = couponData.flatMap(c =>
-      c.products.map(p => ({ ...p, couponCode: c.code }))
+      c.products.map(p => ({ ...p, couponCode: c.code, couponDiscount: c.discount, couponMinValue: c.minValue }))
     )
 
+    console.log(`\n[Job] Processando ${hubProducts.length} produtos do hub...`)
     for (const raw of hubProducts) {
       try {
         await processOffer(raw, mlProvider, undefined, 'hub')
@@ -188,18 +243,72 @@ export async function runHubJob(providers: AffiliateProvider[]) {
       }
     }
 
+    console.log(`\n[Job] Processando ${allCouponProducts.length} produtos de cupons...`)
     for (const raw of allCouponProducts) {
       try {
-        await processOffer(raw, mlProvider, raw.couponCode, 'coupon')
+        await processOffer(raw, mlProvider, raw.couponCode, 'coupon', raw.couponDiscount, raw.couponMinValue)
       } catch (err) {
         console.error(`[Job] Erro coupon oferta ${raw.externalId}:`, err)
       }
     }
+
+    // Resumo final
+    const [totalOffers, readyToPost, hubCount, couponCount] = await Promise.all([
+      prisma.offer.count(),
+      prisma.offer.count({ where: { telegramMessage: { not: null }, aiScore: { gte: MIN_AI_SCORE }, posts: { none: {} } } }),
+      prisma.offer.count({ where: { source: 'hub' } }),
+      prisma.offer.count({ where: { source: 'coupon' } }),
+    ])
+    console.log(`\n[Job] === RESUMO ===`)
+    console.log(`[Job] Total no banco: ${totalOffers} ofertas (hub: ${hubCount}, cupom: ${couponCount})`)
+    console.log(`[Job] Prontas para posting: ${readyToPost}`)
   } finally {
     await ctx.browser()?.close()
   }
 
   console.log('[Job] Hub job concluído')
+}
+
+export async function runPostingJob(maxPosts = 3) {
+  console.log(`[Job] Iniciando job de posting (máx ${maxPosts} posts)`)
+
+  // Busca ofertas aprovadas pela IA que ainda não foram postadas
+  const pending = await prisma.offer.findMany({
+    where: {
+      telegramMessage: { not: null },
+      aiScore: { gte: MIN_AI_SCORE },
+      posts: { none: {} },
+    },
+    orderBy: { aiScore: 'desc' },
+    take: maxPosts,
+  })
+
+  console.log(`[Job] ${pending.length} ofertas pendentes de posting`)
+
+  for (const offer of pending) {
+    try {
+      const success = offer.imageUrl
+        ? await sendPhoto(offer.imageUrl, offer.telegramMessage!)
+        : await sendMessage(offer.telegramMessage!)
+
+      await prisma.post.create({
+        data: {
+          offerId: offer.id,
+          channel: 'telegram',
+          message: offer.telegramMessage!,
+          whatsappMessage: offer.whatsappMessage,
+          success,
+        }
+      })
+
+      console.log(`[Job] Postado: "${offer.title}" (score: ${offer.aiScore})`)
+      await new Promise(r => setTimeout(r, 2000))
+    } catch (err) {
+      console.error(`[Job] Erro ao postar ${offer.id}:`, err)
+    }
+  }
+
+  console.log('[Job] Posting job concluído')
 }
 
 export async function runRepostJob() {

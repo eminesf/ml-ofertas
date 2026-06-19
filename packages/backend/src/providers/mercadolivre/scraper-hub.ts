@@ -2,18 +2,7 @@ import { BrowserContext } from 'playwright'
 import { RawOffer } from '../base.provider'
 import { getAuthenticatedContext } from './auth'
 
-const CATEGORY_KEYWORDS = [
-  'copa', 'fifa', 'panini', 'figurinha', 'álbum', 'album', 'seleção', 'selecao',
-  'pokémon', 'pokemon', 'tcg', 'booster', 'pack', 'carta', 'pikachu',
-  'camiseta', 'camisa', 'jersey', 'brasil', 'portugal', 'argentina',
-  'nike', 'adidas',
-  'mais vendido', 'mais vendidos', 'lançamento',
-]
-
-function matchesCategory(title: string): boolean {
-  const lower = title.toLowerCase()
-  return CATEGORY_KEYWORDS.some(kw => lower.includes(kw))
-}
+const MAX_PRODUCTS = parseInt(process.env.ML_HUB_MAX_PRODUCTS || '50', 10)
 
 const HUB_SCRIPT = `
 (function() {
@@ -27,20 +16,22 @@ const HUB_SCRIPT = `
     var productUrl = linkEl ? linkEl.href : '';
     if (!title || !productUrl) continue;
 
-    var origEl = card.querySelector('s, [class*="previous"], [class*="original"]');
-    var origF = origEl ? ((origEl.querySelector('.andes-money-amount__fraction')||{textContent:'0'}).textContent.replace(/\./g,'')) : '0';
-    var origC = origEl ? ((origEl.querySelector('.andes-money-amount__cents')||{textContent:''}).textContent) : '';
-    var originalPrice = parseFloat(origC ? origF+'.'+origC : origF) || 0;
+    function parseBRL(text) {
+      var m = text.replace(/R\\$\\s*/,'').match(/([\\d.]+),?(\\d{2})?/);
+      if (!m) return 0;
+      return parseFloat(m[0].replace(/\\./g,'').replace(',','.')) || 0;
+    }
 
-    var saleEl = card.querySelector('[class*="current"], [class*="price"]:not(s)');
-    var saleF = saleEl ? ((saleEl.querySelector('.andes-money-amount__fraction')||{textContent:'0'}).textContent.replace(/\./g,'')) : origF;
-    var saleC = saleEl ? ((saleEl.querySelector('.andes-money-amount__cents')||{textContent:''}).textContent) : origC;
-    var salePrice = parseFloat(saleC ? saleF+'.'+saleC : saleF) || originalPrice;
+    var origEl = card.querySelector('s.andes-money-amount--previous, .andes-money-amount--previous');
+    var originalPrice = origEl ? parseBRL(origEl.textContent) : 0;
 
-    var discEl = card.querySelector('[class*="disc"], [class*="discount"]');
+    var saleEl = card.querySelector('.poly-price__current .andes-money-amount--cents-superscript, .poly-component__price .andes-money-amount--cents-superscript');
+    var salePrice = saleEl ? parseBRL(saleEl.textContent) : 0;
+
+    var discEl = card.querySelector('.andes-money-amount__discount, .poly-price__disc_label');
     var discText = discEl ? discEl.textContent : '';
     var dm = discText.match(/(\\d+)%/);
-    var discountPct = dm ? parseInt(dm[1]) : (originalPrice > 0 ? Math.round((1 - salePrice/originalPrice)*100) : 0);
+    var discountPct = dm ? parseInt(dm[1]) : (originalPrice > 0 && salePrice > 0 ? Math.round((1 - salePrice/originalPrice)*100) : 0);
 
     var imageEl = card.querySelector('img');
     var imageUrl = imageEl ? (imageEl.src || imageEl.dataset.src || '') : '';
@@ -48,12 +39,10 @@ const HUB_SCRIPT = `
     var ratingEl = card.querySelector('[class*="rating"], [class*="review"]');
     var rating = ratingEl ? parseFloat(ratingEl.textContent||'0') : null;
 
-    var isBestSeller = !!(card.querySelector('[class*="best-seller"], [class*="mais-vendido"]')) || (card.textContent||'').toLowerCase().includes('mais vendido');
+    var idMatch = productUrl.match(/MLB-?(\\d+)/);
+    var externalId = idMatch ? 'MLB' + idMatch[1] : productUrl.split('/').slice(-2).join('_');
 
-    var idMatch = productUrl.match(/MLB\\d+/);
-    var externalId = idMatch ? idMatch[0] : productUrl.split('/').slice(-2).join('_');
-
-    results.push({ title: title, productUrl: productUrl, imageUrl: imageUrl, originalPrice: originalPrice, salePrice: salePrice, discountPct: discountPct, rating: rating, externalId: externalId, isBestSeller: isBestSeller });
+    results.push({ title: title, productUrl: productUrl, imageUrl: imageUrl, originalPrice: originalPrice, salePrice: salePrice, discountPct: discountPct, rating: rating, externalId: externalId });
   }
   return results;
 })()
@@ -73,37 +62,66 @@ export async function scrapeHubProducts(
       timeout: 60000
     })
 
-    for (let i = 0; i < 3; i++) {
-      await page.evaluate('window.scrollBy(0, 1500)')
-      await page.waitForTimeout(2000)
+    // Clica em "Mais vendidos" se ainda não estiver selecionado
+    try {
+      const btn = page.locator('#best_seller')
+      const isSelected = await btn.getAttribute('aria-pressed')
+      if (isSelected !== 'true') {
+        await btn.click()
+        // Aguarda os produtos do filtro carregarem completamente
+        await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {})
+        await page.waitForTimeout(2000)
+      }
+      console.log('[HubScraper] Filtro "Mais vendidos" ativo')
+    } catch {
+      console.log('[HubScraper] Botão "Mais vendidos" não encontrado, continuando sem filtro')
     }
 
-    const items = await page.evaluate(HUB_SCRIPT) as Array<{
-      title: string; productUrl: string; imageUrl: string
-      originalPrice: number; salePrice: number; discountPct: number
-      rating: number | null; externalId: string; isBestSeller: boolean
-    }>
+    // Hub usa virtual scrolling — coleta incrementalmente a cada scroll para não perder cards
+    const seen = new Map<string, RawOffer>()
+    let noNewRounds = 0
 
-    for (const item of items) {
-      if (!item.title || !item.productUrl) continue
-      const cleanUrl = item.productUrl.split('?')[0]
-      if (!cleanUrl.includes('mercadolivre') && !cleanUrl.includes('mercadopago')) continue
+    while (noNewRounds < 4 && seen.size < MAX_PRODUCTS) {
+      const items = await page.evaluate(HUB_SCRIPT) as Array<{
+        title: string; productUrl: string; imageUrl: string
+        originalPrice: number; salePrice: number; discountPct: number
+        rating: number | null; externalId: string
+      }>
 
-      const passes = matchesCategory(item.title) || item.isBestSeller || item.discountPct > 25
-      if (!passes) continue
+      let newThisRound = 0
+      for (const item of items) {
+        if (!item.title || !item.productUrl) continue
+        const cleanUrl = item.productUrl.split('?')[0]
+        if (!cleanUrl.includes('mercadolivre') && !cleanUrl.includes('mercadopago')) continue
+        const key = item.externalId || cleanUrl
+        if (!seen.has(key)) {
+          seen.set(key, {
+            externalId: key,
+            title: item.title,
+            originalPrice: item.originalPrice || item.salePrice,
+            salePrice: item.salePrice,
+            discountPct: item.discountPct,
+            imageUrl: item.imageUrl || undefined,
+            productUrl: cleanUrl,
+            rating: item.rating ?? undefined,
+          })
+          newThisRound++
+        }
+      }
 
-      offers.push({
-        externalId: item.externalId || cleanUrl,
-        title: item.title,
-        originalPrice: item.originalPrice || item.salePrice,
-        salePrice: item.salePrice,
-        discountPct: item.discountPct,
-        imageUrl: item.imageUrl || undefined,
-        productUrl: cleanUrl,
-        rating: item.rating ?? undefined,
-      })
+      console.log(`[HubScraper] Scroll ${seen.size} produtos únicos (+${newThisRound} novos)`)
+      if (newThisRound === 0) {
+        noNewRounds++
+      } else {
+        noNewRounds = 0
+      }
+
+      if (seen.size >= MAX_PRODUCTS) break
+      await page.evaluate('window.scrollBy(0, 800)')
+      await page.waitForTimeout(1500)
     }
 
+    offers.push(...seen.values())
     console.log(`[HubScraper] ${offers.length} produtos coletados do hub`)
   } catch (error) {
     console.error('[HubScraper] Erro:', error)

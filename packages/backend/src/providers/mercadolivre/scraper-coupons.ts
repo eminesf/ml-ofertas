@@ -1,4 +1,4 @@
-import { BrowserContext } from 'playwright'
+import { BrowserContext, Page } from 'playwright'
 import { RawOffer, RawCoupon } from '../base.provider'
 import { getAuthenticatedContext } from './auth'
 import { prisma } from '../../utils/prisma'
@@ -26,40 +26,48 @@ function parseExpiryDate(text: string): Date | undefined {
 
 const PRODUCT_SCRIPT = `
 (function() {
+  function parseBRL(el) {
+    if (!el) return 0;
+    var text = (el.textContent || '').replace(/R\\$\\s*/g, '').trim();
+    var m = text.match(/([\\d.]+),([\\d]{2})/);
+    if (m) return parseFloat(m[1].replace(/\\./g, '') + '.' + m[2]);
+    var m2 = text.match(/([\\d.]+)/);
+    return m2 ? parseFloat(m2[1].replace(/\\./g, '')) : 0;
+  }
+
   var cards = document.querySelectorAll('.poly-card, [class*="product-card"], article');
   var results = [];
   var limit = Math.min(cards.length, 20);
   for (var i = 0; i < limit; i++) {
     var card = cards[i];
-    var linkEl = card.querySelector('a[href*="mercadolivre"]');
-    var titleEl = card.querySelector('[class*="title"]');
+    var linkEl = card.querySelector('a.poly-component__title, a[href*="mercadolivre.com.br"]');
+    var titleEl = card.querySelector('a.poly-component__title, [class*="title"]');
     var title = (titleEl ? (titleEl.textContent||'') : (linkEl ? (linkEl.textContent||'') : '')).trim();
     var productUrl = linkEl ? linkEl.href : '';
     if (!title || !productUrl) continue;
 
-    var origEl = card.querySelector('s, [class*="previous"]');
-    var origF = origEl ? ((origEl.querySelector('.andes-money-amount__fraction')||{textContent:'0'}).textContent.replace(/\./g,'')) : '0';
-    var origC = origEl ? ((origEl.querySelector('.andes-money-amount__cents')||{textContent:''}).textContent) : '';
-    var originalPrice = parseFloat(origC ? origF+'.'+origC : origF) || 0;
+    var origEl = card.querySelector('s.andes-money-amount--previous, .andes-money-amount--previous');
+    var originalPrice = parseBRL(origEl);
 
-    var saleEl = card.querySelector('[class*="current"]');
-    var saleF = saleEl ? ((saleEl.querySelector('.andes-money-amount__fraction')||{textContent:origF}).textContent.replace(/\./g,'')) : origF;
-    var saleC = saleEl ? ((saleEl.querySelector('.andes-money-amount__cents')||{textContent:''}).textContent) : '';
-    var salePrice = parseFloat(saleC ? saleF+'.'+saleC : saleF) || originalPrice;
+    var saleEl = card.querySelector('.poly-price__current .andes-money-amount--cents-superscript, .poly-price__current');
+    var salePrice = parseBRL(saleEl);
+    if (!salePrice) salePrice = originalPrice;
 
-    var discEl = card.querySelector('[class*="disc"]');
-    var discText = discEl ? discEl.textContent : '';
+    var discEl = card.querySelector('.poly-price__disc_label, [class*="disc_label"]');
+    var discText = discEl ? (discEl.textContent||'') : '';
     var dm = discText.match(/(\\d+)%/);
-    var discountPct = dm ? parseInt(dm[1]) : (originalPrice > 0 ? Math.round((1-salePrice/originalPrice)*100) : 0);
+    var discountPct = dm ? parseInt(dm[1]) : (originalPrice > 0 && salePrice > 0 ? Math.round((1-salePrice/originalPrice)*100) : 0);
 
-    var imageEl = card.querySelector('img');
-    var imageUrl = imageEl ? (imageEl.src||'') : '';
-    var ratingEl = card.querySelector('[class*="rating"]');
+    var imageEl = card.querySelector('img.poly-component__picture, img');
+    var imageUrl = imageEl ? (imageEl.src || imageEl.dataset.src || '') : '';
+    var ratingEl = card.querySelector('.poly-reviews__rating, [class*="rating"]');
     var rating = ratingEl ? parseFloat(ratingEl.textContent||'0') : null;
-    var idMatch = productUrl.match(/MLB\\d+/);
-    var externalId = idMatch ? idMatch[0] : productUrl.split('/').slice(-1)[0];
+    var idMatch = productUrl.match(/MLB-?(\\d+)/);
+    var externalId = idMatch ? 'MLB' + idMatch[1] : productUrl.split('/').slice(-1)[0];
 
-    results.push({ title: title, productUrl: productUrl, imageUrl: imageUrl, originalPrice: originalPrice, salePrice: salePrice, discountPct: discountPct, rating: rating, externalId: externalId });
+    if (salePrice > 0) {
+      results.push({ title: title, productUrl: productUrl, imageUrl: imageUrl, originalPrice: originalPrice, salePrice: salePrice, discountPct: discountPct, rating: rating, externalId: externalId });
+    }
   }
   return results;
 })()
@@ -68,40 +76,90 @@ const PRODUCT_SCRIPT = `
 const COUPON_LIST_SCRIPT = `
 (function() {
   var items = [];
-  var couponEls = document.querySelectorAll('[class*="generated-coupon"], [class*="coupon-item"]');
+  var couponEls = document.querySelectorAll('[class*="generated-coupon-item__details"]');
   for (var i = 0; i < couponEls.length; i++) {
     var el = couponEls[i];
-    var codeEl = el.querySelector('[class*="code"], code');
+    var codeEl = el.querySelector('b');
     var code = codeEl ? (codeEl.textContent||'').trim() : '';
-    var discEl = el.querySelector('[class*="discount"], [class*="valor"]');
+    var discEl = el.querySelector('[class*="inner-details-title"]');
     var discount = discEl ? (discEl.textContent||'').trim() : '';
-    var expEl = el.querySelector('[class*="secondary"], [class*="expir"], [class*="vence"]');
+    var expEl = el.querySelector('[class*="expiration"] span');
     var expiresText = expEl ? (expEl.textContent||'').trim() : '';
-    var linkEl = el.querySelector('a[class*="link"], a[href*="produtos"], a[href*="products"]');
-    var productLink = linkEl ? linkEl.href : '';
-    if (code) items.push({ code: code, discount: discount, expiresText: expiresText, productLink: productLink });
+    var hasLink = !!el.querySelector('a[class*="generated-coupon-item__link"]');
+    if (code) items.push({ code: code, discount: discount, expiresText: expiresText, index: i, hasLink: hasLink });
   }
   return items;
 })()
 `
 
-async function scrapeCouponProducts(
+async function getCouponMinValue(page: Page, couponIndex: number): Promise<number | undefined> {
+  try {
+    // Clica em "Condições do cupom" para abrir o modal
+    const triggers = await page.locator('[class*="modal-trigger"]').all()
+    if (!triggers[couponIndex]) return undefined
+
+    await triggers[couponIndex].click()
+    await page.waitForTimeout(1000)
+
+    // Lê o texto do modal
+    const modalText = await page.locator('[class*="andes-modal"] [class*="andes-typography--size-m"]')
+      .first()
+      .textContent({ timeout: 5000 })
+      .catch(() => '')
+
+    // Fecha o modal (botão X ou ESC)
+    await page.keyboard.press('Escape').catch(() => {})
+    await page.waitForTimeout(500)
+
+    if (!modalText) return undefined
+
+    // Extrai valor mínimo: "igual ou superior a R$ 120"
+    const match = modalText.match(/igual ou superior a R\$\s*([\d.]+)/i)
+    if (match) {
+      const value = parseFloat(match[1].replace(/\./g, ''))
+      console.log(`[CouponScraper] Condições do cupom: mínimo R$${value}`)
+      return value
+    }
+  } catch (err) {
+    console.log(`[CouponScraper] Não foi possível ler condições do cupom:`, err)
+  }
+  return undefined
+}
+
+async function scrapeProductsFromNewTab(
   ctx: BrowserContext,
-  productPageUrl: string,
-  affiliateIdFn?: (url: string) => string
-): Promise<RawOffer[]> {
-  const page = await ctx.newPage()
+  page: Page,
+  couponIndex: number
+): Promise<{ offers: RawOffer[], minValue?: number }> {
   const offers: RawOffer[] = []
+  let newPage: Page | undefined
+  let minValue: number | undefined
 
   try {
-    await page.goto(productPageUrl, { waitUntil: 'networkidle', timeout: 30000 })
-    await page.waitForTimeout(2000)
+    const links = await page.locator('a.generated-coupon-item__link').all()
+    if (!links[couponIndex]) {
+      console.log(`[CouponScraper] Link não encontrado no índice ${couponIndex}`)
+      return { offers }
+    }
 
-    const items = await page.evaluate(PRODUCT_SCRIPT) as Array<{
+    const [opened] = await Promise.all([
+      ctx.waitForEvent('page', { timeout: 10000 }),
+      links[couponIndex].click(),
+    ])
+    newPage = opened
+
+    await newPage.waitForLoadState('networkidle', { timeout: 30000 })
+    await newPage.waitForTimeout(1500)
+
+    console.log(`[CouponScraper] Nova aba aberta: ${newPage.url()}`)
+
+    const items = await newPage.evaluate(PRODUCT_SCRIPT) as Array<{
       title: string; productUrl: string; imageUrl: string
       originalPrice: number; salePrice: number; discountPct: number
       rating: number | null; externalId: string
     }>
+
+    console.log(`[CouponScraper] ${items.length} produtos encontrados na aba`)
 
     for (const item of items) {
       if (!item.title || !item.productUrl) continue
@@ -118,12 +176,12 @@ async function scrapeCouponProducts(
       })
     }
   } catch (err) {
-    console.error('[CouponScraper] Erro ao coletar produtos do cupom:', err)
+    console.error(`[CouponScraper] Erro ao raspar produtos da aba:`, err)
   } finally {
-    await page.close()
+    await newPage?.close().catch(() => {})
   }
 
-  return offers
+  return { offers, minValue }
 }
 
 export async function scrapeCouponsAndProducts(
@@ -141,6 +199,7 @@ export async function scrapeCouponsAndProducts(
     })
     await page.waitForTimeout(2000)
 
+    // Tenta clicar na aba "Códigos gerados" se existir
     try {
       const tabBtn = page.locator('button:has-text("Códigos gerados"), a:has-text("Códigos gerados")').first()
       await tabBtn.click({ timeout: 5000 })
@@ -150,24 +209,36 @@ export async function scrapeCouponsAndProducts(
     }
 
     const coupons = await page.evaluate(COUPON_LIST_SCRIPT) as Array<{
-      code: string; discount: string; expiresText: string; productLink: string
+      code: string; discount: string; expiresText: string; index: number; hasLink: boolean
     }>
 
     console.log(`[CouponScraper] ${coupons.length} cupons encontrados`)
 
     for (const c of coupons) {
+      console.log(`[CouponScraper] Processando cupom ${c.code} (hasLink: ${c.hasLink})`)
       const expiresAt = parseExpiryDate(c.expiresText)
-      const products = c.productLink
-        ? await scrapeCouponProducts(ctx, c.productLink, affiliateIdFn)
-        : []
+
+      let products: RawOffer[] = []
+      let minValue: number | undefined
+
+      if (c.hasLink) {
+        // Lê condições do cupom (abre modal) antes de navegar para nova aba
+        minValue = await getCouponMinValue(page, c.index)
+
+        const result2 = await scrapeProductsFromNewTab(ctx, page, c.index)
+        products = result2.offers
+      }
 
       result.push({
         code: c.code,
         discount: c.discount,
         expiresAt,
+        minValue,
         category: 'geral',
         products,
       })
+
+      console.log(`[CouponScraper] Cupom ${c.code}: ${products.length} produtos${minValue ? ` | mínimo R$${minValue}` : ''}`)
     }
 
     await persistCoupons(result)
@@ -193,12 +264,14 @@ async function persistCoupons(coupons: ScrapedCoupon[]): Promise<void> {
           provider: 'mercadolivre',
           code: c.code,
           discount: c.discount,
+          minValue: c.minValue,
           expiresAt: c.expiresAt,
           active: !isExpired,
           category: c.category || 'geral',
         },
         update: {
           discount: c.discount,
+          minValue: c.minValue,
           expiresAt: c.expiresAt,
           active: !isExpired,
         }

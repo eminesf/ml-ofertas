@@ -6,7 +6,7 @@ const SESSION_PATH = path.resolve(__dirname, '../../../../.ml-session.json')
 
 async function createBrowserBase() {
   return chromium.launch({
-    headless: true,
+    headless: false,
     args: [
       '--disable-blink-features=AutomationControlled',
       '--no-sandbox',
@@ -50,20 +50,33 @@ async function doLogin(context: BrowserContext): Promise<void> {
     await page.fill('#user_id, input[name="user_id"], input[type="email"]', email)
     await page.click('button[type="submit"], .login-button')
 
-    await page.waitForSelector('#password, input[name="password"], input[type="password"]', { timeout: 15000 })
-    await page.fill('#password, input[name="password"], input[type="password"]', password)
-    await page.click('button[type="submit"], .login-button')
+    const isLoggedInUrl = (href: string) =>
+      href.includes('mercadolivre.com.br') &&
+      !href.includes('/login') &&
+      !href.includes('challenge') &&
+      !href.includes('verify') &&
+      !href.includes('totp') &&
+      !href.includes('jms/mlb')
 
-    await page.waitForNavigation({ waitUntil: 'networkidle', timeout: 30000 })
-    console.log('[Auth] Login realizado. URL atual:', page.url())
+    // ML pode pedir senha OU fazer login direto via WhatsApp/QR code.
+    // Espera o que vier primeiro: campo de senha ou URL de logado.
+    console.log('[Auth] Complete as verificações no browser (WhatsApp, QR code, senha, etc). Aguardando até 5 min...')
+    const outcome = await Promise.race([
+      page.waitForSelector('#password, input[name="password"], input[type="password"]', { timeout: 300000 })
+        .then(() => 'password' as const),
+      page.waitForURL(u => isLoggedInUrl(u.toString()), { timeout: 300000 })
+        .then(() => 'logged-in' as const),
+    ])
 
-    // 2FA — aguarda se precisar de interação manual (até 60s)
-    const url = page.url()
-    if (url.includes('challenge') || url.includes('verify')) {
-      console.log('[Auth] 2FA detectado. Aguardando resolução manual (60s)...')
-      await page.waitForNavigation({ waitUntil: 'networkidle', timeout: 60000 })
+    if (outcome === 'password') {
+      console.log('[Auth] Campo de senha detectado. Preenchendo...')
+      const passField = await page.$('#password, input[name="password"], input[type="password"]')
+      await passField?.fill(password)
+      await page.click('button[type="submit"], .login-button')
+      await page.waitForURL(u => isLoggedInUrl(u.toString()), { timeout: 300000 })
     }
 
+    console.log('[Auth] Login realizado. URL atual:', page.url())
     await context.storageState({ path: SESSION_PATH })
     console.log('[Auth] Sessão salva em', SESSION_PATH)
   } finally {
