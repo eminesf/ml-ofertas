@@ -335,6 +335,83 @@ npm run job:post      # posta as 5 melhores ofertas pendentes agora
 npm run job:repost    # repost de ofertas já postadas (máx 2x/dia)
 ```
 
+## Deploy
+
+### Situação atual — Rodando local ✅
+O bot roda na máquina do desenvolvedor. `npm run start` (ou `npm run dev`) sobe o Express + scheduler no mesmo processo. O scheduler dispara os crons automaticamente.
+
+Para manter o processo vivo sem travar o terminal:
+```bash
+npm install -g pm2
+cd packages/backend
+npm run build
+pm2 start "npm run start" --name ml-afiliados
+pm2 save  # persiste entre reinicializações do PC
+```
+
+**Limitação:** se o computador desligar ou perder internet, os jobs param.
+
+### Por que não está em servidor ainda — Problema do Playwright
+O scraper do hub e dos cupons usa Playwright com `headless: false` no **primeiro login** para o usuário interagir manualmente (email → WhatsApp code → QR). Servidores remotos (Railway, VPS) não têm interface gráfica, então esse fluxo não funciona remotamente.
+
+Após o primeiro login, a sessão é salva em `.ml-session.json` na raiz do projeto e reutilizada em modo headless indefinidamente. Sessões do ML duram semanas.
+
+### Deploy futuro — Opção A (recomendada): sessão local → env var no servidor
+
+**Passo a passo quando quiser migrar para Railway:**
+
+1. **Gerar sessão localmente** (já está feita se você usou `test:hub` ou `job:hub`):
+   ```bash
+   # Verifica se o arquivo existe
+   cat .ml-session.json
+   ```
+
+2. **Converter o JSON para variável de ambiente:**
+   ```bash
+   # Copia o conteúdo do arquivo
+   cat .ml-session.json
+   # Cole o valor inteiro na env ML_SESSION_JSON no Railway
+   ```
+
+3. **Modificar `auth.ts`** para ler a sessão da env quando disponível:
+   ```typescript
+   // Em auth.ts, antes de tentar ler o arquivo .ml-session.json:
+   if (process.env.ML_SESSION_JSON) {
+     const session = JSON.parse(process.env.ML_SESSION_JSON)
+     // salva no arquivo para o Playwright usar
+     fs.writeFileSync(SESSION_PATH, JSON.stringify(session))
+   }
+   ```
+
+4. **Dockerfile para Railway** (Playwright precisa do Chromium):
+   ```dockerfile
+   FROM node:20-slim
+   RUN apt-get update && apt-get install -y \
+     chromium fonts-noto-color-emoji \
+     --no-install-recommends && rm -rf /var/lib/apt/lists/*
+   ENV PLAYWRIGHT_BROWSERS_PATH=/usr/bin
+   WORKDIR /app
+   COPY . .
+   RUN npm install
+   RUN cd packages/backend && npx prisma generate && npm run build
+   EXPOSE 3001
+   CMD ["sh", "-c", "cd packages/backend && npx prisma migrate deploy && npm run start"]
+   ```
+
+5. **Envs a configurar no Railway:**
+   ```
+   ANTHROPIC_API_KEY, TELEGRAM_BOT_TOKEN, TELEGRAM_CHANNEL_ID,
+   ML_AFFILIATE_ID, ML_AFFILIATE_WORD, ML_EMAIL, ML_PASSWORD,
+   ML_HUB_MAX_PRODUCTS, ML_POST_MAX,
+   ML_SESSION_JSON   ← conteúdo do .ml-session.json
+   ```
+
+6. **Quando a sessão expirar** (semanas depois): gera nova sessão localmente com `npm run test:hub`, copia o novo `.ml-session.json` e atualiza a env `ML_SESSION_JSON` no Railway.
+
+7. **Vercel (frontend):** Root Directory = `packages/frontend`, env `NEXT_PUBLIC_API_URL=https://seu-projeto.up.railway.app`
+
+---
+
 ## Próximos passos
 - [x] Configurar bot no @BotFather e criar canal público no Telegram — canal: `@e_foxofertas`
 - [x] Preencher TELEGRAM_BOT_TOKEN e TELEGRAM_CHANNEL_ID no .env
@@ -366,6 +443,24 @@ npm run job:repost    # repost de ofertas já postadas (máx 2x/dia)
   - Produto abaixo do mínimo → "Adicione ao carrinho com outros itens (mín. R$X)"
 - [x] Testar pipeline completo: `npm run job:scrape` → `npm run job:post` — 5 posts enviados com sucesso ✅
 - [x] Cadastrar canal `@e_foxofertas` no painel ML Afiliados ✅ — em mercadolivre.com.br/afiliados, seção Plataformas/Canais
-- [ ] Deploy Railway (backend) + Vercel (frontend)
+- [ ] Deploy Railway + Vercel — ver seção "Deploy" acima com Opção A (sessão via env var)
+- [ ] Migrar banco para nuvem (ver opções abaixo) para frontend no Vercel funcionar independente do backend local
 - [ ] Melhorar frontend (filtros por categoria, busca)
 - [ ] Adicionar segundo provider (Amazon Afiliados)
+
+### Opções de banco em nuvem
+
+**Opção 1 — PostgreSQL no Railway (recomendada se for fazer deploy lá de qualquer forma)**
+- Cria um serviço PostgreSQL no Railway, ele gera uma `DATABASE_URL`
+- Muda `schema.prisma`: `provider = "postgresql"`
+- Instala driver: `npm install pg`
+- Sobe `DATABASE_URL` nas envs locais e no Railway
+- Backend local escreve no Railway, frontend no Vercel lê via API do backend (ou diretamente via Prisma)
+- Free tier: $5 de crédito grátis, depois cobra por uso
+
+**Opção 2 — Turso (SQLite na nuvem, menor mudança no código)**
+- SQLite-compatível, usa driver `libSQL` via `@prisma/adapter-turso`
+- Instala: `npm install @libsql/client @prisma/adapter-turso`
+- Muda `schema.prisma`: `provider = "sqlite"` → `url = env("TURSO_DATABASE_URL")`
+- Frontend no Vercel pode ler o banco diretamente nos server components (sem precisar do Express)
+- Free tier generoso: 500MB, 1 bilhão de reads/mês
