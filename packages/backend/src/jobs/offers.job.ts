@@ -1,6 +1,6 @@
 import { prisma } from '../utils/prisma'
 import { AffiliateProvider } from '../providers/base.provider'
-import { evaluateOffer, generatePostMessage, analyzeMarketValue, evaluateCouponOffer, generateCouponPostMessage, CouponContext } from '../ai'
+import { evaluateOffer, generatePostMessage, analyzeMarketValue, evaluateCouponOffer, generateCouponPostMessage, CouponContext, GeneratedPost } from '../ai'
 import { sendPhoto, sendMessage } from '../channels/telegram'
 import { Offer } from '@prisma/client'
 import { scrapeHubProducts } from '../providers/mercadolivre/scraper-hub'
@@ -13,7 +13,7 @@ const MIN_AI_SCORE = 6
 const MAX_REPOSTS_PER_DAY = 2
 const REPOST_INTERVAL_HOURS = 4
 
-export function shouldRepost(offer: Offer & { posts: { sentAt: Date; success: boolean }[] }): boolean {
+function shouldRepost(offer: Offer & { posts: { sentAt: Date; success: boolean }[] }): boolean {
   const now = new Date()
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
 
@@ -187,13 +187,9 @@ export async function runOffersJob(provider: AffiliateProvider) {
   console.log(`[Job] Iniciando job de ofertas: ${provider.name}`)
 
   let rawOffers: any[] = []
-  let rawCoupons: any[] = []
 
   try {
-    [rawOffers, rawCoupons] = await Promise.all([
-      provider.scrapeOffers(),
-      provider.scrapeCoupons()
-    ])
+    rawOffers = await provider.scrapeOffers()
   } catch (err) {
     console.error('[Job] Erro no scraping:', err)
     return
@@ -203,8 +199,7 @@ export async function runOffersJob(provider: AffiliateProvider) {
 
   for (const raw of rawOffers) {
     try {
-      const coupon = rawCoupons.find((c: any) => !c.category || c.category === raw.category)
-      await processOffer(raw, provider, coupon?.code, 'offers-page')
+      await processOffer(raw, provider, undefined, 'offers-page')
     } catch (err) {
       console.error(`[Job] Erro ao processar oferta ${raw.externalId}:`, err)
     }
@@ -327,12 +322,23 @@ export async function runRepostJob() {
     try {
       if (!shouldRepost(offer)) continue
 
-      const generated = await generatePostMessage(
-        { externalId: offer.externalId, title: offer.title, originalPrice: offer.originalPrice, salePrice: offer.salePrice, discountPct: offer.discountPct, imageUrl: offer.imageUrl || undefined, productUrl: offer.productUrl, rating: offer.rating || undefined },
-        offer.affiliateUrl,
-        offer.couponCode || undefined,
-        offer.suggestedHighlight || undefined
-      )
+      const rawOffer = { externalId: offer.externalId, title: offer.title, originalPrice: offer.originalPrice, salePrice: offer.salePrice, discountPct: offer.discountPct, imageUrl: offer.imageUrl || undefined, productUrl: offer.productUrl, rating: offer.rating || undefined }
+      let generated: GeneratedPost
+
+      if (offer.source === 'coupon' && offer.couponCode) {
+        const coupon = await prisma.coupon.findFirst({ where: { code: offer.couponCode, provider: offer.provider } })
+        if (coupon) {
+          const discountAmount = parseCouponDiscount(coupon.discount)
+          const canApplyAlone = !coupon.minValue || offer.salePrice >= coupon.minValue
+          const effectivePrice = canApplyAlone ? Math.max(0, offer.salePrice - discountAmount) : offer.salePrice
+          const couponCtx: CouponContext = { code: coupon.code, discount: coupon.discount, effectivePrice, minValue: coupon.minValue ?? undefined, canApplyAlone }
+          generated = await generateCouponPostMessage(rawOffer, offer.affiliateUrl, couponCtx, offer.suggestedHighlight || undefined)
+        } else {
+          generated = await generatePostMessage(rawOffer, offer.affiliateUrl, offer.couponCode, offer.suggestedHighlight || undefined)
+        }
+      } else {
+        generated = await generatePostMessage(rawOffer, offer.affiliateUrl, offer.couponCode || undefined, offer.suggestedHighlight || undefined)
+      }
 
       const success = offer.imageUrl
         ? await sendPhoto(offer.imageUrl, generated.telegram)

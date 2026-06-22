@@ -28,6 +28,7 @@ model Offer {
   telegramMessage    String?
   whatsappMessage    String?
   source             String    @default("offers-page")
+  upvotes            Int       @default(0)
   createdAt          DateTime  @default(now())
   posts              Post[]
 }

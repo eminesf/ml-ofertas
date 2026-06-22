@@ -1,126 +1,94 @@
 import { getOffers } from '@/lib/api'
 import OfferCard from '@/components/OfferCard'
-import Filters from '@/components/Filters'
-
-interface SearchParams {
-  categoria?: string
-  desconto?: string
-  ordenar?: string
-  pagina?: string
-}
 
 export const metadata = {
   title: 'FuchsOfertas — Melhores Ofertas do Dia',
   description: 'Ofertas selecionadas com desconto real do Mercado Livre, avaliadas por IA',
 }
 
+const TABS = [
+  { label: '🕐 Novos', value: 'recent' },
+  { label: '🔥 Quentes', value: 'votes' },
+  { label: '% Descontos', value: 'discount' },
+  { label: '⭐ IA Score', value: 'score' },
+] as const
+
+const PAGE_SIZE = 20
+
+interface SearchParams {
+  ordenar?: string
+  pagina?: string
+}
+
 export default async function HomePage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const params = await searchParams
   const page = Number(params.pagina) || 1
-  const sort = (params.ordenar as 'discount' | 'recent' | 'score') || 'recent'
-  const minDiscount = Number(params.desconto) || undefined
+  const sort = (params.ordenar as 'recent' | 'votes' | 'discount' | 'score') || 'recent'
 
-  const { offers, total } = await getOffers({
-    limit: 24,
-    page,
-    sort,
-    minDiscount,
-    category: params.categoria,
-  })
-
-  const topOffer = offers[0]
-  const totalPages = Math.ceil(total / 24)
+  const { offers, total } = await getOffers({ limit: PAGE_SIZE, page, sort })
+  const totalPages = Math.ceil(total / PAGE_SIZE)
 
   return (
-    <main style={{ maxWidth: 1200, margin: '0 auto', padding: '1.5rem 1rem' }}>
-      {/* Banner destaque */}
-      {topOffer && (
-        <a
-          href={`/oferta/${topOffer.id}`}
-          style={{
-            display: 'flex', gap: '1.5rem', background: '#fff',
-            borderRadius: 16, overflow: 'hidden', marginBottom: '2rem',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.1)', textDecoration: 'none', color: 'inherit',
-            alignItems: 'center', padding: '1.5rem',
-          }}
-        >
-          {topOffer.imageUrl && (
-            <img
-              src={topOffer.imageUrl}
-              alt={topOffer.title}
-              style={{ width: 160, height: 160, objectFit: 'contain', flexShrink: 0 }}
-            />
-          )}
-          <div style={{ flex: 1 }}>
-            <span style={{ background: '#e53e3e', color: '#fff', fontSize: 13, fontWeight: 700, padding: '3px 10px', borderRadius: 20 }}>
-              🔥 Destaque do dia — -{topOffer.discountPct}% OFF
-            </span>
-            <h2 style={{ margin: '0.75rem 0 0.5rem', fontSize: 20, fontWeight: 700, lineHeight: 1.3 }}>
-              {topOffer.title}
-            </h2>
-            <div>
-              {topOffer.originalPrice > topOffer.salePrice && (
-                <span style={{ color: '#999', textDecoration: 'line-through', fontSize: 14, marginRight: 8 }}>
-                  R$ {topOffer.originalPrice.toFixed(2).replace('.', ',')}
-                </span>
-              )}
-              <span style={{ fontSize: 28, fontWeight: 800, color: '#1a1a1a' }}>
-                R$ {topOffer.salePrice.toFixed(2).replace('.', ',')}
-              </span>
-            </div>
-            {topOffer.suggestedHighlight && (
-              <p style={{ color: '#2d7d46', fontWeight: 600, margin: '0.5rem 0 0', fontSize: 14 }}>
-                ✅ {topOffer.suggestedHighlight}
-              </p>
-            )}
-          </div>
-          <span style={{
-            background: '#FFE600', color: '#333', padding: '12px 24px',
-            borderRadius: 10, fontWeight: 700, fontSize: 15, whiteSpace: 'nowrap', flexShrink: 0,
-          }}>
-            Ver oferta →
-          </span>
-        </a>
-      )}
-
-      {/* Título + filtros */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem', marginBottom: '1.25rem' }}>
-        <h1 style={{ margin: 0, fontSize: '1.4rem', fontWeight: 700 }}>
-          Melhores ofertas do dia
-          <span style={{ color: '#888', fontWeight: 400, fontSize: '0.9rem', marginLeft: 8 }}>
-            ({total} ofertas)
-          </span>
-        </h1>
-        <Filters sort={sort} minDiscount={minDiscount} />
+    <main style={{ maxWidth: 860, margin: '0 auto', padding: '1.5rem 1rem' }}>
+      {/* Tabs de ordenação */}
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 4,
+        marginBottom: '1.25rem', borderBottom: '2px solid #e5e5e5',
+        paddingBottom: '0.75rem', flexWrap: 'wrap',
+      }}>
+        {TABS.map(tab => (
+          <a
+            key={tab.value}
+            href={`?ordenar=${tab.value}`}
+            style={{
+              textDecoration: 'none', fontWeight: 600, fontSize: 14,
+              padding: '6px 14px', borderRadius: 20,
+              background: sort === tab.value ? '#FFE600' : 'transparent',
+              color: sort === tab.value ? '#333' : '#666',
+              transition: 'background 0.15s',
+            }}
+          >
+            {tab.label}
+          </a>
+        ))}
+        <span style={{ marginLeft: 'auto', color: '#999', fontSize: 13 }}>
+          {total} ofertas
+        </span>
       </div>
 
-      {/* Grid de ofertas */}
+      {/* Feed */}
       {offers.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '4rem', color: '#888' }}>
+        <div style={{ textAlign: 'center', padding: '4rem 1rem', color: '#888' }}>
           <p style={{ fontSize: 48, margin: 0 }}>🛍️</p>
-          <p>Nenhuma oferta encontrada com esses filtros.</p>
+          <p>Nenhuma oferta disponível ainda.</p>
         </div>
       ) : (
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))',
-          gap: '1rem',
-        }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
           {offers.map(offer => <OfferCard key={offer.id} offer={offer} />)}
         </div>
       )}
 
       {/* Paginação */}
       {totalPages > 1 && (
-        <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem', marginTop: '2rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'center', gap: '0.375rem', marginTop: '2rem', flexWrap: 'wrap' }}>
           {page > 1 && (
-            <a href={`?pagina=${page - 1}`} style={pageBtn}>← Anterior</a>
+            <a href={`?ordenar=${sort}&pagina=${page - 1}`} style={pageBtn}>← Anterior</a>
           )}
-          <span style={{ ...pageBtn, background: '#FFE600', fontWeight: 700 }}>
-            {page} / {totalPages}
-          </span>
+          {buildPageNumbers(page, totalPages).map((p, i) =>
+            p === '...' ? (
+              <span key={`ellipsis-${i}`} style={{ ...pageBtn, cursor: 'default', color: '#999' }}>…</span>
+            ) : (
+              <a
+                key={p}
+                href={`?ordenar=${sort}&pagina=${p}`}
+                style={{ ...pageBtn, ...(p === page ? activePage : {}) }}
+              >
+                {p}
+              </a>
+            )
+          )}
           {page < totalPages && (
-            <a href={`?pagina=${page + 1}`} style={pageBtn}>Próxima →</a>
+            <a href={`?ordenar=${sort}&pagina=${page + 1}`} style={pageBtn}>Próxima →</a>
           )}
         </div>
       )}
@@ -128,8 +96,22 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
   )
 }
 
+function buildPageNumbers(current: number, total: number): (number | '...')[] {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1)
+  const pages: (number | '...')[] = [1]
+  if (current > 3) pages.push('...')
+  for (let p = Math.max(2, current - 1); p <= Math.min(total - 1, current + 1); p++) pages.push(p)
+  if (current < total - 2) pages.push('...')
+  pages.push(total)
+  return pages
+}
+
 const pageBtn: React.CSSProperties = {
-  textDecoration: 'none', color: '#333',
+  textDecoration: 'none', color: '#555',
   background: '#fff', border: '1px solid #ddd',
-  padding: '8px 18px', borderRadius: 8, fontWeight: 600, fontSize: 14,
+  padding: '7px 14px', borderRadius: 8, fontWeight: 600, fontSize: 13,
+}
+
+const activePage: React.CSSProperties = {
+  background: '#FFE600', border: '1px solid #e6c800', color: '#333',
 }

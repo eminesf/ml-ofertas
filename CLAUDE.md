@@ -1,12 +1,12 @@
 # ML Afiliados Bot — Contexto do Projeto
 
 ## O que é
-Bot automatizado de ofertas para afiliados do Mercado Livre. Scrapa ofertas públicas do ML, avalia com IA (Claude), gera copy chamativo e posta em canal público do Telegram. Site Next.js exibe as ofertas e serve como plataforma cadastrada no programa de afiliados.
+Bot automatizado de ofertas para afiliados do Mercado Livre. Scrapa ofertas públicas do ML, avalia com IA (Claude), gera copy chamativo e posta em canal público do Telegram. Site Next.js exibe as ofertas como feed estilo pelando.com.br e serve como plataforma cadastrada no programa de afiliados.
 
 ## Stack
 - **Monorepo** npm workspaces
 - **Backend**: Node.js + TypeScript + Express + Prisma + SQLite + node-cron + Playwright
-- **Frontend**: Next.js 15 (App Router)
+- **Frontend**: Next.js 15 (App Router) — SSR + client components para interatividade
 - **IA**: Claude API (`claude-haiku-4-5`) via `@anthropic-ai/sdk@^0.105.0` — escolhido por custo (~3x mais barato que Sonnet, ~$0.05/run, ~$5 dura ~12-18 dias)
 - **Canal**: Telegram Bot API (REST)
 - **Hospedagem futura**: Railway (backend) + Vercel (frontend)
@@ -19,29 +19,35 @@ ml-afiliados/
 │   │   ├── prisma/schema.prisma
 │   │   └── src/
 │   │       ├── providers/
-│   │       │   ├── base.provider.ts              # interface AffiliateProvider
+│   │       │   ├── base.provider.ts              # interface AffiliateProvider (name, scrapeOffers, buildAffiliateLink)
 │   │       │   └── mercadolivre/
 │   │       │       ├── index.ts                  # scraper público /ofertas
 │   │       │       ├── auth.ts                   # login ML + sessão salva
 │   │       │       ├── scraper-hub.ts            # scraper /afiliados/hub
 │   │       │       └── scraper-coupons.ts        # scraper /afiliados/coupons
 │   │       ├── jobs/
-│   │       │   ├── offers.job.ts                 # pipeline: scrape, IA, posting
+│   │       │   ├── offers.job.ts                 # pipeline: scrape, IA, posting, repost
 │   │       │   └── scheduler.ts                  # cron jobs agendados
 │   │       ├── ai/index.ts                       # evaluateOffer + analyzeMarketValue + generatePostMessage
 │   │       ├── channels/telegram/index.ts        # sendMessage + sendPhoto
 │   │       ├── api/routes/
-│   │       │   ├── offers.ts                     # GET /api/offers
+│   │       │   ├── offers.ts                     # GET /api/offers + POST /vote + POST /downvote
 │   │       │   └── posts.ts                      # GET /api/posts
 │   │       ├── utils/prisma.ts                   # singleton PrismaClient
 │   │       └── index.ts                          # Express entry point (porta 3001)
 │   └── frontend/
 │       └── src/
 │           ├── app/
-│           │   ├── layout.tsx
-│           │   └── page.tsx                      # grid de ofertas (SSR)
-│           ├── components/OfferCard.tsx
-│           └── lib/api.ts                        # fetch do backend
+│           │   ├── globals.css                   # reset box-sizing + hide CTA em mobile (<520px)
+│           │   ├── layout.tsx                    # header amarelo, footer, importa globals.css
+│           │   ├── page.tsx                      # feed lista com tabs de ordenação (SSR)
+│           │   ├── oferta/[id]/page.tsx          # página de detalhe com VoteButton (SSR)
+│           │   └── categoria/[slug]/page.tsx     # feed filtrado por categoria (SSR)
+│           ├── components/
+│           │   ├── OfferCard.tsx                 # card horizontal estilo pelando (server component)
+│           │   ├── VoteButton.tsx                # botão de upvote com localStorage ('use client')
+│           │   └── Filters.tsx                   # (legado — não usado; pode remover)
+│           └── lib/api.ts                        # fetch do backend + tipos Offer/Post + voteOffer()
 ├── .env
 ├── .ml-session.json                              # sessão ML salva pelo auth (gerado em runtime)
 └── package.json                                  # concurrently dev
@@ -88,7 +94,8 @@ model Offer {
   telegramMessage    String?            // copy gerado — null = pendente de geração
   whatsappMessage    String?
   source             String             // "offers-page" | "hub" | "coupon"
-  createdAt          DateTime @default(now())
+  upvotes            Int       @default(0)  // votos da comunidade no site
+  createdAt          DateTime  @default(now())
   posts              Post[]
 }
 
@@ -117,6 +124,91 @@ model Post {
   success         Boolean   @default(true)
 }
 ```
+
+## API REST (backend Express — porta 3001)
+
+### GET /api/offers
+Parâmetros: `provider`, `category`, `page`, `limit` (padrão 20, máx 100), `minDiscount`, `sort`
+
+Valores de `sort`:
+- `recent` (padrão) → `createdAt DESC`
+- `votes` → `upvotes DESC` (mais votadas pela comunidade)
+- `discount` → `discountPct DESC`
+- `score` → `aiScore DESC`
+
+Resposta: `{ offers, total, page, limit }` — cada oferta inclui o campo `upvotes`.
+
+### POST /api/offers/:id/vote
+Incrementa `upvotes` em 1. Resposta: `{ upvotes: number }`
+
+### POST /api/offers/:id/downvote
+Decrementa `upvotes` em 1 (pode ir negativo). Resposta: `{ upvotes: number }`
+
+### GET /api/offers/:id
+Retorna oferta completa com todos os posts.
+
+### GET /api/posts
+Lista posts do Telegram.
+
+## Frontend — Feed estilo pelando.com.br
+
+### Layout geral
+- Header amarelo (#FFE600) com logo, navegação por categoria e link do Telegram
+- Feed vertical com 20 ofertas por página (SSR via Next.js)
+- Paginação numérica com reticências inteligente (`buildPageNumbers`)
+- Background cinza (#f0f0f0), cards brancos com borda sutil
+
+### Tabs de ordenação (page.tsx)
+Quatro tabs no topo do feed, alteram `?ordenar=` na URL (full page navigation, sem JS):
+- 🕐 **Novos** (`ordenar=recent`) — padrão
+- 🔥 **Quentes** (`ordenar=votes`) — mais upvotes
+- **% Descontos** (`ordenar=discount`) — maior desconto
+- **⭐ IA Score** (`ordenar=score`) — melhor avaliado pela IA
+
+### OfferCard (horizontal, server component)
+Layout em 4 colunas:
+```
+| VoteButton | Imagem (110px) | Info (flex) | Botão "Ver oferta →" |
+```
+- **VoteButton**: coluna de 58px, fundo #fafafa
+- **Imagem**: link para `/oferta/:id`, 110×110px, objectFit contain
+- **Info**: link para `/oferta/:id`, contém badges, título (2 linhas clampadas), preço, meta (rating + timeAgo + destaque IA)
+- **CTA**: link externo para `affiliateUrl`, fundo #FFE600, hidden em mobile (<520px via CSS class `offer-cta`)
+
+Badges exibidos:
+- `-X% OFF` (vermelho) — sempre
+- `🎟️ Cupom` (âmbar) — se `couponCode` presente
+- `⭐ IA X/10` (verde) — apenas se `aiScore >= 8`
+
+### VoteButton (client component — 'use client')
+- Botão ▲ que incrementa/decrementa `upvotes` via `POST /api/offers/:id/vote` ou `/downvote`
+- **Estado persistido em localStorage** — chave `vote_{offerId}`, valor `'1'`
+- Toggle: clicar novamente desfaz o voto (chama downvote e remove do localStorage)
+- Cor do contador baseada em temperatura:
+  - `> 10` upvotes → laranja escuro (#ea580c) — oferta quente
+  - `1-10` upvotes → laranja (#f97316)
+  - `0` → cinza (#bbb)
+  - `< 0` → azul (#3b82f6)
+- Exibe `N°` (com símbolo de grau, referência à temperatura do pelando)
+- CORS já habilitado no backend (`app.use(cors())`), chamada direta para `NEXT_PUBLIC_API_URL`
+
+### timeAgo (utilitário inline em OfferCard.tsx)
+```typescript
+function timeAgo(dateStr: string): string
+// < 60s → "agora"
+// < 1h  → "Xmin atrás"
+// < 1d  → "Xh atrás"
+// < 7d  → "Xd atrás"
+// else  → data localizada pt-BR
+```
+
+### Página de detalhe (/oferta/:id)
+- Layout 2 colunas: imagem à esquerda, detalhes à direita
+- VoteButton centralizado abaixo da imagem com texto "Essa oferta é boa?"
+- Badge de aiScore visível
+- Box de cupom com código destacado (copiável visualmente)
+- CTA externo para `affiliateUrl`
+- Seção "Ofertas relacionadas" em lista vertical (4 cards)
 
 ## Pipeline — Scraping (offers.job.ts → processOffer)
 O scraping é **separado do posting**. O job de scrape só salva no banco.
@@ -161,10 +253,10 @@ Job de posting busca ofertas prontas e as posta de forma cadenciada:
 
 ## Agendamento (scheduler.ts)
 ```
-6h diário   → job:offers  — scrape /ofertas públicas (48 produtos) → salva no banco
-7h diário   → job:hub     — scrape /afiliados/hub (até 50 produtos, "Mais vendidos") → salva no banco
-a cada 20min → job:post   — posta até 3 ofertas pendentes no Telegram
-12h e 20h   → job:repost  — repost de ofertas antigas (máx 2x/dia por oferta)
+6h diário    → job:offers  — scrape /ofertas públicas (48 produtos) → salva no banco
+7h diário    → job:hub     — scrape /afiliados/hub (até 50 produtos, "Mais vendidos") → salva no banco
+a cada 20min → job:post    — posta até 3 ofertas pendentes no Telegram
+12h e 20h    → job:repost  — repost de ofertas antigas (máx 2x/dia por oferta)
 ```
 
 ## Scraper ML — Detalhes técnicos
@@ -305,6 +397,8 @@ cd ../..
 npm run dev
 ```
 
+**Nota Windows:** `prisma generate` pode falhar com EPERM se o backend estiver rodando (DLL travada pelo processo Node). Pare o servidor, gere, depois suba novamente. Os tipos TypeScript são gerados antes do erro do DLL — verificar com `Select-String -Path node_modules/.prisma/client/index.d.ts -Pattern "campo_novo"`.
+
 ### Scripts disponíveis (dentro de `packages/backend`)
 
 ```bash
@@ -362,23 +456,16 @@ Após o primeiro login, a sessão é salva em `.ml-session.json` na raiz do proj
 
 1. **Gerar sessão localmente** (já está feita se você usou `test:hub` ou `job:hub`):
    ```bash
-   # Verifica se o arquivo existe
    cat .ml-session.json
    ```
 
 2. **Converter o JSON para variável de ambiente:**
-   ```bash
-   # Copia o conteúdo do arquivo
-   cat .ml-session.json
-   # Cole o valor inteiro na env ML_SESSION_JSON no Railway
-   ```
+   Cole o conteúdo inteiro na env `ML_SESSION_JSON` no Railway.
 
 3. **Modificar `auth.ts`** para ler a sessão da env quando disponível:
    ```typescript
-   // Em auth.ts, antes de tentar ler o arquivo .ml-session.json:
    if (process.env.ML_SESSION_JSON) {
      const session = JSON.parse(process.env.ML_SESSION_JSON)
-     // salva no arquivo para o Playwright usar
      fs.writeFileSync(SESSION_PATH, JSON.stringify(session))
    }
    ```
@@ -425,7 +512,7 @@ Após o primeiro login, a sessão é salva em `.ml-session.json` na raiz do proj
 - [x] IA corrigida: `stripMarkdown()` antes do `JSON.parse` (Haiku retorna JSON em code blocks)
 - [x] Todos os produtos scrapados salvos no banco independente de filtros
 - [x] Scraping separado do posting — `processOffer` só salva, `runPostingJob` só posta
-- [x] Schedule: scrape 1x/dia (6h ofertas, 7h hub), posting a cada 2h (máx 2 por vez)
+- [x] Schedule: scrape 1x/dia (6h ofertas, 7h hub), posting a cada 20min (máx 3 por vez)
 - [x] Seletores do scraper de cupons corrigidos com HTML real confirmado
 - [x] Scraper de cupons refatorado: usa mesma página carregada para clicar "Ver produtos" (evita renavegação)
 - [x] `test:hub` cobre hub + cupons em sequência
@@ -438,15 +525,27 @@ Após o primeiro login, a sessão é salva em `.ml-session.json` na raiz do proj
 - [x] `CouponContext.canApplyAlone` — distingue produto acima/abaixo do mínimo do carrinho ✅
 - [x] `effectivePrice` corrigido — produto abaixo do mínimo mantém preço original (não subtrai cupom) ✅
 - [x] IA não penaliza `minValue` — produtos abaixo do mínimo são incentivados como âncoras de carrinho ✅
-- [x] Copy do cupom adaptado por `canApplyAlone`:
-  - Produto acima do mínimo → "Você paga: R$X" (preço final com cupom)
-  - Produto abaixo do mínimo → "Adicione ao carrinho com outros itens (mín. R$X)"
+- [x] Copy do cupom adaptado por `canApplyAlone` (preço final vs instrução de carrinho)
 - [x] Testar pipeline completo: `npm run job:scrape` → `npm run job:post` — 5 posts enviados com sucesso ✅
-- [x] Cadastrar canal `@e_foxofertas` no painel ML Afiliados ✅ — em mercadolivre.com.br/afiliados, seção Plataformas/Canais
+- [x] Cadastrar canal `@e_foxofertas` no painel ML Afiliados ✅
+- [x] Limpeza de código morto: removidos stubs `RawCoupon`, `scrapeCoupons()` e `export shouldRepost`
+- [x] Bug corrigido: `runRepostJob` reconstrói `CouponContext` do banco ao repostar cupons
+- [x] **Frontend redesenhado — estilo pelando.com.br** ✅
+  - Feed vertical com cards horizontais (voto | imagem | info | CTA)
+  - Tabs de ordenação: Novos / Quentes / Descontos / IA Score
+  - `VoteButton` com localStorage, temperatura em graus, feedback visual de cor
+  - Paginação numérica com reticências inteligente
+  - `globals.css` com reset e hide de CTA em mobile
+  - Página de detalhe atualizada com VoteButton
+- [x] **Campo `upvotes` adicionado** — migration `20260622_add_upvotes` aplicada ✅
+- [x] **Endpoints de voto** — `POST /api/offers/:id/vote` e `POST /api/offers/:id/downvote` ✅
+- [ ] Autenticação de usuários (NextAuth ou similar) — pré-requisito para comentários e ofertas de usuário
+- [ ] Sistema de comentários por oferta
+- [ ] Usuários cadastrar ofertas (com aprovação moderada antes de publicar)
 - [ ] Deploy Railway + Vercel — ver seção "Deploy" acima com Opção A (sessão via env var)
 - [ ] Migrar banco para nuvem (ver opções abaixo) para frontend no Vercel funcionar independente do backend local
-- [ ] Melhorar frontend (filtros por categoria, busca)
 - [ ] Adicionar segundo provider (Amazon Afiliados)
+- [ ] Remover `Filters.tsx` (legado, não utilizado desde o redesign do feed)
 
 ### Opções de banco em nuvem
 
@@ -455,7 +554,6 @@ Após o primeiro login, a sessão é salva em `.ml-session.json` na raiz do proj
 - Muda `schema.prisma`: `provider = "postgresql"`
 - Instala driver: `npm install pg`
 - Sobe `DATABASE_URL` nas envs locais e no Railway
-- Backend local escreve no Railway, frontend no Vercel lê via API do backend (ou diretamente via Prisma)
 - Free tier: $5 de crédito grátis, depois cobra por uso
 
 **Opção 2 — Turso (SQLite na nuvem, menor mudança no código)**

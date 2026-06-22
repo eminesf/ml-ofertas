@@ -1,5 +1,5 @@
 import { chromium } from 'playwright'
-import { AffiliateProvider, RawCoupon, RawOffer } from '../base.provider'
+import { AffiliateProvider, RawOffer } from '../base.provider'
 
 export class MercadoLivreProvider implements AffiliateProvider {
   name = 'mercadolivre'
@@ -141,7 +141,4 @@ export class MercadoLivreProvider implements AffiliateProvider {
     return offers
   }
 
-  async scrapeCoupons(): Promise<RawCoupon[]> {
-    return []
-  }
 }

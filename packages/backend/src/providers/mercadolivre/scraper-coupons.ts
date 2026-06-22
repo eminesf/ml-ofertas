@@ -1,9 +1,14 @@
 import { BrowserContext, Page } from 'playwright'
-import { RawOffer, RawCoupon } from '../base.provider'
+import { RawOffer } from '../base.provider'
 import { getAuthenticatedContext } from './auth'
 import { prisma } from '../../utils/prisma'
 
-export interface ScrapedCoupon extends RawCoupon {
+export interface ScrapedCoupon {
+  code: string
+  discount: string
+  minValue?: number
+  category?: string
+  expiresAt?: Date
   products: RawOffer[]
 }
 

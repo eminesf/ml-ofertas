@@ -6,9 +6,6 @@ async function main() {
 
   const offers = await provider.scrapeOffers()
   console.log('Ofertas:', JSON.stringify(offers.slice(0, 3), null, 2))
-
-  const coupons = await provider.scrapeCoupons()
-  console.log('Cupons:', JSON.stringify(coupons, null, 2))
 }
 
 main().catch(console.error)

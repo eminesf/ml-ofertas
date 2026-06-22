@@ -10,17 +10,8 @@ export interface RawOffer {
   rating?: number
 }
 
-export interface RawCoupon {
-  code: string
-  discount: string
-  minValue?: number
-  category?: string
-  expiresAt?: Date
-}
-
 export interface AffiliateProvider {
   name: string
   scrapeOffers(): Promise<RawOffer[]>
-  scrapeCoupons(): Promise<RawCoupon[]>
   buildAffiliateLink(productUrl: string): string
 }

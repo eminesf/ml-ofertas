@@ -1,6 +1,7 @@
 import { getOffer, getOffers } from '@/lib/api'
 import { notFound } from 'next/navigation'
 import OfferCard from '@/components/OfferCard'
+import VoteButton from '@/components/VoteButton'
 
 export default async function OfertaPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -13,22 +14,27 @@ export default async function OfertaPage({ params }: { params: Promise<{ id: str
   const hasDiscount = offer.originalPrice > offer.salePrice
 
   return (
-    <main style={{ maxWidth: 1000, margin: '0 auto', padding: '1.5rem 1rem' }}>
-      {/* Voltar */}
-      <a href="/" style={{ color: '#555', fontSize: 14, textDecoration: 'none', display: 'inline-block', marginBottom: '1rem' }}>
+    <main style={{ maxWidth: 940, margin: '0 auto', padding: '1.5rem 1rem' }}>
+      <a href="/" style={{ color: '#777', fontSize: 13, textDecoration: 'none', display: 'inline-block', marginBottom: '1rem' }}>
         ← Voltar às ofertas
       </a>
 
       <div style={{
         background: '#fff', borderRadius: 16, padding: '2rem',
-        boxShadow: '0 2px 8px rgba(0,0,0,0.08)', display: 'flex', gap: '2rem', flexWrap: 'wrap',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.07)', display: 'flex', gap: '2rem', flexWrap: 'wrap',
       }}>
         {/* Imagem */}
-        <div style={{ flex: '0 0 auto', width: 320 }}>
+        <div style={{ flex: '0 0 auto', width: 300 }}>
           {offer.imageUrl
-            ? <img src={offer.imageUrl} alt={offer.title} style={{ width: '100%', objectFit: 'contain', borderRadius: 12, maxHeight: 320 }} />
-            : <div style={{ width: '100%', height: 280, background: '#f8f8f8', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 64 }}>🛍️</div>
+            ? <img src={offer.imageUrl} alt={offer.title} style={{ width: '100%', objectFit: 'contain', borderRadius: 12, maxHeight: 300 }} />
+            : <div style={{ width: '100%', height: 260, background: '#f8f8f8', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 64 }}>🛍️</div>
           }
+
+          {/* Voto na página de detalhe */}
+          <div style={{ marginTop: '1rem', display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'center' }}>
+            <VoteButton offerId={offer.id} initialVotes={offer.upvotes ?? 0} />
+            <span style={{ fontSize: 13, color: '#888' }}>Essa oferta é boa?</span>
+          </div>
         </div>
 
         {/* Detalhes */}
@@ -42,6 +48,11 @@ export default async function OfertaPage({ params }: { params: Promise<{ id: str
                 🎟️ Cupom disponível
               </span>
             )}
+            {offer.aiScore && (
+              <span style={{ background: '#f0fdf4', color: '#166534', fontSize: 13, fontWeight: 700, padding: '4px 12px', borderRadius: 20 }}>
+                ⭐ IA: {offer.aiScore}/10
+              </span>
+            )}
           </div>
 
           <h1 style={{ fontSize: '1.4rem', fontWeight: 700, margin: '0 0 1rem', lineHeight: 1.35 }}>
@@ -49,7 +60,7 @@ export default async function OfertaPage({ params }: { params: Promise<{ id: str
           </h1>
 
           {offer.rating && (
-            <p style={{ margin: '0 0 1rem', color: '#666', fontSize: 14 }}>
+            <p style={{ margin: '0 0 0.75rem', color: '#666', fontSize: 14 }}>
               ⭐ {offer.rating.toFixed(1)} de avaliação
             </p>
           )}
@@ -57,7 +68,7 @@ export default async function OfertaPage({ params }: { params: Promise<{ id: str
           {/* Preços */}
           <div style={{ marginBottom: '1rem' }}>
             {hasDiscount && (
-              <div style={{ color: '#999', fontSize: 15, textDecoration: 'line-through' }}>
+              <div style={{ color: '#bbb', fontSize: 15, textDecoration: 'line-through' }}>
                 R$ {offer.originalPrice.toFixed(2).replace('.', ',')}
               </div>
             )}
@@ -65,7 +76,7 @@ export default async function OfertaPage({ params }: { params: Promise<{ id: str
               R$ {offer.salePrice.toFixed(2).replace('.', ',')}
             </div>
             {hasDiscount && (
-              <div style={{ color: '#2d7d46', fontWeight: 600, fontSize: 15 }}>
+              <div style={{ color: '#2d7d46', fontWeight: 600, fontSize: 14, marginTop: 4 }}>
                 Você economiza R$ {(offer.originalPrice - offer.salePrice).toFixed(2).replace('.', ',')}
               </div>
             )}
@@ -114,7 +125,7 @@ export default async function OfertaPage({ params }: { params: Promise<{ id: str
             🛒 Ver oferta no Mercado Livre →
           </a>
 
-          <p style={{ fontSize: 11, color: '#999', margin: 0, textAlign: 'center' }}>
+          <p style={{ fontSize: 11, color: '#bbb', margin: 0, textAlign: 'center' }}>
             Link de afiliado — o preço é o mesmo para você
           </p>
         </div>
@@ -123,14 +134,10 @@ export default async function OfertaPage({ params }: { params: Promise<{ id: str
       {/* Ofertas relacionadas */}
       {relatedOffers.length > 0 && (
         <div style={{ marginTop: '2.5rem' }}>
-          <h2 style={{ fontSize: '1.2rem', fontWeight: 700, marginBottom: '1rem' }}>
+          <h2 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '1rem' }}>
             Ofertas relacionadas
           </h2>
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
-            gap: '1rem',
-          }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
             {relatedOffers.map(o => <OfferCard key={o.id} offer={o} />)}
           </div>
         </div>

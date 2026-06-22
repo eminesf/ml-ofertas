@@ -1,0 +1,6 @@
+*, *::before, *::after { box-sizing: border-box; }
+
+@media (max-width: 520px) {
+  .offer-cta { display: none !important; }
+  .offer-highlight { display: none !important; }
+}

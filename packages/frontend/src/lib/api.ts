@@ -22,6 +22,7 @@ export interface Offer {
   category?: string
   rating?: number
   aiScore?: number
+  upvotes: number
   couponAmount?: string
   couponCode?: string
   couponExpiresAt?: string
@@ -40,13 +41,21 @@ export interface OffersResponse {
   limit: number
 }
 
+export async function voteOffer(id: string, type: 'vote' | 'downvote'): Promise<number> {
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
+  const res = await fetch(`${API_URL}/api/offers/${id}/${type}`, { method: 'POST' })
+  if (!res.ok) return 0
+  const data = await res.json()
+  return data.upvotes
+}
+
 export async function getOffers(params?: {
   provider?: string
   category?: string
   page?: number
   limit?: number
   minDiscount?: number
-  sort?: 'discount' | 'recent' | 'score'
+  sort?: 'discount' | 'recent' | 'score' | 'votes'
 }): Promise<OffersResponse> {
   const qs = new URLSearchParams()
   if (params?.provider) qs.set('provider', params.provider)

@@ -4,7 +4,7 @@ import { prisma } from '../../utils/prisma'
 const router = Router()
 
 router.get('/', async (req, res) => {
-  const { provider, category, limit = '24', page = '1', minDiscount, sort } = req.query
+  const { provider, category, limit = '20', page = '1', minDiscount, sort } = req.query
   const take = Math.min(Number(limit), 100)
   const skip = (Number(page) - 1) * take
 
@@ -18,7 +18,9 @@ router.get('/', async (req, res) => {
     ? { discountPct: 'desc' }
     : sort === 'score'
       ? { aiScore: 'desc' }
-      : { createdAt: 'desc' }
+      : sort === 'votes'
+        ? { upvotes: 'desc' }
+        : { createdAt: 'desc' }
 
   const [offers, total] = await Promise.all([
     prisma.offer.findMany({
@@ -41,6 +43,30 @@ router.get('/:id', async (req, res) => {
   })
   if (!offer) return res.status(404).json({ error: 'Oferta não encontrada' })
   res.json(offer)
+})
+
+router.post('/:id/vote', async (req, res) => {
+  try {
+    const offer = await prisma.offer.update({
+      where: { id: req.params.id },
+      data: { upvotes: { increment: 1 } },
+    })
+    res.json({ upvotes: offer.upvotes })
+  } catch {
+    res.status(404).json({ error: 'Oferta não encontrada' })
+  }
+})
+
+router.post('/:id/downvote', async (req, res) => {
+  try {
+    const offer = await prisma.offer.update({
+      where: { id: req.params.id },
+      data: { upvotes: { decrement: 1 } },
+    })
+    res.json({ upvotes: offer.upvotes })
+  } catch {
+    res.status(404).json({ error: 'Oferta não encontrada' })
+  }
 })
 
 export default router
