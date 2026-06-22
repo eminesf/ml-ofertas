@@ -185,6 +185,39 @@ Retorna oferta completa com todos os posts.
 ### GET /api/posts
 Lista posts do Telegram.
 
+### POST /api/offers/import *(a implementar)*
+Recebe uma URL de produto do Mercado Livre, scrapa os dados, salva no banco e executa o pipeline completo de IA + posting no Telegram.
+
+**Body (JSON):**
+```json
+{
+  "url": "https://www.mercadolivre.com.br/p/MLB64311324",
+  "couponCode": "#FUCHS20OFF",
+  "couponDiscount": "R$ 20 OFF",
+  "couponMinValue": 120
+}
+```
+- `url` — obrigatório. URL do produto no ML (formato `/p/MLBXXXXXXX` ou `/MLB-XXXXXXX-...`)
+- `couponCode` — opcional. Código do cupom do afiliado (ex: `#FUCHS20OFF`)
+- `couponDiscount` — opcional, mas obrigatório se `couponCode` presente. Texto do desconto (ex: `"R$ 20 OFF"`)
+- `couponMinValue` — opcional. Valor mínimo do carrinho para ativar o cupom (ex: `120`)
+
+**Fluxo esperado:**
+1. Extrai `externalId` da URL via regex `MLB-?(\d+)` → normaliza como `MLB{digits}`
+2. Abre Playwright headless, navega até a URL e scrapa: título, preço atual, preço original, desconto %, imagem, avaliação
+3. Classifica categoria via `classifyCategory(title)`
+4. Constrói `affiliateUrl` com `matt_tool` e `matt_word`
+5. Se `couponCode` presente: usa `evaluateCouponOffer` + `generateCouponPostMessage` com `CouponContext` montado a partir do body; persiste cupom na tabela `Coupon`
+6. Se sem cupom: usa `evaluateOffer` + `generatePostMessage` normais
+7. Salva `Offer` no banco com `source = "manual"`
+8. Dispara `runPostingJob` para postar imediatamente no Telegram
+9. Resposta: `{ offer, posted: boolean }`
+
+**Erros esperados:**
+- `400` se `url` inválida ou `externalId` não encontrado
+- `409` se oferta já existe no banco com mesmo `externalId` (retorna a oferta existente)
+- `422` se `couponCode` fornecido sem `couponDiscount`
+
 ## Frontend — Feed estilo pelando.com.br
 
 ### Layout geral
@@ -619,6 +652,7 @@ Após o primeiro login, a sessão é salva em `.ml-session.json` na raiz do proj
 - [x] **CouponCopy** — badge e box clicáveis copiam o código para clipboard; fallback `execCommand`; feedback visual "✓ Copiado!" ✅
 - [x] **Bug de votos corrigido** — `cache: 'no-store'` em `lib/api.ts`; antes `revalidate: 300` causava contador zerado após F5 ✅
 - [ ] **Proteção de votos server-side** — implementar junto com autenticação (rate limit por IP ou tabela `Vote` com constraint única)
+- [ ] **Endpoint `POST /api/offers/import`** — recebe URL de produto do ML + cupom opcional, scrapa o produto, salva no banco e dispara pipeline de IA para gerar copy e postar no Telegram
 - [ ] Autenticação de usuários (NextAuth ou similar) — pré-requisito para comentários e ofertas de usuário
 - [ ] Sistema de comentários por oferta
 - [ ] Usuários cadastrar ofertas (com aprovação moderada antes de publicar)
