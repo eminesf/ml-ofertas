@@ -1,5 +1,6 @@
 import { Offer } from '@/lib/api'
 import VoteButton from './VoteButton'
+import CouponCopy from './CouponCopy'
 
 function timeAgo(dateStr: string): string {
   const diff = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000)
@@ -46,9 +47,7 @@ export default function OfferCard({ offer }: { offer: Offer }) {
             -{offer.discountPct}% OFF
           </span>
           {offer.couponCode && (
-            <span style={{ background: '#fef3c7', color: '#92400e', fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 20 }}>
-              🎟️ Cupom
-            </span>
+            <CouponCopy code={offer.couponCode} variant="badge" />
           )}
           {offer.aiScore && offer.aiScore >= 8 && (
             <span style={{ background: '#dcfce7', color: '#166534', fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 20 }}>
@@ -87,9 +86,8 @@ export default function OfferCard({ offer }: { offer: Offer }) {
       {/* CTA */}
       <div className="offer-cta" style={{ display: 'flex', alignItems: 'center', padding: '12px 14px', flexShrink: 0 }}>
         <a
-          href={offer.affiliateUrl}
-          target="_blank"
-          rel="noopener noreferrer"
+          href={`/oferta/${offer.id}`}
+          className="btn-cta"
           style={{
             background: '#FFE600', color: '#333',
             padding: '10px 14px', borderRadius: 10,

@@ -64,13 +64,13 @@ export async function getOffers(params?: {
   if (params?.limit) qs.set('limit', String(params.limit))
   if (params?.minDiscount) qs.set('minDiscount', String(params.minDiscount))
   if (params?.sort) qs.set('sort', params.sort)
-  const res = await fetch(`${API_URL}/api/offers?${qs}`, { next: { revalidate: 300 } })
+  const res = await fetch(`${API_URL}/api/offers?${qs}`, { cache: 'no-store' })
   if (!res.ok) return { offers: [], total: 0, page: 1, limit: 24 }
   return res.json()
 }
 
 export async function getOffer(id: string): Promise<Offer | null> {
-  const res = await fetch(`${API_URL}/api/offers/${id}`, { next: { revalidate: 300 } })
+  const res = await fetch(`${API_URL}/api/offers/${id}`, { cache: 'no-store' })
   if (!res.ok) return null
   return res.json()
 }

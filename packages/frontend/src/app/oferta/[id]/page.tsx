@@ -2,6 +2,7 @@ import { getOffer, getOffers } from '@/lib/api'
 import { notFound } from 'next/navigation'
 import OfferCard from '@/components/OfferCard'
 import VoteButton from '@/components/VoteButton'
+import CouponCopy from '@/components/CouponCopy'
 
 export default async function OfertaPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -15,9 +16,7 @@ export default async function OfertaPage({ params }: { params: Promise<{ id: str
 
   return (
     <main style={{ maxWidth: 940, margin: '0 auto', padding: '1.5rem 1rem' }}>
-      <a href="/" style={{ color: '#777', fontSize: 13, textDecoration: 'none', display: 'inline-block', marginBottom: '1rem' }}>
-        ← Voltar às ofertas
-      </a>
+      <a href="/" className="back-btn">← Voltar às ofertas</a>
 
       <div style={{
         background: '#fff', borderRadius: 16, padding: '2rem',
@@ -84,23 +83,7 @@ export default async function OfertaPage({ params }: { params: Promise<{ id: str
 
           {/* Cupom */}
           {offer.couponCode && (
-            <div style={{
-              background: '#fffbe6', border: '2px dashed #e6c800',
-              borderRadius: 10, padding: '0.875rem', marginBottom: '1rem',
-            }}>
-              <p style={{ margin: '0 0 6px', fontWeight: 700, fontSize: 14 }}>🎟️ Cupom de desconto</p>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <code style={{ background: '#fff3b0', padding: '4px 12px', borderRadius: 6, fontWeight: 700, fontSize: 16, border: '1px solid #e6c800' }}>
-                  {offer.couponCode}
-                </code>
-                {offer.couponAmount && (
-                  <span style={{ color: '#856404', fontWeight: 600 }}>{offer.couponAmount}</span>
-                )}
-              </div>
-              <p style={{ margin: '6px 0 0', fontSize: 12, color: '#856404' }}>
-                Copie e aplique no checkout do Mercado Livre
-              </p>
-            </div>
+            <CouponCopy code={offer.couponCode} variant="box" amount={offer.couponAmount ?? undefined} />
           )}
 
           {/* Destaque */}
@@ -115,6 +98,7 @@ export default async function OfertaPage({ params }: { params: Promise<{ id: str
             href={offer.affiliateUrl}
             target="_blank"
             rel="noopener noreferrer"
+            className="btn-cta"
             style={{
               display: 'block', background: '#FFE600', color: '#333',
               textAlign: 'center', padding: '14px 24px', borderRadius: 12,
@@ -125,9 +109,7 @@ export default async function OfertaPage({ params }: { params: Promise<{ id: str
             🛒 Ver oferta no Mercado Livre →
           </a>
 
-          <p style={{ fontSize: 11, color: '#bbb', margin: 0, textAlign: 'center' }}>
-            Link de afiliado — o preço é o mesmo para você
-          </p>
+         
         </div>
       </div>
 

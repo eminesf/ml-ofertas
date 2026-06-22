@@ -2,8 +2,8 @@ import { getOffers } from '@/lib/api'
 import OfferCard from '@/components/OfferCard'
 
 export const metadata = {
-  title: 'FuchsOfertas — Melhores Ofertas do Dia',
-  description: 'Ofertas selecionadas com desconto real do Mercado Livre, avaliadas por IA',
+  title: 'Fox Ofertas — Promoções e Cupons do Mercado Livre',
+  description: 'As melhores promoções e cupons do Mercado Livre, selecionadas por IA.',
 }
 
 const TABS = [

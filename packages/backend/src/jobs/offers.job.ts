@@ -1,4 +1,5 @@
 import { prisma } from '../utils/prisma'
+import { classifyCategory } from '../utils/category'
 import { AffiliateProvider } from '../providers/base.provider'
 import { evaluateOffer, generatePostMessage, analyzeMarketValue, evaluateCouponOffer, generateCouponPostMessage, CouponContext, GeneratedPost } from '../ai'
 import { sendPhoto, sendMessage } from '../channels/telegram'
@@ -51,9 +52,19 @@ async function processOffer(
   const tag = `[Job][${raw.externalId}][${source}]`
   const affiliateUrl = provider.buildAffiliateLink(raw.productUrl)
 
+  // Classifica categoria pelo título (prioriza valor explícito, exceto 'geral' que é só default)
+  const category = (!raw.category || raw.category === 'geral')
+    ? classifyCategory(raw.title)
+    : raw.category
+
   // Verifica se já existe no banco com o mesmo preço
   const existingRaw = await prisma.offer.findUnique({ where: { externalId: raw.externalId } })
   if (existingRaw && existingRaw.salePrice === raw.salePrice) {
+    // Backfill de categoria para ofertas já existentes sem classificação
+    if (!existingRaw.category || existingRaw.category === 'geral') {
+      await prisma.offer.update({ where: { externalId: raw.externalId }, data: { category } })
+      console.log(`${tag} Categoria atualizada: ${category}`)
+    }
     console.log(`${tag} Preço inalterado (R$${raw.salePrice}), pulando`)
     return
   }
@@ -71,7 +82,7 @@ async function processOffer(
       imageUrl: raw.imageUrl,
       productUrl: raw.productUrl,
       affiliateUrl,
-      category: raw.category,
+      category,
       rating: raw.rating,
       couponAmount: raw.couponAmount,
       couponCode: couponCode || null,
@@ -83,6 +94,7 @@ async function processOffer(
       discountPct: raw.discountPct,
       imageUrl: raw.imageUrl,
       rating: raw.rating,
+      category,
       couponCode: couponCode || null,
       aiScore: null,
       telegramMessage: null,

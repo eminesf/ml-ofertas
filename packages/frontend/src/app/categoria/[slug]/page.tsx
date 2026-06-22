@@ -2,11 +2,13 @@ import { getOffers } from '@/lib/api'
 import OfferCard from '@/components/OfferCard'
 
 const CATEGORY_LABELS: Record<string, string> = {
-  'eletrônicos': 'Eletrônicos',
   'eletronicos': 'Eletrônicos',
-  'esporte': 'Esporte e Lazer',
-  'moda': 'Moda e Roupas',
-  'casa': 'Casa e Jardim',
+  'esporte': 'Esporte e Suplementos',
+  'moda': 'Moda e Acessórios',
+  'casa': 'Casa e Eletrodomésticos',
+  'beleza': 'Beleza e Cuidados',
+  'automotivo': 'Automotivo',
+  'ferramentas': 'Ferramentas',
   'geral': 'Geral',
 }
 
@@ -29,9 +31,7 @@ export default async function CategoriaPage({
 
   return (
     <main style={{ maxWidth: 860, margin: '0 auto', padding: '1.5rem 1rem' }}>
-      <a href="/" style={{ color: '#777', fontSize: 13, textDecoration: 'none', display: 'inline-block', marginBottom: '1rem' }}>
-        ← Início
-      </a>
+      <a href="/" className="back-btn">← Início</a>
       <h1 style={{ fontSize: '1.4rem', fontWeight: 700, marginBottom: '1.25rem' }}>
         {label}
         <span style={{ color: '#999', fontWeight: 400, fontSize: '0.9rem', marginLeft: 8 }}>({total})</span>

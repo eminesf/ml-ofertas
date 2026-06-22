@@ -48,7 +48,7 @@ router.get('/:id', async (req, res) => {
 router.post('/:id/vote', async (req, res) => {
   try {
     const offer = await prisma.offer.update({
-      where: { id: req.params.id },
+      where: { id: String(req.params.id) },
       data: { upvotes: { increment: 1 } },
     })
     res.json({ upvotes: offer.upvotes })
@@ -60,7 +60,7 @@ router.post('/:id/vote', async (req, res) => {
 router.post('/:id/downvote', async (req, res) => {
   try {
     const offer = await prisma.offer.update({
-      where: { id: req.params.id },
+      where: { id: String(req.params.id) },
       data: { upvotes: { decrement: 1 } },
     })
     res.json({ upvotes: offer.upvotes })

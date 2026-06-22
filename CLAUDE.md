@@ -46,6 +46,8 @@ ml-afiliados/
 │           ├── components/
 │           │   ├── OfferCard.tsx                 # card horizontal estilo pelando (server component)
 │           │   ├── VoteButton.tsx                # botão de upvote com localStorage ('use client')
+│           │   ├── CouponCopy.tsx                # badge/box de cupom com copy para clipboard ('use client')
+│           │   ├── WelcomeModal.tsx              # modal primeira visita + link Telegram ('use client')
 │           │   └── Filters.tsx                   # (legado — não usado; pode remover)
 │           └── lib/api.ts                        # fetch do backend + tipos Offer/Post + voteOffer()
 ├── .env
@@ -125,6 +127,39 @@ model Post {
 }
 ```
 
+## Classificação automática de categorias
+
+O ML não expõe categoria por produto no listing. A classificação é feita por palavras-chave no título, em `src/utils/category.ts`, função `classifyCategory(title: string): string`.
+
+### Categorias disponíveis
+| Slug | Label no frontend |
+|---|---|
+| `eletronicos` | Eletrônicos |
+| `esporte` | Esporte e Suplementos |
+| `moda` | Moda e Acessórios |
+| `casa` | Casa e Eletrodomésticos |
+| `beleza` | Beleza e Cuidados |
+| `automotivo` | Automotivo |
+| `ferramentas` | Ferramentas |
+| `geral` | fallback — nenhum keyword bateu |
+
+### Onde é chamada
+Em `processOffer` (offers.job.ts), antes de salvar no banco:
+```typescript
+const category = (!raw.category || raw.category === 'geral')
+  ? classifyCategory(raw.title)
+  : raw.category
+```
+Isso cobre scrape novo, upsert por preço atualizado, **e backfill automático**: se a oferta já existe no banco sem categoria, o next scrape classifica sem precisar rodar nenhum script separado.
+
+### Cuidados com os keywords
+- Usar `'tablet '` (com espaço) e não `'tablet'` para evitar falso positivo em "Multivitamin X **tablet**es"
+- Verificar se um keyword curto pode ser substring de outra palavra antes de adicionar
+- Após adicionar keywords, testar com `SELECT title, category FROM Offer WHERE category = 'geral' LIMIT 20` no Prisma Studio
+
+### Adicionando/ajustando categorias
+Edite o array `RULES` em `packages/backend/src/utils/category.ts`. A ordem importa: o primeiro match vence.
+
 ## API REST (backend Express — porta 3001)
 
 ### GET /api/offers
@@ -153,10 +188,13 @@ Lista posts do Telegram.
 ## Frontend — Feed estilo pelando.com.br
 
 ### Layout geral
-- Header amarelo (#FFE600) com logo, navegação por categoria e link do Telegram
+- Header amarelo (#FFE600) com logo e navegação por categoria
 - Feed vertical com 20 ofertas por página (SSR via Next.js)
 - Paginação numérica com reticências inteligente (`buildPageNumbers`)
 - Background cinza (#f0f0f0), cards brancos com borda sutil
+- **Fonte**: Nunito (Google Fonts via `next/font/google`) — pesos 400/600/700/800/900, self-hosted pelo Next.js
+- **Telegram FAB**: botão flutuante fixo no canto inferior direito (`position: fixed`, 56×56px, `#229ED9`), SVG inline, hover via `.telegram-fab:hover` em CSS
+- **WelcomeModal**: modal de boas-vindas na primeira visita — localStorage key `fox_welcomed`; auto-fecha em 5s com barra de progresso animada; link direto para o canal Telegram; `animation: fadeIn + slideUp` via `@keyframes` em globals.css
 
 ### Tabs de ordenação (page.tsx)
 Quatro tabs no topo do feed, alteram `?ordenar=` na URL (full page navigation, sem JS):
@@ -173,11 +211,11 @@ Layout em 4 colunas:
 - **VoteButton**: coluna de 58px, fundo #fafafa
 - **Imagem**: link para `/oferta/:id`, 110×110px, objectFit contain
 - **Info**: link para `/oferta/:id`, contém badges, título (2 linhas clampadas), preço, meta (rating + timeAgo + destaque IA)
-- **CTA**: link externo para `affiliateUrl`, fundo #FFE600, hidden em mobile (<520px via CSS class `offer-cta`)
+- **CTA "Ver oferta →"**: link para `/oferta/:id` (página interna), fundo #FFE600, classe `.btn-cta`, hidden em mobile (<520px via CSS class `offer-cta`)
 
 Badges exibidos:
 - `-X% OFF` (vermelho) — sempre
-- `🎟️ Cupom` (âmbar) — se `couponCode` presente
+- `🎟️ Cupom` (âmbar) — `<CouponCopy variant="badge" />`, clicável: copia código para clipboard, feedback "✓ Copiado!" por 2s
 - `⭐ IA X/10` (verde) — apenas se `aiScore >= 8`
 
 ### VoteButton (client component — 'use client')
@@ -191,6 +229,18 @@ Badges exibidos:
   - `< 0` → azul (#3b82f6)
 - Exibe `N°` (com símbolo de grau, referência à temperatura do pelando)
 - CORS já habilitado no backend (`app.use(cors())`), chamada direta para `NEXT_PUBLIC_API_URL`
+
+**Limitações atuais do sistema de votos:**
+- Validação apenas no browser (localStorage) — sem autenticação server-side
+- Mesmo usuário pode votar em modo anônimo, outro browser ou via `curl` diretamente
+- Decisão: manter simples por ora; proteção server-side (rate limit ou tabela `Vote`) será implementada junto com autenticação
+
+### CouponCopy (client component — 'use client')
+Componente reutilizável em `src/components/CouponCopy.tsx` com dois modos:
+- `variant="badge"` — badge compacto usado nos cards do feed; clique copia o código e exibe "✓ Copiado!" por 2s
+- `variant="box"` — bloco de cupom na página de detalhe; código clicável com feedback visual completo (fundo verde, borda verde, texto muda)
+- Fallback via `document.execCommand('copy')` para browsers sem `navigator.clipboard`
+- `e.stopPropagation()` no badge evita navegar para a página do produto ao clicar no cupom
 
 ### timeAgo (utilitário inline em OfferCard.tsx)
 ```typescript
@@ -206,9 +256,26 @@ function timeAgo(dateStr: string): string
 - Layout 2 colunas: imagem à esquerda, detalhes à direita
 - VoteButton centralizado abaixo da imagem com texto "Essa oferta é boa?"
 - Badge de aiScore visível
-- Box de cupom com código destacado (copiável visualmente)
-- CTA externo para `affiliateUrl`
+- `<CouponCopy variant="box" />` — código de cupom clicável, copia para clipboard
+- CTA externo para `affiliateUrl` (abre em nova aba), classe `.btn-cta`
 - Seção "Ofertas relacionadas" em lista vertical (4 cards)
+
+### Hover em botões (.btn-cta)
+Classe CSS em `globals.css`:
+```css
+.btn-cta:hover  { background: #e6c800 !important; transform: translateY(-1px); }
+.btn-cta:active { transform: translateY(0); }
+```
+Aplicada em: botão "Ver oferta →" no card, botão "🛒 Ver oferta no Mercado Livre →" na página de detalhe.
+
+### Favicon
+- `app/icon.png` (32×32) — favicon do browser, gerado via `System.Drawing` do .NET a partir do `logo_png.png`
+- `app/apple-icon.png` (180×180) — Apple touch icon
+- Next.js App Router detecta automaticamente e injeta `<link rel="icon">` e `<link rel="apple-touch-icon">` no `<head>` sem configuração extra
+
+### Fetch sem cache (lib/api.ts)
+Todas as chamadas usam `{ cache: 'no-store' }` — garante dados frescos a cada carregamento de página.
+**Bug resolvido:** com `{ next: { revalidate: 300 } }` (anterior), o Next.js cacheava a resposta por 5 minutos — após votar, F5 mostrava o contador zerado porque o SSR servia o cache stale.
 
 ## Pipeline — Scraping (offers.job.ts → processOffer)
 O scraping é **separado do posting**. O job de scrape só salva no banco.
@@ -539,6 +606,19 @@ Após o primeiro login, a sessão é salva em `.ml-session.json` na raiz do proj
   - Página de detalhe atualizada com VoteButton
 - [x] **Campo `upvotes` adicionado** — migration `20260622_add_upvotes` aplicada ✅
 - [x] **Endpoints de voto** — `POST /api/offers/:id/vote` e `POST /api/offers/:id/downvote` ✅
+- [x] **Classificação automática de categorias** — `classifyCategory()` em `utils/category.ts`, chamada no `processOffer` com backfill automático ✅
+- [x] **Backfill histórico executado** — 174 ofertas classificadas; `geral` = fallback para títulos sem keyword conhecida ✅
+- [x] Nav do header corrigida para slugs sem acento (`eletronicos`, `esporte`, `moda`, `casa`, `beleza`) ✅
+- [x] **Telegram FAB** — botão flutuante fixo no canto inferior direito com SVG oficial do Telegram, hover via CSS ✅
+- [x] **WelcomeModal** — aparece na primeira visita, fecha em 5s, barra de progresso animada, link para canal ✅
+- [x] **Fonte Nunito** — `next/font/google`, pesos 400-900, self-hosted, sem layout shift ✅
+- [x] **Logo centralizado no mobile** — `justify-content: center` + `width: 100%` no `.header-logo` via media query ✅
+- [x] **Favicon** — `app/icon.png` (32×32) e `app/apple-icon.png` (180×180), gerados via System.Drawing do .NET a partir do logo ✅
+- [x] **"Ver oferta →" redireciona para página interna** — `/oferta/:id` em vez de link de afiliado direto ✅
+- [x] **Hover nos botões CTA** — `.btn-cta` com `#e6c800` no hover + `translateY(-1px)` ✅
+- [x] **CouponCopy** — badge e box clicáveis copiam o código para clipboard; fallback `execCommand`; feedback visual "✓ Copiado!" ✅
+- [x] **Bug de votos corrigido** — `cache: 'no-store'` em `lib/api.ts`; antes `revalidate: 300` causava contador zerado após F5 ✅
+- [ ] **Proteção de votos server-side** — implementar junto com autenticação (rate limit por IP ou tabela `Vote` com constraint única)
 - [ ] Autenticação de usuários (NextAuth ou similar) — pré-requisito para comentários e ofertas de usuário
 - [ ] Sistema de comentários por oferta
 - [ ] Usuários cadastrar ofertas (com aprovação moderada antes de publicar)
@@ -546,6 +626,9 @@ Após o primeiro login, a sessão é salva em `.ml-session.json` na raiz do proj
 - [ ] Migrar banco para nuvem (ver opções abaixo) para frontend no Vercel funcionar independente do backend local
 - [ ] Adicionar segundo provider (Amazon Afiliados)
 - [ ] Remover `Filters.tsx` (legado, não utilizado desde o redesign do feed)
+- [ ] SEO: `sitemap.xml` e `robots.txt` dinâmicos — Next.js App Router tem suporte nativo via `app/sitemap.ts`
+- [ ] SEO: `og:image` por oferta na página de detalhe (`/oferta/[id]`) para compartilhamento no WhatsApp/redes
+- [ ] Analytics: Google Analytics 4 ou Plausible — medir cliques nos links de afiliado (conversão)
 
 ### Opções de banco em nuvem
 
