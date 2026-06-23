@@ -41,7 +41,7 @@ function parseCouponDiscount(discountText: string): number {
   return match ? parseFloat(match[0]) : 0
 }
 
-async function processOffer(
+export async function processOffer(
   raw: { externalId: string; title: string; originalPrice: number; salePrice: number; discountPct: number; imageUrl?: string; productUrl: string; rating?: number; couponAmount?: string; category?: string },
   provider: AffiliateProvider,
   couponCode?: string,
@@ -108,9 +108,10 @@ async function processOffer(
     console.log(`${tag} Salvo no banco: "${raw.title}" | R$${raw.salePrice} | ${raw.discountPct}% OFF${couponCode ? ` | cupom: ${couponCode}` : ''}`)
   }
 
-  // Produtos de cupom bypassam filtro de desconto mínimo (desconto é o próprio cupom)
+  // Cupons e imports manuais bypassam filtro de desconto mínimo
   const isCoupon = source === 'coupon'
-  if (!isCoupon && raw.discountPct < MIN_DISCOUNT) {
+  const isManual = source === 'manual'
+  if (!isCoupon && !isManual && raw.discountPct < MIN_DISCOUNT) {
     console.log(`${tag} Filtrado: desconto ${raw.discountPct}% abaixo do mínimo (${MIN_DISCOUNT}%)`)
     return
   }

@@ -1,8 +1,37 @@
 import { getOffer, getOffers } from '@/lib/api'
 import { notFound } from 'next/navigation'
+import type { Metadata } from 'next'
 import OfferCard from '@/components/OfferCard'
 import VoteButton from '@/components/VoteButton'
 import CouponCopy from '@/components/CouponCopy'
+import BackButton from '@/components/BackButton'
+
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
+  const { id } = await params
+  const offer = await getOffer(id)
+  if (!offer) return {}
+
+  const priceStr = `R$ ${offer.salePrice.toFixed(2).replace('.', ',')}`
+  const discountStr = offer.discountPct > 0 ? ` (-${offer.discountPct}% OFF)` : ''
+  const description = `${priceStr}${discountStr} no Mercado Livre. Encontre as melhores promoções no Fox Ofertas.`
+
+  return {
+    title: `${offer.title} — Fox Ofertas`,
+    description,
+    openGraph: {
+      title: offer.title,
+      description,
+      images: offer.imageUrl ? [{ url: offer.imageUrl, width: 600, height: 600, alt: offer.title }] : [],
+      type: 'website',
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: offer.title,
+      description,
+      images: offer.imageUrl ? [offer.imageUrl] : [],
+    },
+  }
+}
 
 export default async function OfertaPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -16,7 +45,7 @@ export default async function OfertaPage({ params }: { params: Promise<{ id: str
 
   return (
     <main style={{ maxWidth: 940, margin: '0 auto', padding: '1.5rem 1rem' }}>
-      <a href="/" className="back-btn">← Voltar às ofertas</a>
+      <BackButton />
 
       <div style={{
         background: '#fff', borderRadius: 16, padding: '2rem',
@@ -39,9 +68,15 @@ export default async function OfertaPage({ params }: { params: Promise<{ id: str
         {/* Detalhes */}
         <div style={{ flex: 1, minWidth: 260 }}>
           <div style={{ display: 'flex', gap: 8, marginBottom: '0.75rem', flexWrap: 'wrap' }}>
-            <span style={{ background: '#e53e3e', color: '#fff', fontSize: 13, fontWeight: 700, padding: '4px 12px', borderRadius: 20 }}>
-              -{offer.discountPct}% OFF
-            </span>
+            {offer.discountPct > 0 ? (
+              <span style={{ background: '#e53e3e', color: '#fff', fontSize: 13, fontWeight: 700, padding: '4px 12px', borderRadius: 20 }}>
+                -{offer.discountPct}% OFF
+              </span>
+            ) : (
+              <span style={{ background: '#7c3aed', color: '#fff', fontSize: 13, fontWeight: 700, padding: '4px 12px', borderRadius: 20 }}>
+                ⚡ Oferta especial!
+              </span>
+            )}
             {offer.couponCode && (
               <span style={{ background: '#FFE600', color: '#333', fontSize: 13, fontWeight: 700, padding: '4px 12px', borderRadius: 20 }}>
                 🎟️ Cupom disponível
@@ -83,7 +118,7 @@ export default async function OfertaPage({ params }: { params: Promise<{ id: str
 
           {/* Cupom */}
           {offer.couponCode && (
-            <CouponCopy code={offer.couponCode} variant="box" amount={offer.couponAmount ?? undefined} />
+            <CouponCopy code={offer.couponCode} variant="box" amount={offer.couponAmount ?? undefined} minValue={offer.couponMinValue} />
           )}
 
           {/* Destaque */}

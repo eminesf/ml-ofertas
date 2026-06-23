@@ -26,6 +26,7 @@ export interface Offer {
   couponAmount?: string
   couponCode?: string
   couponExpiresAt?: string
+  couponMinValue?: number | null
   suggestedHighlight?: string
   telegramMessage?: string
   whatsappMessage?: string

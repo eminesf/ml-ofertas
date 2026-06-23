@@ -43,11 +43,17 @@ export default function OfferCard({ offer }: { offer: Offer }) {
         style={{ flex: 1, padding: '10px 12px', textDecoration: 'none', color: 'inherit', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 5, minWidth: 0 }}
       >
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          <span style={{ background: '#e53e3e', color: '#fff', fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 20 }}>
-            -{offer.discountPct}% OFF
-          </span>
+          {offer.discountPct > 0 ? (
+            <span style={{ background: '#e53e3e', color: '#fff', fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 20 }}>
+              -{offer.discountPct}% OFF
+            </span>
+          ) : (
+            <span style={{ background: '#7c3aed', color: '#fff', fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 20 }}>
+              ⚡ Oferta especial!
+            </span>
+          )}
           {offer.couponCode && (
-            <CouponCopy code={offer.couponCode} variant="badge" />
+            <CouponCopy code={offer.couponCode} variant="badge" minValue={offer.couponMinValue} />
           )}
           {offer.aiScore && offer.aiScore >= 8 && (
             <span style={{ background: '#dcfce7', color: '#166534', fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 20 }}>

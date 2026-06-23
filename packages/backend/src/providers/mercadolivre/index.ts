@@ -13,13 +13,7 @@ export class MercadoLivreProvider implements AffiliateProvider {
 
   buildAffiliateLink(productUrl: string): string {
     try {
-      // Extrai MLB ID e constrói permalink canônico (evita produto.mercadolivre.com.br)
-      const idMatch = productUrl.match(/MLB-?(\d+)/)
-      const baseUrl = idMatch
-        ? `https://www.mercadolivre.com.br/p/MLB${idMatch[1]}`
-        : productUrl.split('?')[0]
-
-      const url = new URL(baseUrl)
+      const url = new URL(productUrl)
       url.searchParams.set('matt_tool', this.mattTool)
       url.searchParams.set('matt_word', this.mattWord)
       return url.toString()
@@ -115,7 +109,14 @@ export class MercadoLivreProvider implements AffiliateProvider {
       for (const item of items) {
         if (!item.title || !item.productUrl || item.salePrice === 0) continue
 
-        const cleanUrl = item.productUrl.split('?')[0]
+        const widMatch = item.productUrl.match(/[?&]wid=(MLB\d+)/)
+        let cleanUrl: string
+        if (widMatch) {
+          const itemId = widMatch[1].replace('MLB', 'MLB-')
+          cleanUrl = `https://produto.mercadolivre.com.br/${itemId}`
+        } else {
+          cleanUrl = item.productUrl.split('?')[0]
+        }
         if (!cleanUrl.includes('mercadolivre')) continue
 
         offers.push({

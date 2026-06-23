@@ -24,7 +24,8 @@ ml-afiliados/
 │   │       │       ├── index.ts                  # scraper público /ofertas
 │   │       │       ├── auth.ts                   # login ML + sessão salva
 │   │       │       ├── scraper-hub.ts            # scraper /afiliados/hub
-│   │       │       └── scraper-coupons.ts        # scraper /afiliados/coupons
+│   │       │       ├── scraper-coupons.ts        # scraper /afiliados/coupons
+│   │       │       └── scraper-product.ts        # scraper de produto único por URL (usado pelo /import)
 │   │       ├── jobs/
 │   │       │   ├── offers.job.ts                 # pipeline: scrape, IA, posting, repost
 │   │       │   └── scheduler.ts                  # cron jobs agendados
@@ -40,13 +41,16 @@ ml-afiliados/
 │           ├── app/
 │           │   ├── globals.css                   # reset box-sizing + hide CTA em mobile (<520px)
 │           │   ├── layout.tsx                    # header amarelo, footer, importa globals.css
+│           │   ├── sitemap.ts                    # sitemap.xml dinâmico (home + categorias + 500 ofertas)
 │           │   ├── page.tsx                      # feed lista com tabs de ordenação (SSR)
-│           │   ├── oferta/[id]/page.tsx          # página de detalhe com VoteButton (SSR)
-│           │   └── categoria/[slug]/page.tsx     # feed filtrado por categoria (SSR)
+│           │   ├── oferta/[id]/page.tsx          # página de detalhe + generateMetadata (og:image) (SSR)
+│           │   ├── categoria/[slug]/page.tsx     # feed filtrado por categoria (SSR)
+│           │   └── admin/import/page.tsx         # formulário de import manual ('use client') — futuramente autenticado
 │           ├── components/
 │           │   ├── OfferCard.tsx                 # card horizontal estilo pelando (server component)
 │           │   ├── VoteButton.tsx                # botão de upvote com localStorage ('use client')
 │           │   ├── CouponCopy.tsx                # badge/box de cupom com copy para clipboard ('use client')
+│           │   ├── BackButton.tsx                # botão "← Voltar" que usa history.back() ('use client')
 │           │   ├── WelcomeModal.tsx              # modal primeira visita + link Telegram ('use client')
 │           │   └── Filters.tsx                   # (legado — não usado; pode remover)
 │           └── lib/api.ts                        # fetch do backend + tipos Offer/Post + voteOffer()
@@ -69,6 +73,7 @@ ML_POST_MAX=3                 # máximo de posts por rodada do cron (a cada 20mi
 NODE_ENV=development
 PORT=3001
 NEXT_PUBLIC_API_URL=http://localhost:3001
+NEXT_PUBLIC_SITE_URL=http://localhost:3000   # produção: https://foxofertas.com.br (usado pelo sitemap.ts)
 ```
 
 ## Banco de dados (SQLite via Prisma)
@@ -171,7 +176,7 @@ Valores de `sort`:
 - `discount` → `discountPct DESC`
 - `score` → `aiScore DESC`
 
-Resposta: `{ offers, total, page, limit }` — cada oferta inclui o campo `upvotes`.
+Resposta: `{ offers, total, page, limit }` — cada oferta inclui `upvotes` e `couponMinValue` (join com tabela `Coupon` via `couponCode`; `null` se não há cupom ou cupom sem valor mínimo).
 
 ### POST /api/offers/:id/vote
 Incrementa `upvotes` em 1. Resposta: `{ upvotes: number }`
@@ -180,43 +185,46 @@ Incrementa `upvotes` em 1. Resposta: `{ upvotes: number }`
 Decrementa `upvotes` em 1 (pode ir negativo). Resposta: `{ upvotes: number }`
 
 ### GET /api/offers/:id
-Retorna oferta completa com todos os posts.
+Retorna oferta completa com todos os posts e `couponMinValue` (join com `Coupon`).
 
 ### GET /api/posts
 Lista posts do Telegram.
 
-### POST /api/offers/import *(a implementar)*
-Recebe uma URL de produto do Mercado Livre, scrapa os dados, salva no banco e executa o pipeline completo de IA + posting no Telegram.
+### POST /api/offers/import ✅
+Importa produto manualmente por URL do ML, roda pipeline de IA e posta imediatamente no Telegram.
 
 **Body (JSON):**
 ```json
 {
   "url": "https://www.mercadolivre.com.br/p/MLB64311324",
   "couponCode": "#FUCHS20OFF",
-  "couponDiscount": "R$ 20 OFF",
   "couponMinValue": 120
 }
 ```
-- `url` — obrigatório. URL do produto no ML (formato `/p/MLBXXXXXXX` ou `/MLB-XXXXXXX-...`)
-- `couponCode` — opcional. Código do cupom do afiliado (ex: `#FUCHS20OFF`)
-- `couponDiscount` — opcional, mas obrigatório se `couponCode` presente. Texto do desconto (ex: `"R$ 20 OFF"`)
-- `couponMinValue` — opcional. Valor mínimo do carrinho para ativar o cupom (ex: `120`)
+- `url` — obrigatório. Aceita qualquer formato de URL do ML, incluindo URLs com fragmento `#` (links de busca). O scraper normaliza para a URL canônica antes de salvar.
+- `couponCode` e `couponMinValue` — opcionais, mas **devem ser enviados juntos** (ambos ou nenhum). `couponDiscount` não é necessário — o pipeline usa `generatePostMessage` com o código como parâmetro extra.
 
-**Fluxo esperado:**
-1. Extrai `externalId` da URL via regex `MLB-?(\d+)` → normaliza como `MLB{digits}`
-2. Abre Playwright headless, navega até a URL e scrapa: título, preço atual, preço original, desconto %, imagem, avaliação
-3. Classifica categoria via `classifyCategory(title)`
-4. Constrói `affiliateUrl` com `matt_tool` e `matt_word`
-5. Se `couponCode` presente: usa `evaluateCouponOffer` + `generateCouponPostMessage` com `CouponContext` montado a partir do body; persiste cupom na tabela `Coupon`
-6. Se sem cupom: usa `evaluateOffer` + `generatePostMessage` normais
-7. Salva `Offer` no banco com `source = "manual"`
-8. Dispara `runPostingJob` para postar imediatamente no Telegram
-9. Resposta: `{ offer, posted: boolean }`
+**Fluxo real implementado:**
+1. Valida campos; retorna `422` se só um campo do par cupom/valor-mínimo foi enviado
+2. Extrai `externalId` via regex `MLB-?(\d+)` → `MLB{digits}`; retorna `400` se não encontrado
+3. Retorna `409` se `externalId` já existe no banco
+4. `scrapeProductByUrl(url)` — Playwright headless, `networkidle`, wait em seletor antes de extrair
+5. Se `couponCode` + `couponMinValue`: upsert na tabela `Coupon` (para o frontend mostrar o valor mínimo)
+6. `processOffer(raw, mlProvider, couponCode, source='manual'|'coupon')` — `source='manual'` bypassa filtro de desconto mínimo; sem `CouponContext` (sem `couponDiscount`) usa avaliação e copy normais mas mencionando o código
+7. Posta no Telegram se a IA aprovou (`offer.telegramMessage != null`)
+8. Retorna `{ offer, posted: boolean }`
 
-**Erros esperados:**
-- `400` se `url` inválida ou `externalId` não encontrado
-- `409` se oferta já existe no banco com mesmo `externalId` (retorna a oferta existente)
-- `422` se `couponCode` fornecido sem `couponDiscount`
+**`scrapeProductByUrl` — detalhes técnicos (`scraper-product.ts`):**
+- Separa fragmento `#` antes de navegar: `url.split('#')[0]` → evita fragmentos de rastreamento do ML
+- `wid` detectado com `[?&#]wid=(MLB\d+)` — cobre `wid` em query string E em fragmento `#`
+- `waitUntil: 'networkidle'` + `waitForSelector('h1, .andes-money-amount__fraction')` antes de extrair
+- JSON-LD como fonte primária (`@type: "Product"`, campo `price` ou `lowPrice`)
+- Múltiplos seletores CSS em fallback para preço, imagem, desconto e avaliação
+
+**Erros:**
+- `400` — URL inválida (sem ID MLB) ou scraping falhou (sem título/preço)
+- `409` — oferta já existe (retorna a oferta existente)
+- `422` — `couponCode` e `couponMinValue` enviados separados
 
 ## Frontend — Feed estilo pelando.com.br
 
@@ -247,8 +255,9 @@ Layout em 4 colunas:
 - **CTA "Ver oferta →"**: link para `/oferta/:id` (página interna), fundo #FFE600, classe `.btn-cta`, hidden em mobile (<520px via CSS class `offer-cta`)
 
 Badges exibidos:
-- `-X% OFF` (vermelho) — sempre
-- `🎟️ Cupom` (âmbar) — `<CouponCopy variant="badge" />`, clicável: copia código para clipboard, feedback "✓ Copiado!" por 2s
+- `-X% OFF` (vermelho) — quando `discountPct > 0`
+- `⚡ Oferta especial!` (roxo `#7c3aed`) — quando `discountPct === 0` (produto sem preço anterior)
+- `🎟️ Cupom` / `🎟️ mín. R$X` (âmbar) — `<CouponCopy variant="badge" />`, clicável: copia código; exibe valor mínimo no rótulo quando `couponMinValue` presente
 - `⭐ IA X/10` (verde) — apenas se `aiScore >= 8`
 
 ### VoteButton (client component — 'use client')
@@ -270,8 +279,9 @@ Badges exibidos:
 
 ### CouponCopy (client component — 'use client')
 Componente reutilizável em `src/components/CouponCopy.tsx` com dois modos:
-- `variant="badge"` — badge compacto usado nos cards do feed; clique copia o código e exibe "✓ Copiado!" por 2s
-- `variant="box"` — bloco de cupom na página de detalhe; código clicável com feedback visual completo (fundo verde, borda verde, texto muda)
+- `variant="badge"` — badge compacto; rótulo: `🎟️ mín. R$X` se `minValue` presente, senão `🎟️ Cupom`; clique copia e exibe "✓ Copiado!" por 2s
+- `variant="box"` — bloco de cupom na página de detalhe; código clicável; exibe linha `⚠️ Válido para compras acima de R$X,XX no carrinho` quando `minValue` presente
+- Props: `code`, `variant`, `amount?`, `minValue?: number | null`
 - Fallback via `document.execCommand('copy')` para browsers sem `navigator.clipboard`
 - `e.stopPropagation()` no badge evita navegar para a página do produto ao clicar no cupom
 
@@ -287,9 +297,10 @@ function timeAgo(dateStr: string): string
 
 ### Página de detalhe (/oferta/:id)
 - Layout 2 colunas: imagem à esquerda, detalhes à direita
+- `<BackButton />` — usa `history.back()` quando `document.referrer` é do mesmo domínio; fallback `href="/"` para acesso direto (preserva página do feed ao voltar)
 - VoteButton centralizado abaixo da imagem com texto "Essa oferta é boa?"
 - Badge de aiScore visível
-- `<CouponCopy variant="box" />` — código de cupom clicável, copia para clipboard
+- `<CouponCopy variant="box" minValue={offer.couponMinValue} />` — código clicável; aviso de valor mínimo quando aplicável
 - CTA externo para `affiliateUrl` (abre em nova aba), classe `.btn-cta`
 - Seção "Ofertas relacionadas" em lista vertical (4 cards)
 
@@ -375,6 +386,8 @@ a cada 20min → job:post    — posta até 3 ofertas pendentes no Telegram
   - Avaliação: `.poly-reviews__rating`
   - Cupom no card: `.poly-coupons__pill`
 - `externalId` extraído via regex `MLB-?(\d+)` → normalizado como `MLB{digits}` (suporta `MLB-XXXXXXX` e `MLBXXXXXXX`)
+- **URLs de produto com variação:** a URL bruta do scraper pode conter `?wid=MLB...` quando o produto tem variações (cor, tamanho). Nesse caso, `cleanUrl` monta `https://produto.mercadolivre.com.br/MLB-XXXXXXX` em vez de limpar a query string. Sem `wid` → produto multi-vendedor → `url.split('?')[0]` (mantém `/p/MLB...`)
+- **`buildAffiliateLink`** apenas appenda `matt_tool` e `matt_word` à URL recebida, sem normalizar domínio — preserva `produto.mercadolivre.com.br` para variações
 
 ### Scraper hub (/afiliados/hub)
 - Requer login autenticado
@@ -651,8 +664,16 @@ Após o primeiro login, a sessão é salva em `.ml-session.json` na raiz do proj
 - [x] **Hover nos botões CTA** — `.btn-cta` com `#e6c800` no hover + `translateY(-1px)` ✅
 - [x] **CouponCopy** — badge e box clicáveis copiam o código para clipboard; fallback `execCommand`; feedback visual "✓ Copiado!" ✅
 - [x] **Bug de votos corrigido** — `cache: 'no-store'` em `lib/api.ts`; antes `revalidate: 300` causava contador zerado após F5 ✅
+- [x] **Fix URLs com variação ML** — scraper detecta `wid` na URL original e monta `produto.mercadolivre.com.br/MLB-XXXXXXX`; `buildAffiliateLink` preserva o domínio correto ✅
+- [x] **`couponMinValue` no frontend** — backend faz join com `Coupon` e retorna campo em ambos os endpoints; badge exibe `mín. R$X`; box exibe aviso de valor mínimo ✅
+- [x] **`BackButton`** — componente client que usa `history.back()` preservando página do feed; fallback `href="/"` para acesso direto ✅
+- [x] **Badge "⚡ Oferta especial!"** — exibido quando `discountPct === 0`, em roxo, substituindo o `-0% OFF` ✅
+- [x] **`POST /api/offers/import`** — endpoint implementado: scrapa com Playwright (`networkidle` + waitForSelector), posta no Telegram imediatamente; `source='manual'` bypassa filtro de desconto; `couponCode` + `couponMinValue` devem ir juntos (sem `couponDiscount`); upsert no `Coupon` para o frontend mostrar o valor mínimo ✅
+- [x] **`/admin/import`** — página Next.js com formulário de import manual; URL + par opcional cupom/valor-mínimo; validação inline; card de resultado mostrando se foi postado; sem autenticação por ora ✅
+- [x] **SEO og:image** — `generateMetadata` em `oferta/[id]/page.tsx` gera `og:title`, `og:description`, `og:image` (usa `offer.imageUrl`) e Twitter Card para cada produto ✅
+- [x] **`sitemap.ts`** — gerado dinamicamente via `app/sitemap.ts`; inclui home, todas as categorias e até 500 ofertas recentes; lê `NEXT_PUBLIC_SITE_URL` (adicionar ao `.env`) ✅
+- [x] **Bug scraper de produto — fragmento `#`** — URLs com `#polycard_client=...&wid=...` (links de busca ML) agora são tratadas corretamente: fragmento strippado antes da navegação, `wid` detectado com `[?&#]` ✅
 - [ ] **Proteção de votos server-side** — implementar junto com autenticação (rate limit por IP ou tabela `Vote` com constraint única)
-- [ ] **Endpoint `POST /api/offers/import`** — recebe URL de produto do ML + cupom opcional, scrapa o produto, salva no banco e dispara pipeline de IA para gerar copy e postar no Telegram
 - [ ] Autenticação de usuários (NextAuth ou similar) — pré-requisito para comentários e ofertas de usuário
 - [ ] Sistema de comentários por oferta
 - [ ] Usuários cadastrar ofertas (com aprovação moderada antes de publicar)
