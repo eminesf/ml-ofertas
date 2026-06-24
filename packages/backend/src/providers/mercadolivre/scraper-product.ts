@@ -1,6 +1,7 @@
 import { chromium } from 'playwright'
 import { RawOffer } from '../base.provider'
 
+// PRODUCT_SCRIPT mantido para fallback Playwright
 const PRODUCT_SCRIPT = `
 (function() {
   function parseBRL(text) {
@@ -9,7 +10,6 @@ const PRODUCT_SCRIPT = `
     return m ? parseFloat(m[0]) : 0
   }
 
-  // --- JSON-LD (fonte primária) ---
   var jsonLd = null
   var scripts = document.querySelectorAll('script[type="application/ld+json"]')
   for (var i = 0; i < scripts.length; i++) {
@@ -21,14 +21,12 @@ const PRODUCT_SCRIPT = `
     } catch(e) {}
   }
 
-  // --- Título ---
   var title = (jsonLd && jsonLd.name) ? jsonLd.name.trim() : ''
   if (!title) {
     var h1 = document.querySelector('h1.ui-pdp-title, h1[class*="title"], h1')
     title = h1 ? h1.textContent.trim() : ''
   }
 
-  // --- Imagem ---
   var image = ''
   if (jsonLd && jsonLd.image) {
     image = Array.isArray(jsonLd.image) ? jsonLd.image[0] : jsonLd.image
@@ -38,18 +36,15 @@ const PRODUCT_SCRIPT = `
       'figure.ui-pdp-gallery__figure img, .ui-pdp-image, .figure-zoom img, [class*="gallery"] img'
     )
     image = imgEl ? (imgEl.getAttribute('src') || imgEl.getAttribute('data-src') || '') : ''
-    // descarta thumbnails (src muito curta)
     if (image && image.length < 20) image = ''
   }
 
-  // --- Preço atual ---
   var salePrice = 0
   if (jsonLd && jsonLd.offers) {
     var off = Array.isArray(jsonLd.offers) ? jsonLd.offers[0] : jsonLd.offers
     salePrice = parseFloat(off.price || off.lowPrice || 0) || 0
   }
   if (!salePrice) {
-    // Tenta vários seletores — a estrutura muda entre /p/ e produto.mercadolivre.com.br
     var priceSelectors = [
       '.ui-pdp-price__main-container .andes-money-amount__fraction',
       '.andes-money-amount--cents-superscript .andes-money-amount__fraction',
@@ -69,7 +64,6 @@ const PRODUCT_SCRIPT = `
     }
   }
 
-  // --- Preço original (tachado) ---
   var originalPrice = salePrice
   var origSelectors = [
     's.andes-money-amount',
@@ -91,7 +85,6 @@ const PRODUCT_SCRIPT = `
     }
   }
 
-  // --- Desconto ---
   var discountPct = 0
   var discSelectors = [
     '[class*="price__discount"]',
@@ -111,7 +104,6 @@ const PRODUCT_SCRIPT = `
     discountPct = Math.round((1 - salePrice / originalPrice) * 100)
   }
 
-  // --- Avaliação ---
   var rating = null
   if (jsonLd && jsonLd.aggregateRating) {
     rating = parseFloat(jsonLd.aggregateRating.ratingValue || 0) || null
@@ -133,61 +125,81 @@ const PRODUCT_SCRIPT = `
 })()
 `
 
-export async function scrapeProductByUrl(url: string): Promise<RawOffer | null> {
-  // Separa base (sem query e sem fragmento) para navegação limpa
-  const urlWithoutFragment = url.split('#')[0]
-  const navUrl = urlWithoutFragment.split('?')[0]
+async function mlApiGet(path: string): Promise<any> {
+  const res = await fetch(`https://api.mercadolibre.com${path}`, {
+    headers: { Accept: 'application/json', 'Accept-Language': 'pt-BR' },
+  })
+  if (!res.ok) throw new Error(`ML API ${res.status}: ${path}`)
+  return res.json()
+}
 
-  // wid pode vir na query OU no fragmento (ML usa # como separador em links de busca)
-  const widMatch = url.match(/[?&#]wid=(MLB\d+)/)
+function itemToRawOffer(item: any, externalId: string, cleanUrl: string): RawOffer | null {
+  const title = item.title?.trim()
+  const salePrice = Number(item.price) || 0
+  if (!title || !salePrice) return null
 
-  const idMatch = url.match(/MLB-?(\d+)/)
-  if (!idMatch) {
-    console.error('[ScrapeProduct] ID MLB não encontrado na URL:', url)
-    return null
+  const originalPrice = Number(item.original_price) || salePrice
+  const discountPct =
+    originalPrice > salePrice ? Math.round((1 - salePrice / originalPrice) * 100) : 0
+
+  // pictures[0].url tem resolução maior que thumbnail
+  const image: string = item.pictures?.[0]?.url || item.thumbnail || ''
+
+  return {
+    externalId,
+    title,
+    originalPrice,
+    salePrice,
+    discountPct,
+    imageUrl: image || undefined,
+    productUrl: cleanUrl,
+    rating: undefined,
   }
-  const externalId = `MLB${idMatch[1]}`
+}
 
-  let cleanUrl: string
-  if (widMatch) {
-    // Produto com variação — usa URL canônica de item específico
-    const itemId = widMatch[1].replace('MLB', 'MLB-')
-    cleanUrl = `https://produto.mercadolivre.com.br/${itemId}`
-  } else {
-    // Multi-vendedor — usa a URL base sem query/fragmento
-    cleanUrl = navUrl
-  }
-
+async function scrapeWithPlaywright(
+  navUrl: string,
+  externalId: string,
+  cleanUrl: string,
+): Promise<RawOffer | null> {
   const browser = await chromium.launch({
     headless: true,
     args: ['--disable-blink-features=AutomationControlled', '--no-sandbox', '--disable-dev-shm-usage'],
   })
   const context = await browser.newContext({
-    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+    userAgent:
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
     viewport: { width: 1280, height: 800 },
     locale: 'pt-BR',
   })
-  await context.addInitScript('Object.defineProperty(navigator, "webdriver", { get: function() { return false } })')
+  await context.addInitScript(
+    'Object.defineProperty(navigator, "webdriver", { get: function() { return false } })',
+  )
   const page = await context.newPage()
 
   try {
-    console.log(`[ScrapeProduct] Navegando para: ${navUrl}`)
+    console.log(`[ScrapeProduct] Playwright navegando para: ${navUrl}`)
     await page.goto(navUrl, { waitUntil: 'networkidle', timeout: 60000 })
 
-    // Aguarda o título ou preço aparecer (JS renderiza após load)
-    await page.waitForSelector(
-      'h1, .ui-pdp-title, [class*="title"], .andes-money-amount__fraction, .price-tag-fraction',
-      { timeout: 15000 }
-    ).catch(() => {}) // não lança — tenta extrair mesmo assim
+    await page
+      .waitForSelector(
+        'h1, .ui-pdp-title, [class*="title"], .andes-money-amount__fraction, .price-tag-fraction',
+        { timeout: 15000 },
+      )
+      .catch(() => {})
 
     await page.waitForTimeout(1000)
 
-    const data = await page.evaluate(PRODUCT_SCRIPT) as {
-      title: string; image: string; salePrice: number
-      originalPrice: number; discountPct: number; rating: number | null
+    const data = (await page.evaluate(PRODUCT_SCRIPT)) as {
+      title: string
+      image: string
+      salePrice: number
+      originalPrice: number
+      discountPct: number
+      rating: number | null
     }
 
-    console.log(`[ScrapeProduct] Extraído: título="${data.title}" preço=${data.salePrice}`)
+    console.log(`[ScrapeProduct] Playwright extraído: título="${data.title}" preço=${data.salePrice}`)
 
     if (!data.title || !data.salePrice) {
       console.error('[ScrapeProduct] Dados insuficientes:', data)
@@ -207,4 +219,63 @@ export async function scrapeProductByUrl(url: string): Promise<RawOffer | null> 
   } finally {
     await browser.close()
   }
+}
+
+export async function scrapeProductByUrl(url: string): Promise<RawOffer | null> {
+  const urlWithoutFragment = url.split('#')[0]
+  const navUrl = urlWithoutFragment.split('?')[0]
+
+  // wid = item específico (variação); pode vir em query OU em fragmento
+  const widMatch = url.match(/[?&#]wid=(MLB\d+)/)
+
+  const idMatch = url.match(/MLB-?(\d+)/)
+  if (!idMatch) {
+    console.error('[ScrapeProduct] ID MLB não encontrado na URL:', url)
+    return null
+  }
+  const externalId = `MLB${idMatch[1]}`
+
+  let cleanUrl: string
+  if (widMatch) {
+    const itemId = widMatch[1].replace('MLB', 'MLB-')
+    cleanUrl = `https://produto.mercadolivre.com.br/${itemId}`
+  } else {
+    cleanUrl = navUrl
+  }
+
+  // --- Caminho 1: API ML (sem CAPTCHA, sem browser) ---
+  console.log(`[ScrapeProduct] Consultando API ML para: ${externalId}`)
+  try {
+    let item: any
+
+    if (widMatch) {
+      // Tem ID de item específico (wid) — consulta direta
+      item = await mlApiGet(`/items/${widMatch[1]}`)
+    } else {
+      // Produto de catálogo (/p/MLB...) — busca melhor item disponível
+      const search = await mlApiGet(
+        `/sites/MLB/search?catalog_product_id=${externalId}&limit=1`,
+      )
+      const bestId: string | undefined = search.results?.[0]?.id
+      if (bestId) {
+        item = await mlApiGet(`/items/${bestId}`)
+      }
+    }
+
+    if (item) {
+      const offer = itemToRawOffer(item, externalId, cleanUrl)
+      if (offer) {
+        console.log(`[ScrapeProduct] API OK: "${offer.title}" R$${offer.salePrice}`)
+        return offer
+      }
+    }
+  } catch (e) {
+    console.warn(
+      '[ScrapeProduct] API ML falhou, tentando Playwright:',
+      (e as Error).message,
+    )
+  }
+
+  // --- Caminho 2: Playwright (fallback — pode receber CAPTCHA em prod) ---
+  return scrapeWithPlaywright(navUrl, externalId, cleanUrl)
 }
