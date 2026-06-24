@@ -6,7 +6,7 @@ const SESSION_PATH = path.resolve(__dirname, '../../../../.ml-session.json')
 
 async function createBrowserBase() {
   return chromium.launch({
-    headless: false,
+    headless: process.env.NODE_ENV === 'production',
     args: [
       '--disable-blink-features=AutomationControlled',
       '--no-sandbox',
@@ -85,6 +85,11 @@ async function doLogin(context: BrowserContext): Promise<void> {
 }
 
 export async function getAuthenticatedContext(): Promise<BrowserContext> {
+  // On Railway (and other servers), the session is provided via ML_SESSION_JSON env var
+  if (process.env.ML_SESSION_JSON) {
+    fs.writeFileSync(SESSION_PATH, process.env.ML_SESSION_JSON)
+  }
+
   const browser = await createBrowserBase()
 
   const contextOptions = {
