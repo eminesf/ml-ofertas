@@ -6,4 +6,5 @@ packages/backend/prisma/dev.db
 packages/backend/prisma/dev.db-journal
 packages/.ml-session.json
 .env
+.env.example
 *.log

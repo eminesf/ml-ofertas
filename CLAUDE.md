@@ -5,11 +5,13 @@ Bot automatizado de ofertas para afiliados do Mercado Livre. Scrapa ofertas púb
 
 ## Stack
 - **Monorepo** npm workspaces
-- **Backend**: Node.js + TypeScript + Express + Prisma + SQLite + node-cron + Playwright
+- **Backend**: Node.js + TypeScript + Express + Prisma + node-cron + Playwright
 - **Frontend**: Next.js 15 (App Router) — SSR + client components para interatividade
 - **IA**: Claude API (`claude-haiku-4-5`) via `@anthropic-ai/sdk@^0.105.0` — escolhido por custo (~3x mais barato que Sonnet, ~$0.05/run, ~$5 dura ~12-18 dias)
 - **Canal**: Telegram Bot API (REST)
-- **Hospedagem futura**: Railway (backend) + Vercel (frontend)
+- **Banco local**: SQLite (`packages/backend/prisma/dev.db`) — apenas dev
+- **Banco produção**: PostgreSQL no Railway — `DATABASE_URL` via env var
+- **Hospedagem**: Railway (backend + PostgreSQL) + Vercel (frontend) ✅ em produção
 
 ## Estrutura de pastas
 ```
@@ -55,7 +57,10 @@ ml-afiliados/
 │           │   └── Filters.tsx                   # (legado — não usado; pode remover)
 │           └── lib/api.ts                        # fetch do backend + tipos Offer/Post + voteOffer()
 ├── .env
-├── .ml-session.json                              # sessão ML salva pelo auth (gerado em runtime)
+├── Dockerfile                                    # build Railway — node:20-slim + Playwright Chromium
+├── .dockerignore
+├── railway.toml                                  # dockerfilePath + healthcheck /api/offers
+├── packages/.ml-session.json                    # sessão ML salva pelo auth (gerado em runtime)
 └── package.json                                  # concurrently dev
 ```
 
@@ -72,12 +77,39 @@ ML_HUB_MAX_PRODUCTS=50        # máximo de produtos a coletar do hub (padrão 50
 ML_POST_MAX=3                 # máximo de posts por rodada do cron (a cada 20min, padrão 3)
 NODE_ENV=development
 PORT=3001
+DATABASE_URL=                 # local: postgresql://... (Railway public URL) | prod: referência interna Railway
 NEXT_PUBLIC_API_URL=http://localhost:3001
-NEXT_PUBLIC_SITE_URL=http://localhost:3000   # produção: https://foxofertas.com.br (usado pelo sitemap.ts)
 ```
 
-## Banco de dados (SQLite via Prisma)
-Arquivo: `packages/backend/prisma/dev.db`
+### Variáveis exclusivas do Railway (não ficam no .env local)
+```env
+ML_SESSION_JSON=              # conteúdo minificado do packages/.ml-session.json
+                              # gerar com: node -e "console.log(JSON.stringify(JSON.parse(require('fs').readFileSync('packages/.ml-session.json','utf8'))))"
+                              # quando a sessão expirar: gerar nova com job:hub local, minificar e atualizar no Railway
+DATABASE_URL=${{Postgres.DATABASE_URL}}   # referência interna Railway (privada, mais rápida)
+```
+
+## Banco de dados (PostgreSQL em produção, SQLite local)
+
+**Produção (Railway):** PostgreSQL, provider `postgresql`, `DATABASE_URL` via env Railway.
+**Local (dev):** SQLite, arquivo `packages/backend/prisma/dev.db` — não existe migration SQLite mais, banco local só para testes sem Railway.
+
+**Migrar dados locais para o Railway:**
+```bash
+# dentro de packages/backend
+DATABASE_URL="postgresql://..." npx tsx src/migrate-to-pg.ts
+# lê dev.db via better-sqlite3, faz upsert em cada tabela no PG — seguro rodar mais de uma vez
+```
+
+**Ver conteúdo do banco no Railway:** aba Console do serviço Postgres:
+```bash
+psql $DATABASE_URL -c 'SELECT COUNT(*) FROM "Offer";'
+```
+
+**Prisma Studio apontando para Railway (local):**
+```bash
+DATABASE_URL="postgresql://PUBLIC_URL" npx prisma studio
+```
 
 ```prisma
 model Offer {
@@ -399,12 +431,15 @@ a cada 20min → job:post    — posta até 3 ofertas pendentes no Telegram
 - Filtro de keywords removido — a IA filtra por score
 
 ### Auth ML (auth.ts)
-- Salva sessão em `.ml-session.json` na raiz do projeto
+- Salva sessão em `packages/.ml-session.json`
 - Verifica sessão existente navegando para `/afiliados/hub` — reutiliza se válida
-- **Primeiro login: `headless: false`** para interação manual (browser visível)
+- **`NODE_ENV=production`**: `headless: true` automático (sem GUI no servidor)
+- **`ML_SESSION_JSON` env var**: se presente, sobrescreve o arquivo de sessão antes de verificar — mecanismo usado no Railway para injetar sessão sem arquivo físico
+- **Primeiro login local: `headless: false`** para interação manual (browser visível)
 - Fluxo de login atual do ML: email → verificação por WhatsApp code → QR code → logado (sem etapa de senha)
 - Usa `Promise.race` entre `waitForSelector('#password, ...)` e `waitForURL(url_logado)` — suporta login com senha E sem senha
 - Timeout de 5 minutos para o usuário completar verificações manualmente
+- **Sessão expirada no Railway**: hub/coupon jobs falham silenciosamente; scraper público `/ofertas` continua funcionando (não precisa de auth). Renovar: rodar `job:hub` local, minificar JSON, atualizar env `ML_SESSION_JSON` no Railway
 
 ### Scraper cupons (/afiliados/coupons)
 - Requer login autenticado
@@ -544,71 +579,42 @@ npm run job:repost    # repost de ofertas já postadas (máx 2x/dia)
 
 ## Deploy
 
-### Situação atual — Rodando local ✅
-O bot roda na máquina do desenvolvedor. `npm run start` (ou `npm run dev`) sobe o Express + scheduler no mesmo processo. O scheduler dispara os crons automaticamente.
+### Situação atual — Em produção ✅
+- **Backend**: Railway — `https://aware-recreation-production-0d45.up.railway.app`
+- **Frontend**: Vercel — `https://foxpromocoes.vercel.app`
+- **Banco**: PostgreSQL no Railway (serviço `Postgres`)
 
-Para manter o processo vivo sem travar o terminal:
-```bash
-npm install -g pm2
-cd packages/backend
-npm run build
-pm2 start "npm run start" --name ml-afiliados
-pm2 save  # persiste entre reinicializações do PC
+### Arquitetura de deploy
+```
+Dockerfile (raiz do monorepo)
+  └── node:20-slim
+  └── npx playwright install --with-deps chromium   ← Chromium para scrapers
+  └── npm ci                                        ← instala workspace inteiro
+  └── prisma generate + tsc (só packages/backend)
+  └── CMD: prisma migrate deploy → node dist/index.js
+
+railway.toml
+  └── dockerfilePath = "Dockerfile"
+  └── healthcheckPath = "/api/offers"
 ```
 
-**Limitação:** se o computador desligar ou perder internet, os jobs param.
+### Migrations
+- Provider: `postgresql` em `schema.prisma`
+- Única migration: `20260623000000_pg_init/migration.sql` — baseline PostgreSQL (substitui as duas migrations SQLite que existiam)
+- `migration_lock.toml`: provider = "postgresql"
+- `prisma migrate deploy` roda automaticamente no CMD do container
 
-### Por que não está em servidor ainda — Problema do Playwright
-O scraper do hub e dos cupons usa Playwright com `headless: false` no **primeiro login** para o usuário interagir manualmente (email → WhatsApp code → QR). Servidores remotos (Railway, VPS) não têm interface gráfica, então esse fluxo não funciona remotamente.
+### Renovar sessão ML no Railway
+Quando o hub/coupon scraper começar a falhar (sessão expirada, semanas depois):
+1. Rodar `npm run test:hub` local (abre browser para login)
+2. Minificar: `node -e "console.log(JSON.stringify(JSON.parse(require('fs').readFileSync('packages/.ml-session.json','utf8'))))"`
+3. Atualizar env `ML_SESSION_JSON` no Railway → redeploy automático
 
-Após o primeiro login, a sessão é salva em `.ml-session.json` na raiz do projeto e reutilizada em modo headless indefinidamente. Sessões do ML duram semanas.
-
-### Deploy futuro — Opção A (recomendada): sessão local → env var no servidor
-
-**Passo a passo quando quiser migrar para Railway:**
-
-1. **Gerar sessão localmente** (já está feita se você usou `test:hub` ou `job:hub`):
-   ```bash
-   cat .ml-session.json
-   ```
-
-2. **Converter o JSON para variável de ambiente:**
-   Cole o conteúdo inteiro na env `ML_SESSION_JSON` no Railway.
-
-3. **Modificar `auth.ts`** para ler a sessão da env quando disponível:
-   ```typescript
-   if (process.env.ML_SESSION_JSON) {
-     const session = JSON.parse(process.env.ML_SESSION_JSON)
-     fs.writeFileSync(SESSION_PATH, JSON.stringify(session))
-   }
-   ```
-
-4. **Dockerfile para Railway** (Playwright precisa do Chromium):
-   ```dockerfile
-   FROM node:20-slim
-   RUN apt-get update && apt-get install -y \
-     chromium fonts-noto-color-emoji \
-     --no-install-recommends && rm -rf /var/lib/apt/lists/*
-   ENV PLAYWRIGHT_BROWSERS_PATH=/usr/bin
-   WORKDIR /app
-   COPY . .
-   RUN npm install
-   RUN cd packages/backend && npx prisma generate && npm run build
-   EXPOSE 3001
-   CMD ["sh", "-c", "cd packages/backend && npx prisma migrate deploy && npm run start"]
-   ```
-
-5. **Envs a configurar no Railway:**
-   ```
-   ANTHROPIC_API_KEY, TELEGRAM_BOT_TOKEN, TELEGRAM_CHANNEL_ID,
-   ML_AFFILIATE_ID, ML_AFFILIATE_WORD, ML_EMAIL, ML_PASSWORD,
-   ML_HUB_MAX_PRODUCTS, ML_POST_MAX,
-   ML_SESSION_JSON   ← conteúdo do .ml-session.json
-   ```
-
-6. **Quando a sessão expirar** (semanas depois): gera nova sessão localmente com `npm run test:hub`, copia o novo `.ml-session.json` e atualiza a env `ML_SESSION_JSON` no Railway.
-
-7. **Vercel (frontend):** Root Directory = `packages/frontend`, env `NEXT_PUBLIC_API_URL=https://seu-projeto.up.railway.app`
+### Vercel (frontend)
+- Root Directory: `packages/frontend`
+- Env vars:
+  - `NEXT_PUBLIC_API_URL=https://aware-recreation-production-0d45.up.railway.app`
+  - `NEXT_PUBLIC_SITE_URL` — adicionar quando tiver domínio próprio (afeta só sitemap.xml)
 
 ---
 
@@ -673,30 +679,23 @@ Após o primeiro login, a sessão é salva em `.ml-session.json` na raiz do proj
 - [x] **SEO og:image** — `generateMetadata` em `oferta/[id]/page.tsx` gera `og:title`, `og:description`, `og:image` (usa `offer.imageUrl`) e Twitter Card para cada produto ✅
 - [x] **`sitemap.ts`** — gerado dinamicamente via `app/sitemap.ts`; inclui home, todas as categorias e até 500 ofertas recentes; lê `NEXT_PUBLIC_SITE_URL` (adicionar ao `.env`) ✅
 - [x] **Bug scraper de produto — fragmento `#`** — URLs com `#polycard_client=...&wid=...` (links de busca ML) agora são tratadas corretamente: fragmento strippado antes da navegação, `wid` detectado com `[?&#]` ✅
-- [ ] **Proteção de votos server-side** — implementar junto com autenticação (rate limit por IP ou tabela `Vote` com constraint única)
+- [x] **Deploy Railway + Vercel** — backend em `aware-recreation-production-0d45.up.railway.app`, frontend em `foxpromocoes.vercel.app` ✅
+- [x] **Banco migrado para PostgreSQL** — Railway Postgres, migration baseline PG criada, dados locais migrados via `migrate-to-pg.ts` ✅
+- [x] **`ML_SESSION_JSON`** — sessão ML injetada via env var no Railway; `auth.ts` escreve no disco antes de usar; `headless: true` em `NODE_ENV=production` ✅
+- [x] **Dockerfile** — `node:20-slim` + `playwright install --with-deps chromium`; `prisma migrate deploy` no CMD ✅
+- [ ] **Barra de pesquisa no frontend** — input no header que filtra ofertas por texto; novo parâmetro `?q=` em `GET /api/offers`; SSR via `searchParams` em `page.tsx`; busca no campo `title` do banco (PostgreSQL: `ILIKE %query%`)
+- [ ] **Rota admin protegida** — `/admin` com autenticação simples (variável de ambiente `ADMIN_SECRET` comparada via cookie ou header); protege todas as subrotas `/admin/*`; middleware Next.js (`middleware.ts`) para redirecionar não-autenticados para `/admin/login`
+- [ ] **Painel admin — ações manuais** — dentro de `/admin`, botões que chamam endpoints do backend:
+  - `POST /api/admin/job/hub` → dispara `runHubJob()` manualmente (sem esperar cron das 7h)
+  - `POST /api/admin/job/offers` → dispara scrape `/ofertas` públicas
+  - `POST /api/admin/job/post` → dispara posting imediato das pendentes
+  - Todos os endpoints admin exigem header `Authorization: Bearer ADMIN_SECRET`
+  - Frontend mostra spinner enquanto aguarda + resultado (quantos items processados)
+- [ ] **Proteção de votos server-side** — rate limit por IP ou tabela `Vote` com constraint única — implementar junto com autenticação
 - [ ] Autenticação de usuários (NextAuth ou similar) — pré-requisito para comentários e ofertas de usuário
 - [ ] Sistema de comentários por oferta
 - [ ] Usuários cadastrar ofertas (com aprovação moderada antes de publicar)
-- [ ] Deploy Railway + Vercel — ver seção "Deploy" acima com Opção A (sessão via env var)
-- [ ] Migrar banco para nuvem (ver opções abaixo) para frontend no Vercel funcionar independente do backend local
 - [ ] Adicionar segundo provider (Amazon Afiliados)
 - [ ] Remover `Filters.tsx` (legado, não utilizado desde o redesign do feed)
-- [ ] SEO: `sitemap.xml` e `robots.txt` dinâmicos — Next.js App Router tem suporte nativo via `app/sitemap.ts`
-- [ ] SEO: `og:image` por oferta na página de detalhe (`/oferta/[id]`) para compartilhamento no WhatsApp/redes
 - [ ] Analytics: Google Analytics 4 ou Plausible — medir cliques nos links de afiliado (conversão)
-
-### Opções de banco em nuvem
-
-**Opção 1 — PostgreSQL no Railway (recomendada se for fazer deploy lá de qualquer forma)**
-- Cria um serviço PostgreSQL no Railway, ele gera uma `DATABASE_URL`
-- Muda `schema.prisma`: `provider = "postgresql"`
-- Instala driver: `npm install pg`
-- Sobe `DATABASE_URL` nas envs locais e no Railway
-- Free tier: $5 de crédito grátis, depois cobra por uso
-
-**Opção 2 — Turso (SQLite na nuvem, menor mudança no código)**
-- SQLite-compatível, usa driver `libSQL` via `@prisma/adapter-turso`
-- Instala: `npm install @libsql/client @prisma/adapter-turso`
-- Muda `schema.prisma`: `provider = "sqlite"` → `url = env("TURSO_DATABASE_URL")`
-- Frontend no Vercel pode ler o banco diretamente nos server components (sem precisar do Express)
-- Free tier generoso: 500MB, 1 bilhão de reads/mês
+- [ ] Domínio próprio — apontar para Vercel + atualizar `NEXT_PUBLIC_SITE_URL` para sitemap correto
