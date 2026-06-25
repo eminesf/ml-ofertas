@@ -55,7 +55,8 @@ export async function processOffer(
   source: string = 'offers-page',
   couponDiscount?: string,
   couponMinValue?: number,
-  couponMaxDiscount?: number
+  couponMaxDiscount?: number,
+  forcePost: boolean = false
 ) {
   const tag = `[Job][${raw.externalId}][${source}]`
   const affiliateUrl = provider.buildAffiliateLink(raw.productUrl)
@@ -174,7 +175,7 @@ export async function processOffer(
     data: { aiScore: evaluation.score }
   })
 
-  if (!evaluation.shouldPost || evaluation.score < MIN_AI_SCORE) return
+  if (!forcePost && (!evaluation.shouldPost || evaluation.score < MIN_AI_SCORE)) return
 
   let marketAnalysis
   try {

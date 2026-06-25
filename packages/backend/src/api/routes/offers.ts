@@ -52,13 +52,18 @@ router.get('/', async (req, res) => {
 })
 
 router.post('/import', async (req, res) => {
-  const { url, couponCode, couponDiscount, couponMinValue, couponMaxDiscount } = req.body
+  const {
+    url,
+    couponCode, couponDiscount, couponMinValue, couponMaxDiscount,
+    manualTitle, manualSalePrice, manualOriginalPrice, manualImageUrl,
+  } = req.body
 
   if (!url || typeof url !== 'string') {
     return res.status(400).json({ error: 'Campo "url" obrigatório' })
   }
 
   const hasCoupon = !!couponCode
+  const hasManualData = !!(manualTitle && manualSalePrice)
 
   const idMatch = url.match(/MLB-?(\d+)/)
   if (!idMatch) {
@@ -72,15 +77,35 @@ router.post('/import', async (req, res) => {
   }
 
   let raw: any
-  try {
-    console.log(`[Import] Scraping: ${url}`)
-    raw = await scrapeProductByUrl(url)
-  } catch (err) {
-    console.error('[Import] Erro no scraping:', err)
-    return res.status(400).json({ error: 'Não foi possível extrair dados do produto' })
-  }
-  if (!raw) {
-    return res.status(400).json({ error: 'Produto não encontrado ou sem dados de preço' })
+
+  if (hasManualData) {
+    const salePriceNum = Number(manualSalePrice)
+    const originalPriceNum = manualOriginalPrice ? Number(manualOriginalPrice) : salePriceNum
+    const discountPctNum = originalPriceNum > salePriceNum
+      ? Math.round((1 - salePriceNum / originalPriceNum) * 100)
+      : 0
+    const cleanUrl = url.split('#')[0].split('?')[0]
+    raw = {
+      externalId,
+      title: String(manualTitle).trim(),
+      salePrice: salePriceNum,
+      originalPrice: originalPriceNum,
+      discountPct: discountPctNum,
+      productUrl: cleanUrl,
+      imageUrl: manualImageUrl ? String(manualImageUrl).trim() : undefined,
+    }
+    console.log(`[Import] Dados manuais: "${raw.title}" R$${raw.salePrice} (${raw.discountPct}% OFF)`)
+  } else {
+    try {
+      console.log(`[Import] Scraping: ${url}`)
+      raw = await scrapeProductByUrl(url)
+    } catch (err) {
+      console.error('[Import] Erro no scraping:', err)
+      return res.status(400).json({ error: 'Não foi possível extrair dados do produto' })
+    }
+    if (!raw) {
+      return res.status(400).json({ error: 'Produto não encontrado ou sem dados de preço. Use a opção de inserir dados manualmente.' })
+    }
   }
 
   // minValue=0 significa sem mínimo; undefined também = sem mínimo
@@ -118,6 +143,7 @@ router.post('/import', async (req, res) => {
       discountText || undefined,
       minValueNum || undefined,
       maxDiscountNum,
+      true, // admin import sempre posta, independente do score
     )
   } catch (err) {
     console.error('[Import] Erro ao processar oferta:', err)

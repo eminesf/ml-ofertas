@@ -43,11 +43,30 @@ export default function AdminImportPage() {
 	const [couponDiscount, setCouponDiscount] = useState("");
 	const [couponMinValue, setCouponMinValue] = useState("");
 	const [couponMaxDiscount, setCouponMaxDiscount] = useState("");
+	const [manualOpen, setManualOpen] = useState(false);
+	const [manualTitle, setManualTitle] = useState("");
+	const [manualSalePrice, setManualSalePrice] = useState("");
+	const [manualOriginalPrice, setManualOriginalPrice] = useState("");
+	const [manualImageUrl, setManualImageUrl] = useState("");
 	const [loading, setLoading] = useState(false);
 	const [result, setResult] = useState<ImportResult | null>(null);
 	const [error, setError] = useState<string | null>(null);
 
 	const hasCoupon = couponCode.trim() !== "";
+	const hasManual = manualTitle.trim() !== "" && manualSalePrice.trim() !== "";
+
+	function resetForm() {
+		setUrl("");
+		setCouponCode("");
+		setCouponDiscount("");
+		setCouponMinValue("");
+		setCouponMaxDiscount("");
+		setManualOpen(false);
+		setManualTitle("");
+		setManualSalePrice("");
+		setManualOriginalPrice("");
+		setManualImageUrl("");
+	}
 
 	async function handleSubmit(e: React.FormEvent) {
 		e.preventDefault();
@@ -63,6 +82,12 @@ export default function AdminImportPage() {
 				body.couponMinValue = couponMinValue.trim() !== "" ? Number(couponMinValue) : 0;
 				if (couponMaxDiscount.trim() !== "") body.couponMaxDiscount = Number(couponMaxDiscount);
 			}
+			if (hasManual) {
+				body.manualTitle = manualTitle.trim();
+				body.manualSalePrice = Number(manualSalePrice);
+				if (manualOriginalPrice.trim()) body.manualOriginalPrice = Number(manualOriginalPrice);
+				if (manualImageUrl.trim()) body.manualImageUrl = manualImageUrl.trim();
+			}
 
 			const res = await fetch(`${API_URL}/api/offers/import`, {
 				method: "POST",
@@ -77,11 +102,7 @@ export default function AdminImportPage() {
 			}
 
 			setResult(data);
-			setUrl("");
-			setCouponCode("");
-			setCouponDiscount("");
-			setCouponMinValue("");
-			setCouponMaxDiscount("");
+			resetForm();
 		} catch {
 			setError("Erro ao conectar com o servidor");
 		} finally {
@@ -204,6 +225,78 @@ export default function AdminImportPage() {
 					)}
 				</div>
 
+				{/* Dados manuais */}
+				<div style={{ borderTop: "1px solid #f0f0f0", paddingTop: "1.25rem" }}>
+					<button
+						type="button"
+						onClick={() => setManualOpen((v) => !v)}
+						style={{
+							background: "none", border: "none", cursor: "pointer",
+							fontWeight: 700, fontSize: 13, color: "#7c3aed", padding: 0,
+							fontFamily: "inherit", display: "flex", alignItems: "center", gap: 6,
+						}}
+					>
+						<span style={{ fontSize: 16 }}>{manualOpen ? "▾" : "▸"}</span>
+						✏️ Inserir dados manualmente
+						<span style={{ fontWeight: 400, color: "#aaa", fontSize: 12 }}>
+							(quando o scraper falha em produção)
+						</span>
+					</button>
+					{manualOpen && (
+						<div style={{ marginTop: "1rem", display: "flex", flexDirection: "column", gap: 12 }}>
+							<p style={{ margin: 0, fontSize: 11, color: "#888" }}>
+								Se fornecido, o scraper é ignorado e esses dados são usados diretamente. Título e Preço de venda são obrigatórios.
+							</p>
+							<div>
+								<label style={label}>Título do produto *</label>
+								<input
+									type="text"
+									value={manualTitle}
+									onChange={(e) => setManualTitle(e.target.value)}
+									placeholder="Combo de Pacotes Pokémon TCG..."
+									style={field}
+								/>
+							</div>
+							<div style={{ display: "flex", gap: 12 }}>
+								<div style={{ flex: 1 }}>
+									<label style={label}>Preço de venda (R$) *</label>
+									<input
+										type="number"
+										min={0}
+										step={0.01}
+										value={manualSalePrice}
+										onChange={(e) => setManualSalePrice(e.target.value)}
+										placeholder="181.00"
+										style={field}
+									/>
+								</div>
+								<div style={{ flex: 1 }}>
+									<label style={label}>Preço original (R$)</label>
+									<input
+										type="number"
+										min={0}
+										step={0.01}
+										value={manualOriginalPrice}
+										onChange={(e) => setManualOriginalPrice(e.target.value)}
+										placeholder="205.00"
+										style={field}
+									/>
+								</div>
+							</div>
+							<div>
+								<label style={label}>URL da imagem</label>
+								<input
+									type="url"
+									value={manualImageUrl}
+									onChange={(e) => setManualImageUrl(e.target.value)}
+									placeholder="https://http2.mlstatic.com/..."
+									style={field}
+								/>
+							</div>
+						</div>
+					)}
+				</div>
+
 				<button
 					type="submit"
 					disabled={loading || !url.trim()}
@@ -220,7 +313,7 @@ export default function AdminImportPage() {
 						transition: "background 0.2s",
 					}}
 				>
-					{loading ? "⏳ Processando..." : "Importar e postar 🚀"}
+					{loading ? "⏳ Processando..." : hasManual ? "Importar com dados manuais 🚀" : "Importar e postar 🚀"}
 				</button>
 			</form>
 

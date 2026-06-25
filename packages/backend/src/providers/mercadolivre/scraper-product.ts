@@ -351,9 +351,9 @@ export async function scrapeProductByUrl(url: string): Promise<RawOffer | null> 
         if (bestId) item = await mlApiGet(`/items/${bestId}`)
       }
     } else {
-      // Produto de catálogo (/p/MLB...) — busca melhor item disponível
+      // Produto de catálogo (/p/MLB...) — menor preço disponível (mais próximo do buy-box)
       const search = await mlApiGet(
-        `/sites/MLB/search?catalog_product_id=${externalId}&limit=1`,
+        `/sites/MLB/search?catalog_product_id=${externalId}&sort=price_asc&limit=1`,
       )
       const bestId: string | undefined = search.results?.[0]?.id
       if (bestId) {
