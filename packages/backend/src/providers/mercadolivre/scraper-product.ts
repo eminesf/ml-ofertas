@@ -249,8 +249,17 @@ export async function scrapeProductByUrl(url: string): Promise<RawOffer | null> 
     let item: any
 
     if (widMatch) {
-      // Tem ID de item específico (wid) — consulta direta
-      item = await mlApiGet(`/items/${widMatch[1]}`)
+      // Tem ID de item específico (wid) — tenta direto; se 403, cai na busca de catálogo
+      try {
+        item = await mlApiGet(`/items/${widMatch[1]}`)
+      } catch (widErr) {
+        console.warn(`[ScrapeProduct] wid ${widMatch[1]} falhou (${(widErr as Error).message}), tentando catálogo`)
+        const search = await mlApiGet(
+          `/sites/MLB/search?catalog_product_id=${externalId}&limit=1`,
+        )
+        const bestId: string | undefined = search.results?.[0]?.id
+        if (bestId) item = await mlApiGet(`/items/${bestId}`)
+      }
     } else {
       // Produto de catálogo (/p/MLB...) — busca melhor item disponível
       const search = await mlApiGet(

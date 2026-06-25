@@ -40,30 +40,28 @@ const label: React.CSSProperties = {
 export default function AdminImportPage() {
 	const [url, setUrl] = useState("");
 	const [couponCode, setCouponCode] = useState("");
+	const [couponDiscount, setCouponDiscount] = useState("");
 	const [couponMinValue, setCouponMinValue] = useState("");
+	const [couponMaxDiscount, setCouponMaxDiscount] = useState("");
 	const [loading, setLoading] = useState(false);
 	const [result, setResult] = useState<ImportResult | null>(null);
 	const [error, setError] = useState<string | null>(null);
 
 	const hasCoupon = couponCode.trim() !== "";
-	const hasMin = couponMinValue.trim() !== "";
-	const couponPairError =
-		hasCoupon !== hasMin
-			? "Código do cupom e valor mínimo devem ser enviados juntos"
-			: null;
 
 	async function handleSubmit(e: React.FormEvent) {
 		e.preventDefault();
-		if (couponPairError) return;
 		setError(null);
 		setResult(null);
 		setLoading(true);
 
 		try {
 			const body: Record<string, unknown> = { url: url.trim() };
-			if (hasCoupon && hasMin) {
+			if (hasCoupon) {
 				body.couponCode = couponCode.trim();
-				body.couponMinValue = Number(couponMinValue);
+				if (couponDiscount.trim()) body.couponDiscount = couponDiscount.trim();
+				body.couponMinValue = couponMinValue.trim() !== "" ? Number(couponMinValue) : 0;
+				if (couponMaxDiscount.trim() !== "") body.couponMaxDiscount = Number(couponMaxDiscount);
 			}
 
 			const res = await fetch(`${API_URL}/api/offers/import`, {
@@ -81,7 +79,9 @@ export default function AdminImportPage() {
 			setResult(data);
 			setUrl("");
 			setCouponCode("");
+			setCouponDiscount("");
 			setCouponMinValue("");
+			setCouponMaxDiscount("");
 		} catch {
 			setError("Erro ao conectar com o servidor");
 		} finally {
@@ -145,79 +145,77 @@ export default function AdminImportPage() {
 
 				{/* Cupom */}
 				<div style={{ borderTop: "1px solid #f0f0f0", paddingTop: "1.25rem" }}>
-					<p
-						style={{
-							margin: "0 0 1rem",
-							fontWeight: 700,
-							fontSize: 13,
-							color: "#555",
-						}}
-					>
+					<p style={{ margin: "0 0 1rem", fontWeight: 700, fontSize: 13, color: "#555" }}>
 						🎟️ Cupom{" "}
-						<span style={{ fontWeight: 400, color: "#aaa" }}>
-							(opcional — os dois campos devem ser preenchidos juntos)
-						</span>
+						<span style={{ fontWeight: 400, color: "#aaa" }}>(opcional)</span>
 					</p>
-					<div style={{ display: "flex", gap: 12 }}>
-						<div style={{ flex: 1 }}>
-							<label style={label}>Código do cupom</label>
-							<input
-								type="text"
-								value={couponCode}
-								onChange={(e) => setCouponCode(e.target.value)}
-								placeholder="#FUCHS20OFF"
-								style={{
-									...field,
-									borderColor: couponPairError ? "#e53e3e" : "#ddd",
-								}}
-							/>
-						</div>
-						<div style={{ width: 140 }}>
-							<label style={label}>Valor mínimo (R$)</label>
-							<input
-								type="number"
-								min={0}
-								step={0.01}
-								value={couponMinValue}
-								onChange={(e) => setCouponMinValue(e.target.value)}
-								placeholder="120"
-								style={{
-									...field,
-									borderColor: couponPairError ? "#e53e3e" : "#ddd",
-								}}
-							/>
-						</div>
+					<div style={{ marginBottom: 12 }}>
+						<label style={label}>Código do cupom</label>
+						<input
+							type="text"
+							value={couponCode}
+							onChange={(e) => setCouponCode(e.target.value)}
+							placeholder="#FUCHS20OFF"
+							style={field}
+						/>
 					</div>
-					{couponPairError && (
-						<p
-							style={{
-								margin: "6px 0 0",
-								fontSize: 12,
-								color: "#e53e3e",
-								fontWeight: 600,
-							}}
-						>
-							⚠️ {couponPairError}
-						</p>
+					{hasCoupon && (
+						<div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+							<div>
+								<label style={label}>Desconto do cupom</label>
+								<input
+									type="text"
+									value={couponDiscount}
+									onChange={(e) => setCouponDiscount(e.target.value)}
+									placeholder='ex: "R$ 20 OFF" ou "10% OFF"'
+									style={field}
+								/>
+							</div>
+							<div style={{ display: "flex", gap: 12 }}>
+								<div style={{ flex: 1 }}>
+									<label style={label}>Valor mínimo (R$)</label>
+									<input
+										type="number"
+										min={0}
+										step={0.01}
+										value={couponMinValue}
+										onChange={(e) => setCouponMinValue(e.target.value)}
+										placeholder="0 = sem mínimo"
+										style={field}
+									/>
+								</div>
+								<div style={{ flex: 1 }}>
+									<label style={label}>Desconto máximo (R$)</label>
+									<input
+										type="number"
+										min={0}
+										step={0.01}
+										value={couponMaxDiscount}
+										onChange={(e) => setCouponMaxDiscount(e.target.value)}
+										placeholder="ex: 50 (teto)"
+										style={field}
+									/>
+								</div>
+							</div>
+							<p style={{ margin: 0, fontSize: 11, color: "#aaa" }}>
+								Valor mínimo 0 = cupom funciona em qualquer compra. Desconto máximo = teto em R$ para cupons percentuais (ex: 10% OFF limitado a R$50).
+							</p>
+						</div>
 					)}
 				</div>
 
 				<button
 					type="submit"
-					disabled={loading || !!couponPairError || !url.trim()}
+					disabled={loading || !url.trim()}
 					style={{
-						background:
-							loading || couponPairError || !url.trim() ? "#ccc" : "#FFE600",
+						background: loading || !url.trim() ? "#ccc" : "#FFE600",
 						color: "#333",
 						border: "none",
 						borderRadius: 10,
 						padding: "12px 20px",
 						fontWeight: 800,
 						fontSize: 15,
-						cursor:
-							loading || couponPairError || !url.trim()
-								? "not-allowed"
-								: "pointer",
+						cursor: loading || !url.trim() ? "not-allowed" : "pointer",
 						fontFamily: "inherit",
 						transition: "background 0.2s",
 					}}

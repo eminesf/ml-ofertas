@@ -35,9 +35,10 @@ export interface GeneratedPost {
 
 export interface CouponContext {
   code: string
-  discount: string       // ex: "R$ 20 OFF"
+  discount: string       // ex: "R$ 20 OFF" ou "10% OFF"
   effectivePrice: number // preço após cupom (só válido quando canApplyAlone = true)
-  minValue?: number      // ex: 120 → compra mínima de R$120
+  minValue?: number      // ex: 120 → compra mínima de R$120; undefined/0 = sem mínimo
+  maxDiscount?: number   // ex: 50 → desconto limitado a R$50 (para cupons percentuais com teto)
   canApplyAlone: boolean // produto sozinho atinge o valor mínimo do cupom
 }
 
@@ -116,9 +117,10 @@ Responda APENAS com JSON válido, sem markdown:
 export async function evaluateCouponOffer(offer: RawOffer, coupon: CouponContext): Promise<OfferEvaluation> {
   const today = new Date().toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' })
 
+  const maxDiscountNote = coupon.maxDiscount ? ` (teto de R$${coupon.maxDiscount.toFixed(2)})` : ''
   const priceInfo = coupon.canApplyAlone
-    ? `- Preço com cupom aplicado: R$ ${coupon.effectivePrice.toFixed(2)}`
-    : `- Preço do produto: R$ ${offer.salePrice.toFixed(2)} (cupom requer compra mínima de R$${coupon.minValue} — o cliente pode combinar produtos no carrinho para atingir o valor)`
+    ? `- Preço com cupom aplicado: R$ ${coupon.effectivePrice.toFixed(2)}${maxDiscountNote}`
+    : `- Preço do produto: R$ ${offer.salePrice.toFixed(2)} (cupom${coupon.minValue ? ` requer compra mínima de R$${coupon.minValue}` : ''} — o cliente pode combinar produtos no carrinho para atingir o valor)`
 
   const prompt = `Você é um especialista em ofertas e afiliados no Brasil. Data de hoje: ${today}.
 ${TRENDS_CONTEXT}
@@ -170,17 +172,20 @@ export async function generateCouponPostMessage(
   const styles = ['urgente', 'informativo', 'entusiasmado']
   const style = styles[Math.floor(Math.random() * styles.length)]
 
+  const discountLabel = coupon.maxDiscount
+    ? `${coupon.discount} (máx R$${coupon.maxDiscount.toFixed(2)})`
+    : coupon.discount
   const couponBlock = coupon.canApplyAlone
     ? `   💰 Preço: R$ ${offer.salePrice.toFixed(2)}
-   🎟️ Cupom: <code>${coupon.code}</code> → <b>${coupon.discount}</b>
+   🎟️ Cupom: <code>${coupon.code}</code> → <b>${discountLabel}</b>
    ✅ Você paga: <b>R$ ${coupon.effectivePrice.toFixed(2)}</b>`
     : `   💰 Preço: R$ ${offer.salePrice.toFixed(2)}
-   🎟️ Cupom: <code>${coupon.code}</code> → <b>${coupon.discount}</b> em compras na loja
-   ⚠️ <i>Adicione ao carrinho com outros itens da loja para ativar o cupom (mín. R$${coupon.minValue})</i>`
+   🎟️ Cupom: <code>${coupon.code}</code> → <b>${discountLabel}</b> em compras na loja
+   ⚠️ <i>Adicione ao carrinho com outros itens${coupon.minValue ? ` (mín. R$${coupon.minValue})` : ''} para ativar o cupom</i>`
 
   const whatsappCouponBlock = coupon.canApplyAlone
-    ? `💰 R$ ${offer.salePrice.toFixed(2)} → use ${coupon.code} → R$ ${coupon.effectivePrice.toFixed(2)}`
-    : `💰 R$ ${offer.salePrice.toFixed(2)} | Cupom ${coupon.code} (${coupon.discount})\n⚠️ Válido combinando itens no carrinho acima de R$${coupon.minValue}`
+    ? `💰 R$ ${offer.salePrice.toFixed(2)} → use ${coupon.code} → R$ ${coupon.effectivePrice.toFixed(2)}${coupon.maxDiscount ? ` (máx R$${coupon.maxDiscount.toFixed(2)})` : ''}`
+    : `💰 R$ ${offer.salePrice.toFixed(2)} | Cupom ${coupon.code} (${discountLabel})\n⚠️ Válido combinando itens no carrinho${coupon.minValue ? ` acima de R$${coupon.minValue}` : ''}`
 
   const prompt = `Você é um copywriter expert em ofertas para canais do Telegram e WhatsApp no Brasil.
 Data: ${today}
@@ -191,8 +196,8 @@ Produto com CUPOM EXCLUSIVO DE AFILIADO:
 - Preço atual: R$ ${offer.salePrice.toFixed(2)}
 - Cupom: ${coupon.code} (${coupon.discount})
 ${coupon.canApplyAlone
-  ? `- Preço final com cupom: R$ ${coupon.effectivePrice.toFixed(2)} (cupom aplicável sozinho)`
-  : `- Cupom requer carrinho mínimo de R$${coupon.minValue} — cliente pode combinar produtos`}
+  ? `- Preço final com cupom: R$ ${coupon.effectivePrice.toFixed(2)} (cupom aplicável sozinho${coupon.maxDiscount ? `, teto R$${coupon.maxDiscount.toFixed(2)}` : ''})`
+  : `- Cupom${coupon.minValue ? ` requer carrinho mínimo de R$${coupon.minValue}` : ''} — cliente pode combinar produtos`}
 ${suggestedHighlight ? `- Destaque: ${suggestedHighlight}` : ''}
 - Avaliação: ${offer.rating ? `${offer.rating} ⭐` : 'N/A'}
 - Link: ${affiliateUrl}

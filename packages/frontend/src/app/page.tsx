@@ -11,7 +11,6 @@ const TABS = [
 	{ label: "🕐 Novos", value: "recent" },
 	{ label: "🔥 Quentes", value: "votes" },
 	{ label: "% Descontos", value: "discount" },
-	{ label: "⭐ IA Score", value: "score" },
 ] as const;
 
 const PAGE_SIZE = 20;
@@ -29,7 +28,7 @@ export default async function HomePage({
 	const params = await searchParams;
 	const page = Number(params.pagina) || 1;
 	const sort =
-		(params.ordenar as "recent" | "votes" | "discount" | "score") || "recent";
+		(params.ordenar as "recent" | "votes" | "discount") || "recent";
 
 	const { offers, total } = await getOffers({ limit: PAGE_SIZE, page, sort });
 	const totalPages = Math.ceil(total / PAGE_SIZE);

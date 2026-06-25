@@ -55,11 +55,6 @@ export default function OfferCard({ offer }: { offer: Offer }) {
           {offer.couponCode && (
             <CouponCopy code={offer.couponCode} variant="badge" minValue={offer.couponMinValue} />
           )}
-          {offer.aiScore && offer.aiScore >= 8 && (
-            <span style={{ background: '#dcfce7', color: '#166534', fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 20 }}>
-              ⭐ IA {offer.aiScore}/10
-            </span>
-          )}
         </div>
 
         <p style={{

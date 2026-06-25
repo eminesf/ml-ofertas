@@ -52,17 +52,13 @@ router.get('/', async (req, res) => {
 })
 
 router.post('/import', async (req, res) => {
-  const { url, couponCode, couponMinValue } = req.body
+  const { url, couponCode, couponDiscount, couponMinValue, couponMaxDiscount } = req.body
 
   if (!url || typeof url !== 'string') {
     return res.status(400).json({ error: 'Campo "url" obrigatório' })
   }
 
   const hasCoupon = !!couponCode
-  const hasMinValue = couponMinValue != null && couponMinValue !== ''
-  if (hasCoupon !== hasMinValue) {
-    return res.status(422).json({ error: 'Código do cupom e valor mínimo devem ser enviados juntos' })
-  }
 
   const idMatch = url.match(/MLB-?(\d+)/)
   if (!idMatch) {
@@ -87,24 +83,41 @@ router.post('/import', async (req, res) => {
     return res.status(400).json({ error: 'Produto não encontrado ou sem dados de preço' })
   }
 
-  const minValueNum = hasMinValue ? Number(couponMinValue) : undefined
+  // minValue=0 significa sem mínimo; undefined também = sem mínimo
+  const minValueNum = (couponMinValue != null && couponMinValue !== '') ? Number(couponMinValue) : 0
+  const maxDiscountNum = (couponMaxDiscount != null && couponMaxDiscount !== '') ? Number(couponMaxDiscount) : undefined
+  const discountText = couponDiscount ? String(couponDiscount).trim() : ''
 
-  // Persiste o cupom no banco para o frontend mostrar o valor mínimo
-  if (hasCoupon && minValueNum != null) {
+  // Persiste o cupom no banco para o frontend mostrar os detalhes
+  if (hasCoupon) {
     await prisma.coupon.upsert({
       where: { code_provider: { code: couponCode.trim(), provider: 'mercadolivre' } },
-      create: { provider: 'mercadolivre', code: couponCode.trim(), discount: '', minValue: minValueNum },
-      update: { minValue: minValueNum },
+      create: {
+        provider: 'mercadolivre',
+        code: couponCode.trim(),
+        discount: discountText,
+        minValue: minValueNum > 0 ? minValueNum : null,
+        maxDiscount: maxDiscountNum ?? null,
+      },
+      update: {
+        discount: discountText || undefined,
+        minValue: minValueNum > 0 ? minValueNum : null,
+        maxDiscount: maxDiscountNum ?? null,
+      },
     })
   }
 
   const mlProvider = new MercadoLivreProvider()
-  const source = couponCode ? 'coupon' : 'manual'
+  const source = hasCoupon ? 'coupon' : 'manual'
 
   try {
     await processOffer(
-      raw, mlProvider, couponCode, source,
-      undefined, minValueNum
+      raw, mlProvider,
+      hasCoupon ? couponCode : undefined,
+      source,
+      discountText || undefined,
+      minValueNum || undefined,
+      maxDiscountNum,
     )
   } catch (err) {
     console.error('[Import] Erro ao processar oferta:', err)
