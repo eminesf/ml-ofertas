@@ -41,13 +41,21 @@ function parseCouponDiscount(discountText: string): number {
   return match ? parseFloat(match[0]) : 0
 }
 
+function calcCouponDiscount(salePrice: number, discountText: string, maxDiscount?: number): number {
+  const num = parseCouponDiscount(discountText)
+  const isPercent = discountText.includes('%')
+  const raw = isPercent ? salePrice * (num / 100) : num
+  return maxDiscount != null ? Math.min(raw, maxDiscount) : raw
+}
+
 export async function processOffer(
   raw: { externalId: string; title: string; originalPrice: number; salePrice: number; discountPct: number; imageUrl?: string; productUrl: string; rating?: number; couponAmount?: string; category?: string },
   provider: AffiliateProvider,
   couponCode?: string,
   source: string = 'offers-page',
   couponDiscount?: string,
-  couponMinValue?: number
+  couponMinValue?: number,
+  couponMaxDiscount?: number
 ) {
   const tag = `[Job][${raw.externalId}][${source}]`
   const affiliateUrl = provider.buildAffiliateLink(raw.productUrl)
@@ -127,24 +135,26 @@ export async function processOffer(
   }
 
   // Monta contexto de cupom se disponível
+  // minValue=0 significa sem mínimo (qualquer valor ativa o cupom)
+  const effectiveMinValue = couponMinValue && couponMinValue > 0 ? couponMinValue : undefined
   const couponCtx: CouponContext | undefined = (isCoupon && couponCode && couponDiscount)
     ? (() => {
-        const discountAmount = parseCouponDiscount(couponDiscount)
-        // O cupom aplica ao carrinho total — produto sozinho só ativa o cupom se >= minValue
-        const canApplyAlone = !couponMinValue || raw.salePrice >= couponMinValue
+        const discountAmount = calcCouponDiscount(raw.salePrice, couponDiscount, couponMaxDiscount)
+        const canApplyAlone = !effectiveMinValue || raw.salePrice >= effectiveMinValue
         const effectivePrice = canApplyAlone
           ? Math.max(0, raw.salePrice - discountAmount)
           : raw.salePrice
-        return { code: couponCode, discount: couponDiscount, effectivePrice, minValue: couponMinValue, canApplyAlone }
+        return { code: couponCode, discount: couponDiscount, effectivePrice, minValue: effectiveMinValue, maxDiscount: couponMaxDiscount, canApplyAlone }
       })()
     : undefined
 
   if (couponCtx) {
     const minInfo = couponCtx.minValue ? ` | mínimo R$${couponCtx.minValue}` : ''
+    const maxInfo = couponCtx.maxDiscount ? ` | teto R$${couponCtx.maxDiscount.toFixed(2)}` : ''
     const applyNote = couponCtx.canApplyAlone
       ? `preço efetivo R$${couponCtx.effectivePrice.toFixed(2)}`
       : `produto abaixo do mínimo — cupom ativa no carrinho`
-    console.log(`${tag} Cupom: ${couponCtx.code} (${couponCtx.discount}) → ${applyNote}${minInfo}`)
+    console.log(`${tag} Cupom: ${couponCtx.code} (${couponCtx.discount}) → ${applyNote}${minInfo}${maxInfo}`)
   }
 
   let evaluation
@@ -341,10 +351,11 @@ export async function runRepostJob() {
       if (offer.source === 'coupon' && offer.couponCode) {
         const coupon = await prisma.coupon.findFirst({ where: { code: offer.couponCode, provider: offer.provider } })
         if (coupon) {
-          const discountAmount = parseCouponDiscount(coupon.discount)
-          const canApplyAlone = !coupon.minValue || offer.salePrice >= coupon.minValue
+          const discountAmount = calcCouponDiscount(offer.salePrice, coupon.discount, coupon.maxDiscount ?? undefined)
+          const effectiveMinValue = coupon.minValue && coupon.minValue > 0 ? coupon.minValue : undefined
+          const canApplyAlone = !effectiveMinValue || offer.salePrice >= effectiveMinValue
           const effectivePrice = canApplyAlone ? Math.max(0, offer.salePrice - discountAmount) : offer.salePrice
-          const couponCtx: CouponContext = { code: coupon.code, discount: coupon.discount, effectivePrice, minValue: coupon.minValue ?? undefined, canApplyAlone }
+          const couponCtx: CouponContext = { code: coupon.code, discount: coupon.discount, effectivePrice, minValue: effectiveMinValue, maxDiscount: coupon.maxDiscount ?? undefined, canApplyAlone }
           generated = await generateCouponPostMessage(rawOffer, offer.affiliateUrl, couponCtx, offer.suggestedHighlight || undefined)
         } else {
           generated = await generatePostMessage(rawOffer, offer.affiliateUrl, offer.couponCode, offer.suggestedHighlight || undefined)

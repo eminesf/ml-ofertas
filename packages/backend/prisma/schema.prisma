@@ -39,8 +39,9 @@ model Coupon {
   provider  String
   code      String
   discount  String
-  minValue  Float?
-  category  String?
+  minValue    Float?
+  maxDiscount Float?
+  category    String?
   expiresAt DateTime?
   active    Boolean   @default(true)
   createdAt DateTime  @default(now())
