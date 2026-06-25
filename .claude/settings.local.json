@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(Get-ChildItem -Recurse -Depth 4 \"C:\\\\Users\\\\Emilianofucks\\\\Desktop\\\\Projetos\\\\ml-afiliados\" | Where-Object { !$_.PSIsContainer } | Select-Object FullName)"
+    ]
+  }
+}

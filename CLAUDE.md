@@ -34,8 +34,9 @@ ml-afiliados/
 │   │       ├── ai/index.ts                       # evaluateOffer + analyzeMarketValue + generatePostMessage
 │   │       ├── channels/telegram/index.ts        # sendMessage + sendPhoto
 │   │       ├── api/routes/
-│   │       │   ├── offers.ts                     # GET /api/offers + POST /vote + POST /downvote
-│   │       │   └── posts.ts                      # GET /api/posts
+│   │       │   ├── offers.ts                     # GET /api/offers + POST /vote + POST /downvote + POST /import
+│   │       │   ├── posts.ts                      # GET /api/posts
+│   │       │   └── admin.ts                      # POST /api/admin/job/* — disparo manual de jobs (Bearer ADMIN_SECRET)
 │   │       ├── utils/prisma.ts                   # singleton PrismaClient
 │   │       └── index.ts                          # Express entry point (porta 3001)
 │   └── frontend/
@@ -47,7 +48,10 @@ ml-afiliados/
 │           │   ├── page.tsx                      # feed lista com tabs de ordenação (SSR)
 │           │   ├── oferta/[id]/page.tsx          # página de detalhe + generateMetadata (og:image) (SSR)
 │           │   ├── categoria/[slug]/page.tsx     # feed filtrado por categoria (SSR)
-│           │   └── admin/import/page.tsx         # formulário de import manual ('use client') — futuramente autenticado
+│           │   ├── admin/login/page.tsx          # página de login admin ('use client') — redireciona para /admin após auth
+│           │   ├── admin/layout.tsx              # layout admin: header escuro + nav + botão logout ('use client')
+│           │   ├── admin/page.tsx                # dashboard com botões de disparo de jobs ('use client')
+│           │   └── admin/import/page.tsx         # formulário de import manual ('use client') — protegido pelo middleware
 │           ├── components/
 │           │   ├── OfferCard.tsx                 # card horizontal estilo pelando (server component)
 │           │   ├── VoteButton.tsx                # botão de upvote com localStorage ('use client')
@@ -55,7 +59,8 @@ ml-afiliados/
 │           │   ├── BackButton.tsx                # botão "← Voltar" que usa history.back() ('use client')
 │           │   ├── WelcomeModal.tsx              # modal primeira visita + link Telegram ('use client')
 │           │   └── Filters.tsx                   # (legado — não usado; pode remover)
-│           └── lib/api.ts                        # fetch do backend + tipos Offer/Post + voteOffer()
+│           ├── lib/api.ts                        # fetch do backend + tipos Offer/Post + voteOffer()
+│           └── middleware.ts                     # protege /admin/* — redireciona para /admin/login sem cookie admin_token
 ├── .env
 ├── Dockerfile                                    # build Railway — node:20-slim + Playwright Chromium
 ├── .dockerignore
@@ -75,6 +80,7 @@ ML_EMAIL=                     # login ML para hub/cupons
 ML_PASSWORD=                  # senha ML para hub/cupons (opcional — ML pode logar por WhatsApp/QR)
 ML_HUB_MAX_PRODUCTS=50        # máximo de produtos a coletar do hub (padrão 50, pode reduzir para testes)
 ML_POST_MAX=3                 # máximo de posts por rodada do cron (a cada 20min, padrão 3)
+ADMIN_SECRET=                 # segredo para endpoints /api/admin/* — header Authorization: Bearer <valor>
 NODE_ENV=development
 PORT=3001
 DATABASE_URL=                 # local: postgresql://... (Railway public URL) | prod: referência interna Railway
@@ -258,6 +264,46 @@ Importa produto manualmente por URL do ML, roda pipeline de IA e posta imediatam
 - `409` — oferta já existe (retorna a oferta existente)
 - `422` — `couponCode` e `couponMinValue` enviados separados
 
+### Autenticação do painel admin ✅
+
+Todas as rotas `/admin/*` (exceto `/admin/login`) são protegidas por `src/middleware.ts` no Next.js frontend.
+
+**Fluxo:**
+1. Usuário acessa qualquer rota `/admin/*` sem cookie → redirecionado para `/admin/login?from=<rota>`
+2. Login: digita senha → `POST /api/admin/login` (Next.js API route) → compara com `ADMIN_SECRET` (env var server-only) → define cookie httpOnly `admin_token` com validade de 7 dias
+3. Middleware verifica `admin_token` — se presente, passa; se ausente, redireciona
+4. Logout: botão no header → `POST /api/admin/logout` → deleta cookie → redireciona para `/admin/login`
+
+**Variável necessária:** `ADMIN_SECRET` — configurar no Vercel (env var server-only, sem `NEXT_PUBLIC_`). O mesmo valor deve estar no Railway para os endpoints backend.
+
+**Proxy de jobs (segurança):** O browser chama `POST /api/admin/job/{job}` (Next.js API route). Essa rota lê o cookie httpOnly server-side, valida contra `ADMIN_SECRET`, e repassa para o backend com `Authorization: Bearer`. O secret nunca vai para o bundle do browser.
+
+**`ADMIN_SECRET` no Railway:** além do Vercel, precisa estar configurado no Railway para os endpoints backend `/api/admin/job/*` funcionarem.
+
+### Endpoints admin — disparo manual de jobs ✅
+
+Todos protegidos por `Authorization: Bearer ADMIN_SECRET`. Retornam imediatamente com `{ started: true, job: "..." }` — o job roda em background (fire-and-forget); acompanhe pelo log do servidor.
+
+| Método | Rota | Job disparado |
+|--------|------|--------------|
+| `POST` | `/api/admin/job/offers` | `runOffersJob` — scrape /ofertas públicas |
+| `POST` | `/api/admin/job/hub` | `runHubJob` — scrape hub + cupons (requer sessão ML) |
+| `POST` | `/api/admin/job/post` | `runPostingJob` — posta pendentes; `?max=N` sobrescreve ML_POST_MAX |
+| `POST` | `/api/admin/job/repost` | `runRepostJob` — repost de ofertas válidas |
+
+> **⚠️ Comportamento do repost:** só reposta ofertas que **já foram postadas hoje**. Se nenhuma oferta foi postada no dia, o job não faz nada. Para publicar ofertas novas, use `job/post`. Fluxo correto: `job/offers` ou `job/hub` → `job/post` → (nas 12h/20h) `job/repost`.
+
+**Exemplo de chamada:**
+```bash
+curl -X POST https://aware-recreation-production-0d45.up.railway.app/api/admin/job/post \
+  -H "Authorization: Bearer SEU_ADMIN_SECRET"
+```
+
+**Segurança:**
+- Sem `ADMIN_SECRET` configurado no servidor → `503`
+- Header incorreto ou ausente → `401`
+- Jobs de hub/repost dependem de sessão ML válida (`ML_SESSION_JSON`)
+
 ## Frontend — Feed estilo pelando.com.br
 
 ### Layout geral
@@ -399,7 +445,7 @@ Job de posting busca ofertas prontas e as posta de forma cadenciada:
 6h diário    → job:offers  — scrape /ofertas públicas (48 produtos) → salva no banco
 7h diário    → job:hub     — scrape /afiliados/hub (até 50 produtos, "Mais vendidos") → salva no banco
 a cada 20min → job:post    — posta até 3 ofertas pendentes no Telegram
-12h e 20h    → job:repost  — repost de ofertas antigas (máx 2x/dia por oferta)
+12h e 20h    → job:repost  — repost de ofertas postadas HOJE (máx 2x/dia por oferta, intervalo mín. 4h)
 ```
 
 ## Scraper ML — Detalhes técnicos
@@ -604,6 +650,28 @@ railway.toml
 - `migration_lock.toml`: provider = "postgresql"
 - `prisma migrate deploy` roda automaticamente no CMD do container
 
+### Fixes de build Railway (2026-06-24) — histórico de erros resolvidos
+
+Quatro problemas ocorreram em sequência ao fazer o primeiro deploy em produção:
+
+**1. CAPTCHA no scraper de produto em produção** (`1e14e94`)
+- **Problema:** `scrapeProductByUrl` usava Playwright diretamente na URL do ML em produção. O Railway IP triggava CAPTCHA do ML e o scraper retornava vazio.
+- **Fix:** `scraper-product.ts` refatorado para usar a API REST do ML (`/sites/MLB/items/{id}`) como fonte primária de dados (título, preço, imagem, avaliação). Playwright mantido como fallback caso a API falhe. A API ML não tem CAPTCHA e retorna JSON estruturado.
+- **Como testar:** `POST /api/offers/import` com qualquer URL MLB em produção.
+
+**2. `tsc` não encontrado no build** (`2106a1b`)
+- **Problema:** `Dockerfile` usava `npm ci --omit=dev` que não instalava `typescript` (devDependency). O `RUN tsc` falhava com "command not found".
+- **Fix:** Removido `--omit=dev` do `npm ci` no Dockerfile. `tsc` precisa estar disponível no momento do build; o container final ainda roda só o `dist/` compilado.
+
+**3. `better-sqlite3` quebra o build Railway** (`d1279ef`)
+- **Problema:** `better-sqlite3` é um native addon (compilado em C++) que exigia ferramentas de build (`python`, `make`, `g++`) no container e falhava em `node:20-slim`. Além disso, `migrate-to-pg.ts` estava sendo compilado pelo `tsc` e referenciava `better-sqlite3`, causando erro de tipo mesmo sem a dep.
+- **Fix:** Removido `better-sqlite3` do `package.json`. Adicionado `"exclude": ["src/migrate-to-pg.ts"]` no `tsconfig.json` do backend (o script de migração local é one-shot, não faz parte do build de produção).
+
+**4. Prisma não encontra engine OpenSSL em `node:20-slim`** (`d7a0838`)
+- **Problema:** `prisma generate` sem `binaryTargets` gera apenas o engine para a plataforma local (macOS/Windows). Em `node:20-slim` (Debian bookworm), o runtime é `debian-openssl-3.0.x` — Prisma não achava o engine e lançava erro de linking ao iniciar.
+- **Fix:** Adicionado `binaryTargets = ["native", "debian-openssl-3.0.x"]` no `generator client` do `schema.prisma`. Isso força o `prisma generate` a incluir o engine Debian junto com o engine nativo.
+- **Nota:** `"native"` deve ser mantido para o ambiente local de dev continuar funcionando.
+
 ### Renovar sessão ML no Railway
 Quando o hub/coupon scraper começar a falhar (sessão expirada, semanas depois):
 1. Rodar `npm run test:hub` local (abre browser para login)
@@ -683,14 +751,14 @@ Quando o hub/coupon scraper começar a falhar (sessão expirada, semanas depois)
 - [x] **Banco migrado para PostgreSQL** — Railway Postgres, migration baseline PG criada, dados locais migrados via `migrate-to-pg.ts` ✅
 - [x] **`ML_SESSION_JSON`** — sessão ML injetada via env var no Railway; `auth.ts` escreve no disco antes de usar; `headless: true` em `NODE_ENV=production` ✅
 - [x] **Dockerfile** — `node:20-slim` + `playwright install --with-deps chromium`; `prisma migrate deploy` no CMD ✅
+- [x] **Fix build Railway — CAPTCHA no scraper** — `scraper-product.ts` usa API REST ML (`/sites/MLB/items/{id}`) como fonte primária; Playwright mantido como fallback; evita CAPTCHA em IPs de servidor ✅
+- [x] **Fix build Railway — `tsc` não encontrado** — removido `--omit=dev` do `npm ci` no Dockerfile; `typescript` precisa estar disponível no build ✅
+- [x] **Fix build Railway — `better-sqlite3` native addon** — removido do `package.json`; `migrate-to-pg.ts` excluído do `tsconfig.json` (script one-shot, não faz parte do build de prod) ✅
+- [x] **Fix build Railway — Prisma OpenSSL engine** — adicionado `binaryTargets = ["native", "debian-openssl-3.0.x"]` no `schema.prisma`; `node:20-slim` usa Debian bookworm que requer esse engine ✅
 - [ ] **Barra de pesquisa no frontend** — input no header que filtra ofertas por texto; novo parâmetro `?q=` em `GET /api/offers`; SSR via `searchParams` em `page.tsx`; busca no campo `title` do banco (PostgreSQL: `ILIKE %query%`)
-- [ ] **Rota admin protegida** — `/admin` com autenticação simples (variável de ambiente `ADMIN_SECRET` comparada via cookie ou header); protege todas as subrotas `/admin/*`; middleware Next.js (`middleware.ts`) para redirecionar não-autenticados para `/admin/login`
-- [ ] **Painel admin — ações manuais** — dentro de `/admin`, botões que chamam endpoints do backend:
-  - `POST /api/admin/job/hub` → dispara `runHubJob()` manualmente (sem esperar cron das 7h)
-  - `POST /api/admin/job/offers` → dispara scrape `/ofertas` públicas
-  - `POST /api/admin/job/post` → dispara posting imediato das pendentes
-  - Todos os endpoints admin exigem header `Authorization: Bearer ADMIN_SECRET`
-  - Frontend mostra spinner enquanto aguarda + resultado (quantos items processados)
+- [x] **Endpoints admin de jobs** — `POST /api/admin/job/{offers,hub,post,repost}` implementados em `api/routes/admin.ts`; fire-and-forget (retornam imediatamente); protegidos por `Authorization: Bearer ADMIN_SECRET` ✅
+- [x] **Rota admin protegida** — `middleware.ts` no frontend protege `/admin/*`; login via `POST /api/admin/login`; cookie httpOnly `admin_token` com 7 dias; logout via `POST /api/admin/logout` ✅
+- [x] **Painel admin — dashboard** — `/admin` com botões de disparo para os 4 jobs; proxy `/api/admin/job/[job]` valida cookie server-side e repassa ao backend com bearer token ✅
 - [ ] **Proteção de votos server-side** — rate limit por IP ou tabela `Vote` com constraint única — implementar junto com autenticação
 - [ ] Autenticação de usuários (NextAuth ou similar) — pré-requisito para comentários e ofertas de usuário
 - [ ] Sistema de comentários por oferta
