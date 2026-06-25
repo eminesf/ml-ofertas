@@ -249,38 +249,47 @@ export async function generatePostMessage(
 ): Promise<GeneratedPost> {
   const today = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })
 
-  // Varia o estilo para não ser repetitivo
   const styles = ['urgente', 'informativo', 'entusiasmado']
   const style = styles[Math.floor(Math.random() * styles.length)]
+
+  // Bloco de preço pré-formatado — o modelo NÃO deve inventar valores
+  const priceBlock = offer.discountPct > 0
+    ? `   💰 De: <s>R$ ${offer.originalPrice?.toFixed(2)}</s> → <b>R$ ${offer.salePrice.toFixed(2)}</b> (-${offer.discountPct}%)`
+    : `   💰 <b>R$ ${offer.salePrice.toFixed(2)}</b>`
+  const wpPriceLine = offer.discountPct > 0
+    ? `💰 De R$${offer.originalPrice?.toFixed(2)} por R$${offer.salePrice.toFixed(2)} (-${offer.discountPct}%)`
+    : `💰 R$${offer.salePrice.toFixed(2)}`
 
   const prompt = `Você é um copywriter expert em ofertas para canais do Telegram e WhatsApp no Brasil.
 Data: ${today}
 ${TRENDS_CONTEXT}
 
 Produto: ${offer.title}
-De: R$ ${offer.originalPrice?.toFixed(2)} → Por: R$ ${offer.salePrice.toFixed(2)} (${offer.discountPct}% OFF)
+${offer.discountPct > 0 ? `Desconto: ${offer.discountPct}% OFF` : 'Produto sem desconto explícito'}
 ${couponCode ? `Cupom extra: ${couponCode}` : ''}
 ${suggestedHighlight ? `Destaque sugerido: ${suggestedHighlight}` : ''}
-Avaliação: ${offer.rating ? `${offer.rating} ⭐` : 'N/A'}
+${offer.rating ? `Avaliação: ${offer.rating} ⭐` : ''}
 Link: ${affiliateUrl}
 
-Estilo desta mensagem: ${style} (varie sempre para não repetir)
+Estilo desta mensagem: ${style}
 
-Gere DUAS versões:
-1. Telegram (suporta HTML: use <b>, <i>, <s>, <code>, <a href="">):
-   Formato:
-   🔥 <b>TÍTULO</b>
+Gere DUAS versões usando EXATAMENTE os blocos de preço abaixo (NÃO invente outros valores):
 
-   💰 De: <s>R$ XX</s> → <b>R$ YY</b> (-Z%)
-   ${couponCode ? '🎟️ Cupom: <code>CÓDIGO</code>' : ''}
-   ⭐ Avaliação: X.X
+Telegram (use HTML: <b>, <i>, <s>, <code>, <a href="">):
+🔥 <b>TÍTULO CHAMATIVO AQUI</b>
 
-   👉 <a href="LINK">Comprar agora</a>
+${priceBlock}
+${couponCode ? `   🎟️ Cupom: <code>${couponCode}</code>` : ''}
+${offer.rating ? `   ⭐ ${offer.rating}/5.0` : ''}
 
-   📌 DESTAQUE PRINCIPAL
+   👉 <a href="${affiliateUrl}">Comprar agora</a>
 
-2. WhatsApp (apenas texto + emojis, sem HTML):
-   Compacto, máximo 5 linhas
+   📌 DESTAQUE (1 linha motivacional)
+
+WhatsApp (apenas texto + emojis, sem HTML, máximo 5 linhas):
+${wpPriceLine}
+${couponCode ? `🎟️ Cupom: ${couponCode}` : ''}
+👉 ${affiliateUrl}
 
 Responda APENAS com JSON válido, sem markdown:
 {"telegram": "mensagem telegram aqui", "whatsapp": "mensagem whatsapp aqui"}`
