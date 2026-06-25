@@ -157,6 +157,96 @@ function itemToRawOffer(item: any, externalId: string, cleanUrl: string): RawOff
   }
 }
 
+async function fetchProductFromHtml(
+  navUrl: string,
+  externalId: string,
+  cleanUrl: string,
+): Promise<RawOffer | null> {
+  console.log(`[ScrapeProduct] Tentando fetch HTTP: ${navUrl}`)
+  try {
+    const response = await fetch(navUrl, {
+      headers: {
+        'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+        Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8',
+        'Cache-Control': 'no-cache',
+      },
+      signal: AbortSignal.timeout(20000),
+    })
+
+    if (!response.ok) {
+      console.warn(`[ScrapeProduct] Fetch HTTP retornou ${response.status}`)
+      return null
+    }
+
+    const html = await response.text()
+
+    if (html.includes('Por segurança') || html.toLowerCase().includes('captcha')) {
+      console.warn('[ScrapeProduct] Fetch HTTP recebeu CAPTCHA')
+      return null
+    }
+
+    let title = ''
+    let image = ''
+    let salePrice = 0
+    let originalPrice = 0
+    let rating: number | null = null
+
+    const scriptTags = [
+      ...html.matchAll(/<script[^>]+type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi),
+    ]
+    for (const match of scriptTags) {
+      try {
+        const data = JSON.parse(match[1].trim())
+        const items: any[] = Array.isArray(data) ? data : [data]
+        const product = items.find((p: any) => p?.['@type'] === 'Product')
+        if (!product) continue
+
+        title = product.name?.trim() || ''
+        const img = product.image
+        image = Array.isArray(img) ? img[0] : img || ''
+
+        if (product.offers) {
+          const off = Array.isArray(product.offers) ? product.offers[0] : product.offers
+          salePrice = parseFloat(off.price || off.lowPrice || 0) || 0
+          originalPrice = parseFloat(off.highPrice || off.price || 0) || salePrice
+        }
+
+        if (product.aggregateRating?.ratingValue) {
+          rating = parseFloat(product.aggregateRating.ratingValue) || null
+        }
+
+        if (title && salePrice > 0) break
+      } catch {}
+    }
+
+    if (!title || salePrice <= 0) {
+      console.warn('[ScrapeProduct] Fetch HTTP: JSON-LD sem dados suficientes')
+      return null
+    }
+
+    if (originalPrice < salePrice) originalPrice = salePrice
+    const discountPct =
+      originalPrice > salePrice ? Math.round((1 - salePrice / originalPrice) * 100) : 0
+
+    console.log(`[ScrapeProduct] Fetch HTTP OK: "${title}" R$${salePrice}`)
+    return {
+      externalId,
+      title,
+      originalPrice,
+      salePrice,
+      discountPct,
+      imageUrl: image || undefined,
+      productUrl: cleanUrl,
+      rating: rating || undefined,
+    }
+  } catch (e) {
+    console.warn('[ScrapeProduct] Fetch HTTP falhou:', (e as Error).message)
+    return null
+  }
+}
+
 async function scrapeWithPlaywright(
   navUrl: string,
   externalId: string,
@@ -279,12 +369,14 @@ export async function scrapeProductByUrl(url: string): Promise<RawOffer | null> 
       }
     }
   } catch (e) {
-    console.warn(
-      '[ScrapeProduct] API ML falhou, tentando Playwright:',
-      (e as Error).message,
-    )
+    console.warn('[ScrapeProduct] API ML falhou:', (e as Error).message)
   }
 
-  // --- Caminho 2: Playwright (fallback — pode receber CAPTCHA em prod) ---
+  // --- Caminho 2: HTTP fetch + JSON-LD (sem browser, sem CAPTCHA de JS) ---
+  const httpResult = await fetchProductFromHtml(navUrl, externalId, cleanUrl)
+  if (httpResult) return httpResult
+
+  // --- Caminho 3: Playwright (último recurso — pode receber CAPTCHA em prod) ---
+  console.warn('[ScrapeProduct] Tentando Playwright como último recurso')
   return scrapeWithPlaywright(navUrl, externalId, cleanUrl)
 }
