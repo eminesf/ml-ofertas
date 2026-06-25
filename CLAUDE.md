@@ -145,15 +145,16 @@ model Offer {
 }
 
 model Coupon {
-  id         String    @id @default(cuid())
-  provider   String
-  code       String                // ex: "#FUCHS20OFF"
-  discount   String                // "R$ 20 OFF"
-  minValue   Float?
-  category   String?
-  expiresAt  DateTime?
-  active     Boolean   @default(true)
-  createdAt  DateTime  @default(now())
+  id          String    @id @default(cuid())
+  provider    String
+  code        String                // ex: "#FUCHS20OFF"
+  discount    String                // "R$ 20 OFF" ou "10% OFF"
+  minValue    Float?                // compra mínima; null ou 0 = sem mínimo
+  maxDiscount Float?                // teto de desconto em R$ para cupons percentuais (ex: 10% OFF limitado a R$50)
+  category    String?
+  expiresAt   DateTime?
+  active      Boolean   @default(true)
+  createdAt   DateTime  @default(now())
   @@unique([code, provider])
 }
 
@@ -212,7 +213,7 @@ Valores de `sort`:
 - `recent` (padrão) → `createdAt DESC`
 - `votes` → `upvotes DESC` (mais votadas pela comunidade)
 - `discount` → `discountPct DESC`
-- `score` → `aiScore DESC`
+- `score` → `aiScore DESC` (disponível na API, mas removido das tabs do frontend)
 
 Resposta: `{ offers, total, page, limit }` — cada oferta inclui `upvotes` e `couponMinValue` (join com tabela `Coupon` via `couponCode`; `null` se não há cupom ou cupom sem valor mínimo).
 
@@ -229,40 +230,68 @@ Retorna oferta completa com todos os posts e `couponMinValue` (join com `Coupon`
 Lista posts do Telegram.
 
 ### POST /api/offers/import ✅
-Importa produto manualmente por URL do ML, roda pipeline de IA e posta imediatamente no Telegram.
+Importa produto manualmente por URL do ML, roda pipeline de IA e **sempre** posta no Telegram (ignora score da IA — `forcePost=true`).
 
 **Body (JSON):**
 ```json
 {
   "url": "https://www.mercadolivre.com.br/p/MLB64311324",
+
+  // Cupom — todos opcionais; couponCode sozinho é válido
   "couponCode": "#FUCHS20OFF",
-  "couponMinValue": 120
+  "couponDiscount": "R$ 20 OFF",   // ou "10% OFF" — texto do desconto
+  "couponMinValue": 120,           // 0 ou omitir = sem valor mínimo
+  "couponMaxDiscount": 50,         // teto em R$ para cupons percentuais
+
+  // Dados manuais — substitui o scraper quando ele falha (ex: Railway IP bloqueado)
+  "manualTitle": "Combo Pokémon TCG 18 boosters",
+  "manualSalePrice": 181.00,
+  "manualOriginalPrice": 205.00,
+  "manualImageUrl": "https://http2.mlstatic.com/..."
 }
 ```
-- `url` — obrigatório. Aceita qualquer formato de URL do ML, incluindo URLs com fragmento `#` (links de busca). O scraper normaliza para a URL canônica antes de salvar.
-- `couponCode` e `couponMinValue` — opcionais, mas **devem ser enviados juntos** (ambos ou nenhum). `couponDiscount` não é necessário — o pipeline usa `generatePostMessage` com o código como parâmetro extra.
+
+**Campos:**
+- `url` — obrigatório. Aceita qualquer formato de URL ML (com `#`, `?wid=`, etc.)
+- `couponCode` — opcional. Sozinho já é válido; os demais campos de cupom são detalhes adicionais
+- `couponMinValue=0` — significa sem mínimo; omitir tem o mesmo efeito
+- `couponMaxDiscount` — teto de desconto para cupons percentuais (ex: 10% OFF mas no máximo R$50)
+- `manualTitle` + `manualSalePrice` — se fornecidos juntos, o scraper é ignorado completamente; útil quando Railway IP está bloqueado pelo ML
 
 **Fluxo real implementado:**
-1. Valida campos; retorna `422` se só um campo do par cupom/valor-mínimo foi enviado
-2. Extrai `externalId` via regex `MLB-?(\d+)` → `MLB{digits}`; retorna `400` se não encontrado
-3. Retorna `409` se `externalId` já existe no banco
-4. `scrapeProductByUrl(url)` — Playwright headless, `networkidle`, wait em seletor antes de extrair
-5. Se `couponCode` + `couponMinValue`: upsert na tabela `Coupon` (para o frontend mostrar o valor mínimo)
-6. `processOffer(raw, mlProvider, couponCode, source='manual'|'coupon')` — `source='manual'` bypassa filtro de desconto mínimo; sem `CouponContext` (sem `couponDiscount`) usa avaliação e copy normais mas mencionando o código
-7. Posta no Telegram se a IA aprovou (`offer.telegramMessage != null`)
+1. Extrai `externalId` via regex `MLB-?(\d+)` → `MLB{digits}`; retorna `400` se não encontrado
+2. Retorna `409` se `externalId` já existe no banco
+3. Se `manualTitle` + `manualSalePrice` presentes: usa esses dados diretamente (desconto calculado automaticamente)
+4. Caso contrário: `scrapeProductByUrl(url)` — 3 tentativas em cascata (ver abaixo)
+5. Se cupom: upsert na tabela `Coupon` com `discount`, `minValue`, `maxDiscount`
+6. `processOffer(..., forcePost=true)` — **sempre gera copy e posta**, independente do score da IA
+7. Posta no Telegram
 8. Retorna `{ offer, posted: boolean }`
 
-**`scrapeProductByUrl` — detalhes técnicos (`scraper-product.ts`):**
-- Separa fragmento `#` antes de navegar: `url.split('#')[0]` → evita fragmentos de rastreamento do ML
-- `wid` detectado com `[?&#]wid=(MLB\d+)` — cobre `wid` em query string E em fragmento `#`
-- `waitUntil: 'networkidle'` + `waitForSelector('h1, .andes-money-amount__fraction')` antes de extrair
-- JSON-LD como fonte primária (`@type: "Product"`, campo `price` ou `lowPrice`)
-- Múltiplos seletores CSS em fallback para preço, imagem, desconto e avaliação
+**`scrapeProductByUrl` — 3 caminhos em cascata (`scraper-product.ts`):**
+
+**Caminho 1: API ML** (sem browser, sem CAPTCHA)
+- URLs com `wid`: `GET /items/{wid}` → se 403, tenta catalog search como fallback
+- URLs de catálogo (`/p/MLB...`): `GET /sites/MLB/search?catalog_product_id={id}&sort=price_asc&limit=1` → `GET /items/{bestId}`
+- `sort=price_asc` garante o menor preço disponível (mais próximo do buy-box exibido ao usuário)
+
+**Caminho 2: HTTP fetch + JSON-LD** (sem browser — novo fallback)
+- GET simples para a URL do produto com headers de browser
+- ML usa SSR: o JSON-LD com `@type: "Product"` já está no HTML inicial
+- Extrai `name`, `image`, `offers.price`/`lowPrice`, `aggregateRating`
+- Detecta e rejeita páginas de CAPTCHA (`"Por segurança"`)
+- Mais leve que Playwright; pode evitar CAPTCHA de JavaScript
+
+**Caminho 3: Playwright** (último recurso)
+- Headless Chromium, `waitUntil: 'networkidle'`
+- Em produção (Railway), IPs são frequentemente bloqueados pelo ML → CAPTCHA
+- Use dados manuais no formulário quando este caminho falhar em produção
+
+**Limitação conhecida em produção (Railway):** O IP do Railway é bloqueado pelo ML para páginas de produto. A API ML também retorna 403 para catalog search sem credenciais de app. Use o campo `manualTitle`/`manualSalePrice` do formulário nesses casos.
 
 **Erros:**
-- `400` — URL inválida (sem ID MLB) ou scraping falhou (sem título/preço)
+- `400` — URL inválida (sem ID MLB) ou scraping falhou; mensagem sugere usar dados manuais
 - `409` — oferta já existe (retorna a oferta existente)
-- `422` — `couponCode` e `couponMinValue` enviados separados
 
 ### Autenticação do painel admin ✅
 
@@ -316,11 +345,12 @@ curl -X POST https://aware-recreation-production-0d45.up.railway.app/api/admin/j
 - **WelcomeModal**: modal de boas-vindas na primeira visita — localStorage key `fox_welcomed`; auto-fecha em 5s com barra de progresso animada; link direto para o canal Telegram; `animation: fadeIn + slideUp` via `@keyframes` em globals.css
 
 ### Tabs de ordenação (page.tsx)
-Quatro tabs no topo do feed, alteram `?ordenar=` na URL (full page navigation, sem JS):
+Três tabs no topo do feed, alteram `?ordenar=` na URL (full page navigation, sem JS):
 - 🕐 **Novos** (`ordenar=recent`) — padrão
 - 🔥 **Quentes** (`ordenar=votes`) — mais upvotes
 - **% Descontos** (`ordenar=discount`) — maior desconto
-- **⭐ IA Score** (`ordenar=score`) — melhor avaliado pela IA
+
+> A tab "⭐ IA Score" foi removida: expor o score passa a impressão negativa de que produtos com nota 6-7 são ruins, quando na verdade todos que chegam ao feed já foram aprovados pela IA. O sort `score` ainda existe na API mas não é exposto no frontend.
 
 ### OfferCard (horizontal, server component)
 Layout em 4 colunas:
@@ -336,7 +366,8 @@ Badges exibidos:
 - `-X% OFF` (vermelho) — quando `discountPct > 0`
 - `⚡ Oferta especial!` (roxo `#7c3aed`) — quando `discountPct === 0` (produto sem preço anterior)
 - `🎟️ Cupom` / `🎟️ mín. R$X` (âmbar) — `<CouponCopy variant="badge" />`, clicável: copia código; exibe valor mínimo no rótulo quando `couponMinValue` presente
-- `⭐ IA X/10` (verde) — apenas se `aiScore >= 8`
+
+> Badge de IA Score removido do card: expor nota passa impressão negativa de que produto com 6/10 é ruim. A IA filtra internamente mas não expõe o score no feed.
 
 ### VoteButton (client component — 'use client')
 - Botão ▲ que incrementa/decrementa `upvotes` via `POST /api/offers/:id/vote` ou `/downvote`
@@ -407,11 +438,11 @@ Cada etapa é logada com tag `[Job][MLB123][source]`:
 1. Verifica se oferta já existe com **mesmo preço** → loga "Preço inalterado, pulando"
 2. Se preço mudou ou é nova → **salva bruta no banco** → loga "Salvo no banco: título | preço | desconto"
 3. Filtra desconto < 20% (`MIN_DISCOUNT`) → loga "Filtrado: desconto X% abaixo do mínimo"
-   - **Exceção:** `source === 'coupon'` bypassa esse filtro (desconto é o próprio cupom)
+   - **Exceção:** `source === 'coupon'` ou `source === 'manual'` bypassa esse filtro
 4. Checa se já tem Post → loga "Filtrado: já tem post registrado"
 5. `evaluateOffer()` → loga "IA score: X/10 [APROVADO/REPROVADO] — motivo"
 6. Salva `aiScore` no banco independente do resultado
-7. Descarta score < 6 (`MIN_AI_SCORE`) → para aqui
+7. Descarta score < 6 (`MIN_AI_SCORE`) → para aqui **exceto** quando `forcePost=true` (usado pelo import admin)
 8. `analyzeMarketValue()` → loga "Análise de mercado: destaque sugerido"
 9. `generatePostMessage()` → gera copy Telegram e WhatsApp
 10. Atualiza `Offer` com `telegramMessage`, `whatsappMessage`, `suggestedHighlight`
@@ -428,7 +459,9 @@ Ao final do `runHubJob`, imprime resumo:
 - `Offer.couponCode` = código do cupom (ex: `#FUCHS20OFF`) — linkado ao produto
 - `Offer.couponAmount` = texto de cupom embutido no card do ML (ex: `R$30 OFF`)
 - `Offer.couponExpiresAt` = expiração do cupom
-- `Coupon.discount` = desconto textual do cupom gerado pelo afiliado (ex: `R$ 20 OFF`) — fica na tabela `Coupon`, não na `Offer`
+- `Coupon.discount` = desconto textual (ex: `R$ 20 OFF` ou `10% OFF`) — fica na tabela `Coupon`
+- `Coupon.minValue` = compra mínima em R$; `null` ou `0` = sem mínimo
+- `Coupon.maxDiscount` = teto de desconto em R$ para cupons percentuais (ex: 10% OFF limitado a R$50)
 - Para saber o desconto de um produto de cupom: join `Offer.couponCode` com `Coupon.code`
 
 ## Pipeline — Posting (offers.job.ts → runPostingJob)
@@ -523,30 +556,44 @@ a cada 20min → job:post    — posta até 3 ofertas pendentes no Telegram
 - `generatePostMessage(offer, url, couponCode?, highlight?)` → copy Telegram + WhatsApp
 
 ### Funções exclusivas para produtos de cupom
-Produtos de `source === 'coupon'` usam funções especializadas que recebem `CouponContext`:
+Produtos com `couponDiscount` fornecido usam funções especializadas que recebem `CouponContext`:
 ```typescript
 interface CouponContext {
-  code: string          // "#FUCHS20OFF"
-  discount: string      // "R$ 20 OFF"
+  code: string           // "#FUCHS20OFF"
+  discount: string       // "R$ 20 OFF" ou "10% OFF"
   effectivePrice: number // preço após cupom — só válido quando canApplyAlone = true
-  minValue?: number     // ex: 120 → compra mínima de R$120 no carrinho
-  canApplyAlone: boolean // true = produto sozinho atinge o mínimo; false = precisa combinar no carrinho
+  minValue?: number      // ex: 120 → compra mínima de R$120; undefined/0 = sem mínimo
+  maxDiscount?: number   // ex: 50 → teto R$50 para cupons percentuais
+  canApplyAlone: boolean // produto sozinho atinge o mínimo do cupom
 }
 ```
-- `evaluateCouponOffer(offer, coupon)` → avalia pelo produto + contexto do cupom, +1 ponto fixo pelo diferencial de cupom exclusivo. O `minValue` **não penaliza** a nota — produtos abaixo do mínimo são incentivados como âncoras de carrinho.
-- `generateCouponPostMessage(offer, url, coupon, highlight?)` → copy adaptado por `canApplyAlone`:
-  - `canApplyAlone = true` → mostra "Você paga: R$X" (preço final com cupom)
-  - `canApplyAlone = false` → mostra "Adicione ao carrinho com outros itens da loja para ativar o cupom (mín. R$X)"
+- `evaluateCouponOffer(offer, coupon)` → avalia produto + contexto do cupom, +1 fixo pelo diferencial exclusivo. `minValue` e `maxDiscount` **não penalizam** — produtos abaixo do mínimo são âncoras de carrinho.
+- `generateCouponPostMessage(offer, url, coupon, highlight?)` → copy adaptado:
+  - `canApplyAlone = true` → "Você paga: R$X"; exibe `(máx R$Y)` quando `maxDiscount` presente
+  - `canApplyAlone = false` → "Adicione ao carrinho com outros itens para ativar o cupom"
 - `analyzeMarketValue` é compartilhada entre os dois fluxos
 
 **Cálculo de `effectivePrice` e `canApplyAlone` em `processOffer`:**
 ```typescript
-const canApplyAlone = !couponMinValue || raw.salePrice >= couponMinValue
+// minValue=0 ou undefined = sem mínimo
+const effectiveMinValue = couponMinValue && couponMinValue > 0 ? couponMinValue : undefined
+const canApplyAlone = !effectiveMinValue || raw.salePrice >= effectiveMinValue
+
+// calcCouponDiscount lida com cupons fixos e percentuais, respeita o teto maxDiscount
+function calcCouponDiscount(salePrice, discountText, maxDiscount?): number {
+  const num = parseCouponDiscount(discountText)        // extrai primeiro número
+  const isPercent = discountText.includes('%')
+  const raw = isPercent ? salePrice * (num / 100) : num
+  return maxDiscount != null ? Math.min(raw, maxDiscount) : raw
+}
+
 const effectivePrice = canApplyAlone
-  ? Math.max(0, raw.salePrice - parseCouponDiscount(couponDiscount))
-  : raw.salePrice  // cupom não aplica ao produto isolado — preço fica o mesmo
+  ? Math.max(0, raw.salePrice - calcCouponDiscount(raw.salePrice, couponDiscount, couponMaxDiscount))
+  : raw.salePrice
 ```
-Isso corrige o bug de `R$19.90 - R$20 = R$0` para produtos abaixo do mínimo (ex: coqueteleira R$19,90 com cupom de R$20 OFF e mínimo R$120).
+
+**`generatePostMessage` — bloco de preço pré-formatado:**
+O prompt pré-formata a linha de preço e instrui o modelo a copiá-la sem alterar valores. Isso evita o bug em que o Haiku inventava preços (ex: R$116,28) quando `discountPct=0` ou o desconto era pouco expressivo.
 
 ## Links de afiliado
 Formato: `URL_PRODUTO?matt_tool=28042140&matt_word=fuchsecommerce`
@@ -646,9 +693,13 @@ railway.toml
 
 ### Migrations
 - Provider: `postgresql` em `schema.prisma`
-- Única migration: `20260623000000_pg_init/migration.sql` — baseline PostgreSQL (substitui as duas migrations SQLite que existiam)
 - `migration_lock.toml`: provider = "postgresql"
 - `prisma migrate deploy` roda automaticamente no CMD do container
+
+| Migration | O que faz |
+|---|---|
+| `20260623000000_pg_init` | Baseline PostgreSQL — schema completo inicial |
+| `20260624000000_coupon_max_discount` | Adiciona `maxDiscount Float?` ao model `Coupon` |
 
 ### Fixes de build Railway (2026-06-24) — histórico de erros resolvidos
 
@@ -755,10 +806,23 @@ Quando o hub/coupon scraper começar a falhar (sessão expirada, semanas depois)
 - [x] **Fix build Railway — `tsc` não encontrado** — removido `--omit=dev` do `npm ci` no Dockerfile; `typescript` precisa estar disponível no build ✅
 - [x] **Fix build Railway — `better-sqlite3` native addon** — removido do `package.json`; `migrate-to-pg.ts` excluído do `tsconfig.json` (script one-shot, não faz parte do build de prod) ✅
 - [x] **Fix build Railway — Prisma OpenSSL engine** — adicionado `binaryTargets = ["native", "debian-openssl-3.0.x"]` no `schema.prisma`; `node:20-slim` usa Debian bookworm que requer esse engine ✅
-- [ ] **Barra de pesquisa no frontend** — input no header que filtra ofertas por texto; novo parâmetro `?q=` em `GET /api/offers`; SSR via `searchParams` em `page.tsx`; busca no campo `title` do banco (PostgreSQL: `ILIKE %query%`)
 - [x] **Endpoints admin de jobs** — `POST /api/admin/job/{offers,hub,post,repost}` implementados em `api/routes/admin.ts`; fire-and-forget (retornam imediatamente); protegidos por `Authorization: Bearer ADMIN_SECRET` ✅
 - [x] **Rota admin protegida** — `middleware.ts` no frontend protege `/admin/*`; login via `POST /api/admin/login`; cookie httpOnly `admin_token` com 7 dias; logout via `POST /api/admin/logout` ✅
 - [x] **Painel admin — dashboard** — `/admin` com botões de disparo para os 4 jobs; proxy `/api/admin/job/[job]` valida cookie server-side e repassa ao backend com bearer token ✅
+- [x] **`DATABASE_URL` no `.env` local** — variável adicionada apontando para o Railway Postgres público; era `DATABASE_PUBLIC_URL` mas o Prisma exige exatamente `DATABASE_URL` ✅
+- [x] **Tab "IA Score" removida do feed** — expor o score cria impressão negativa; a IA continua filtrando internamente (score ≥ 6) mas sem expor nota ao usuário ✅
+- [x] **Badge de IA Score removido do OfferCard** — mesma razão; score ainda salvo no banco mas não exibido ✅
+- [x] **`maxDiscount` no modelo `Coupon`** — migration `20260624000000_coupon_max_discount`; campo `Float?` para teto de desconto em R$ de cupons percentuais (ex: 10% OFF limitado a R$50) ✅
+- [x] **Import admin aceita detalhes de cupom** — `couponDiscount` (texto), `couponMinValue` (0 = sem mínimo), `couponMaxDiscount` (teto) — todos opcionais além do `couponCode` ✅
+- [x] **Import admin aceita dados manuais** — `manualTitle` + `manualSalePrice` (obrigatórios juntos) + `manualOriginalPrice` + `manualImageUrl`; quando fornecidos, o scraper é ignorado — contorna bloqueio de IP no Railway ✅
+- [x] **Import admin sempre posta (`forcePost=true`)** — `processOffer` ganhou parâmetro `forcePost: boolean`; quando `true`, bypassa gate de score mínimo da IA; todos os imports do painel são postados independente da nota ✅
+- [x] **`scrapeProductByUrl` — 3 caminhos em cascata** — API ML → HTTP fetch + JSON-LD → Playwright; HTTP fetch usa SSR do ML para extrair JSON-LD sem browser, evitando CAPTCHA de JS ✅
+- [x] **Fix wid 403** — quando `wid` retorna 403 na API ML, tenta catalog search como fallback ✅
+- [x] **Catalog search com `sort=price_asc`** — retorna o menor preço disponível (mais próximo do buy-box exibido ao usuário) ✅
+- [x] **`generatePostMessage` — bloco de preço pré-formatado** — evita bug onde Haiku inventava preços (ex: R$116,28) quando disconto era 0% ou pouco expressivo; prompt agora inclui a linha de preço literal ✅
+- [x] **`calcCouponDiscount` — suporte a cupons percentuais** — detecta `%` no texto e calcula percentual sobre o preço; respeita `maxDiscount` como teto ✅
+- [ ] **Barra de pesquisa no frontend** — input no header que filtra ofertas por texto; novo parâmetro `?q=` em `GET /api/offers`; SSR via `searchParams` em `page.tsx`; busca no campo `title` do banco (PostgreSQL: `ILIKE %query%`)
+- [ ] **Limitação Railway / scraper de produto** — IP bloqueado pelo ML para páginas públicas e API sem auth retorna 403 para catalog search; workaround atual: dados manuais no formulário; solução definitiva: registrar ML App para obter token de API autenticado
 - [ ] **Proteção de votos server-side** — rate limit por IP ou tabela `Vote` com constraint única — implementar junto com autenticação
 - [ ] Autenticação de usuários (NextAuth ou similar) — pré-requisito para comentários e ofertas de usuário
 - [ ] Sistema de comentários por oferta
