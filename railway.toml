@@ -1,5 +1,13 @@
 [build]
 dockerfilePath = "Dockerfile"
+watchPatterns = [
+  "packages/backend/**",
+  "packages/frontend/package.json",
+  "package.json",
+  "package-lock.json",
+  "Dockerfile",
+  "railway.toml"
+]
 
 [deploy]
 startCommand = "sh -c 'cd packages/backend && npx prisma migrate deploy && node dist/index.js'"
