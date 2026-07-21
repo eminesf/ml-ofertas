@@ -1,5 +1,7 @@
+import { Suspense } from "react";
 import { getOffers } from "@/lib/api";
 import OfferCard from "@/components/OfferCard";
+import SearchBar from "@/components/SearchBar";
 
 export const metadata = {
 	title: "Fox Ofertas — Promoções e Cupons do Mercado Livre",
@@ -41,6 +43,10 @@ export default async function HomePage({
 			suppressHydrationWarning
 			style={{ maxWidth: 860, margin: "0 auto", padding: "1.5rem 1rem" }}
 		>
+			<Suspense fallback={<div className="search-bar-wrap" style={{ height: 52 }} />}>
+				<SearchBar />
+			</Suspense>
+
 			{/* Tabs de ordenação */}
 			<div
 				style={{

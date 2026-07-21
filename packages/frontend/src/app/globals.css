@@ -21,38 +21,50 @@
   flex-wrap: wrap;
 }
 
-.header-search {
+.search-bar-wrap {
   display: flex;
-  align-items: center;
-  flex-shrink: 0;
-  background: rgba(255,255,255,0.55);
-  border: 1px solid rgba(0,0,0,0.12);
-  border-radius: 20px;
+  justify-content: center;
+  margin-bottom: 1.25rem;
+}
+
+.search-bar {
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+  max-width: 480px;
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 26px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.06);
   overflow: hidden;
 }
 
-.header-search-input {
+.search-bar-input {
+  flex: 1;
+  min-width: 0;
   border: none;
   background: transparent;
   outline: none;
-  padding: 8px 4px 8px 14px;
-  font-size: 14px;
+  padding: 13px 6px 13px 20px;
+  font-size: 15px;
   font-family: inherit;
-  width: 180px;
   color: #1a1a1a;
 }
 
-.header-search-input::placeholder { color: #555; }
+.search-bar-input::placeholder { color: #999; }
 
-.header-search-btn {
+.search-bar-btn {
   border: none;
-  background: transparent;
+  background: #FFE600;
   cursor: pointer;
-  padding: 8px 12px;
-  font-size: 15px;
+  padding: 0 20px;
+  font-size: 17px;
   line-height: 1;
   color: #333;
+  transition: background 0.15s;
 }
+
+.search-bar-btn:hover { background: #e6c800; }
 
 @media (max-width: 680px) {
   .header-inner {
@@ -79,13 +91,6 @@
     justify-content: center;
   }
   .header-nav::-webkit-scrollbar { display: none; }
-  .header-search {
-    order: 3;
-    width: 100%;
-  }
-  .header-search-input {
-    width: 100%;
-  }
 }
 
 /* ── Cards ───────────────────────────────────────────────── */
