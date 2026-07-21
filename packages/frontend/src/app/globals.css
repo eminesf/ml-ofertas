@@ -21,6 +21,39 @@
   flex-wrap: wrap;
 }
 
+.header-search {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  background: rgba(255,255,255,0.55);
+  border: 1px solid rgba(0,0,0,0.12);
+  border-radius: 20px;
+  overflow: hidden;
+}
+
+.header-search-input {
+  border: none;
+  background: transparent;
+  outline: none;
+  padding: 8px 4px 8px 14px;
+  font-size: 14px;
+  font-family: inherit;
+  width: 180px;
+  color: #1a1a1a;
+}
+
+.header-search-input::placeholder { color: #555; }
+
+.header-search-btn {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  padding: 8px 12px;
+  font-size: 15px;
+  line-height: 1;
+  color: #333;
+}
+
 @media (max-width: 680px) {
   .header-inner {
     height: auto;
@@ -46,6 +79,13 @@
     justify-content: center;
   }
   .header-nav::-webkit-scrollbar { display: none; }
+  .header-search {
+    order: 3;
+    width: 100%;
+  }
+  .header-search-input {
+    width: 100%;
+  }
 }
 
 /* ── Cards ───────────────────────────────────────────────── */

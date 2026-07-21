@@ -1,7 +1,9 @@
 import type { Metadata } from 'next'
+import { Suspense } from 'react'
 import { Nunito } from 'next/font/google'
 import './globals.css'
 import WelcomeModal from '@/components/WelcomeModal'
+import SearchBar from '@/components/SearchBar'
 
 const nunito = Nunito({
   subsets: ['latin'],
@@ -38,6 +40,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <a href="/categoria/beleza" style={navLink}>Beleza</a>
             </nav>
 
+            <Suspense fallback={<div className="header-search" style={{ width: 180 }} />}>
+              <SearchBar />
+            </Suspense>
           </div>
         </header>
 

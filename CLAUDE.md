@@ -684,6 +684,13 @@ Quando o hub/coupon scraper começar a falhar (sessão expirada, semanas depois)
   - `NEXT_PUBLIC_API_URL=https://aware-recreation-production-0d45.up.railway.app`
   - `NEXT_PUBLIC_SITE_URL` — adicionar quando tiver domínio próprio (afeta só sitemap.xml)
 
+### Deploy escopado por path (evita redeploy cruzado) (`0c98052`)
+- **Problema:** Railway e Vercel redeployavam os dois a cada push, mesmo quando a mudança era só em `packages/backend` ou só em `packages/frontend`.
+- **Fix:**
+  - `railway.toml` → `[build].watchPatterns` restringe o Railway a redeployar só quando mudar `packages/backend/**`, `packages/frontend/package.json`, `package.json`, `package-lock.json`, `Dockerfile` ou `railway.toml`.
+  - `packages/frontend/vercel.json` (novo) → `ignoreCommand` compara `git diff HEAD^ HEAD` contra `packages/frontend` + manifests da raiz; se nada relevante mudou, a Vercel pula o build.
+- **Trade-off aceito:** se uma dependência só do backend for adicionada, `package-lock.json` raiz muda e ainda aciona rebuild da Vercel (não dá pra diferenciar por workspace sem lockfile por pacote). Na prática é raro e o build é rápido de pular manualmente se precisar.
+
 ---
 
 ## Próximos passos
@@ -755,7 +762,8 @@ Quando o hub/coupon scraper começar a falhar (sessão expirada, semanas depois)
 - [x] **Fix build Railway — `tsc` não encontrado** — removido `--omit=dev` do `npm ci` no Dockerfile; `typescript` precisa estar disponível no build ✅
 - [x] **Fix build Railway — `better-sqlite3` native addon** — removido do `package.json`; `migrate-to-pg.ts` excluído do `tsconfig.json` (script one-shot, não faz parte do build de prod) ✅
 - [x] **Fix build Railway — Prisma OpenSSL engine** — adicionado `binaryTargets = ["native", "debian-openssl-3.0.x"]` no `schema.prisma`; `node:20-slim` usa Debian bookworm que requer esse engine ✅
-- [ ] **Barra de pesquisa no frontend** — input no header que filtra ofertas por texto; novo parâmetro `?q=` em `GET /api/offers`; SSR via `searchParams` em `page.tsx`; busca no campo `title` do banco (PostgreSQL: `ILIKE %query%`)
+- [x] **Deploy escopado por path** — `railway.toml` (`watchPatterns`) e `packages/frontend/vercel.json` (`ignoreCommand`) evitam que um push só no backend redeploye a Vercel e vice-versa ✅
+- [x] **Barra de pesquisa no frontend** — `<SearchBar />` (client component) no header, form GET para `/`; parâmetro `?q=` em `GET /api/offers` (Prisma `contains` + `mode: 'insensitive'`); `page.tsx` lê `searchParams.q`, propaga nas tabs/paginação, mostra "Resultados para X" e estado vazio dedicado ✅
 - [x] **Endpoints admin de jobs** — `POST /api/admin/job/{offers,hub,post,repost}` implementados em `api/routes/admin.ts`; fire-and-forget (retornam imediatamente); protegidos por `Authorization: Bearer ADMIN_SECRET` ✅
 - [x] **Rota admin protegida** — `middleware.ts` no frontend protege `/admin/*`; login via `POST /api/admin/login`; cookie httpOnly `admin_token` com 7 dias; logout via `POST /api/admin/logout` ✅
 - [x] **Painel admin — dashboard** — `/admin` com botões de disparo para os 4 jobs; proxy `/api/admin/job/[job]` valida cookie server-side e repassa ao backend com bearer token ✅
