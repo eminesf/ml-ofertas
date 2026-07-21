@@ -39,6 +39,7 @@ const label: React.CSSProperties = {
 
 export default function AdminImportPage() {
 	const [url, setUrl] = useState("");
+	const [shortLink, setShortLink] = useState("");
 	const [couponCode, setCouponCode] = useState("");
 	const [couponDiscount, setCouponDiscount] = useState("");
 	const [couponMinValue, setCouponMinValue] = useState("");
@@ -55,8 +56,11 @@ export default function AdminImportPage() {
 	const hasCoupon = couponCode.trim() !== "";
 	const hasManual = manualTitle.trim() !== "" && manualSalePrice.trim() !== "";
 
+	const isShopee = url.includes("shopee.com.br");
+
 	function resetForm() {
 		setUrl("");
+		setShortLink("");
 		setCouponCode("");
 		setCouponDiscount("");
 		setCouponMinValue("");
@@ -76,6 +80,7 @@ export default function AdminImportPage() {
 
 		try {
 			const body: Record<string, unknown> = { url: url.trim() };
+			if (shortLink.trim()) body.affiliateShortLink = shortLink.trim();
 			if (hasCoupon) {
 				body.couponCode = couponCode.trim();
 				if (couponDiscount.trim()) body.couponDiscount = couponDiscount.trim();
@@ -133,8 +138,9 @@ export default function AdminImportPage() {
 					Importar oferta
 				</h1>
 				<p style={{ margin: 0, color: "#888", fontSize: 13 }}>
-					Cole a URL de um produto do Mercado Livre para scraping, avaliação por
-					IA e posting imediato no Telegram.
+					Cole a URL de um produto (Mercado Livre, Amazon, Shopee, KaBuM!,
+					AliExpress ou Stanley) para scraping, avaliação por IA e posting
+					imediato no Telegram.
 				</p>
 			</div>
 
@@ -159,10 +165,28 @@ export default function AdminImportPage() {
 						value={url}
 						onChange={(e) => setUrl(e.target.value)}
 						required
-						placeholder="https://www.mercadolivre.com.br/p/MLB..."
+						placeholder="URL do ML, Amazon, Shopee, KaBuM!, AliExpress ou Stanley"
 						style={field}
 					/>
 				</div>
+
+				{/* Link de afiliado Shopee (sem Open API não há geração automática) */}
+				{isShopee && (
+					<div>
+						<label style={label}>Link de afiliado Shopee (s.shopee.com.br/...)</label>
+						<input
+							type="url"
+							value={shortLink}
+							onChange={(e) => setShortLink(e.target.value)}
+							placeholder="https://s.shopee.com.br/..."
+							style={field}
+						/>
+						<p style={{ margin: "6px 0 0", fontSize: 11, color: "#c05621" }}>
+							⚠️ Gere o link em affiliate.shopee.com.br → Link personalizado.
+							Sem ele, o post sai com a URL do produto e você NÃO ganha comissão.
+						</p>
+					</div>
+				)}
 
 				{/* Cupom */}
 				<div style={{ borderTop: "1px solid #f0f0f0", paddingTop: "1.25rem" }}>

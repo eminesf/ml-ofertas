@@ -1,13 +1,13 @@
 # ML Afiliados Bot — Contexto do Projeto
 
 ## O que é
-Bot automatizado de ofertas para afiliados do Mercado Livre. Scrapa ofertas públicas do ML, avalia com IA (Claude), gera copy chamativo e posta em canal público do Telegram. Site Next.js exibe as ofertas como feed estilo pelando.com.br e serve como plataforma cadastrada no programa de afiliados.
+Bot automatizado de ofertas para afiliados **multi-plataforma**: Mercado Livre, Amazon, Shopee e Awin (KaBuM!, AliExpress, Stanley). Scrapa/importa ofertas, avalia com IA, gera copy chamativo e posta em canal público do Telegram. Site Next.js exibe as ofertas como feed estilo pelando.com.br e serve como plataforma cadastrada nos programas de afiliados.
 
 ## Stack
 - **Monorepo** npm workspaces
 - **Backend**: Node.js + TypeScript + Express + Prisma + node-cron + Playwright
 - **Frontend**: Next.js 15 (App Router) — SSR + client components para interatividade
-- **IA**: Claude API (`claude-haiku-4-5`) via `@anthropic-ai/sdk@^0.105.0` — escolhido por custo (~3x mais barato que Sonnet, ~$0.05/run, ~$5 dura ~12-18 dias)
+- **IA**: OpenRouter (`deepseek/deepseek-chat`) via fetch direto (formato OpenAI-compatible) — migrado da Claude API por custo; `OPENROUTER_MODEL` env var permite trocar de modelo sem código
 - **Canal**: Telegram Bot API (REST)
 - **Banco local**: SQLite (`packages/backend/prisma/dev.db`) — apenas dev
 - **Banco produção**: PostgreSQL no Railway — `DATABASE_URL` via env var
@@ -22,15 +22,23 @@ ml-afiliados/
 │   │   └── src/
 │   │       ├── providers/
 │   │       │   ├── base.provider.ts              # interface AffiliateProvider (name, scrapeOffers, buildAffiliateLink)
-│   │       │   └── mercadolivre/
-│   │       │       ├── index.ts                  # scraper público /ofertas
-│   │       │       ├── auth.ts                   # login ML + sessão salva
-│   │       │       ├── scraper-hub.ts            # scraper /afiliados/hub
-│   │       │       ├── scraper-coupons.ts        # scraper /afiliados/coupons
-│   │       │       └── scraper-product.ts        # scraper de produto único por URL (usado pelo /import)
+│   │       │   ├── registry.ts                   # resolve provider + externalId a partir de qualquer URL suportada
+│   │       │   ├── html-product.ts               # scraper genérico JSON-LD + og:meta (fetch → fallback Playwright)
+│   │       │   ├── mercadolivre/
+│   │       │   │   ├── index.ts                  # scraper público /ofertas
+│   │       │   │   ├── auth.ts                   # login ML + sessão salva
+│   │       │   │   ├── scraper-hub.ts            # scraper /afiliados/hub
+│   │       │   │   ├── scraper-coupons.ts        # scraper /afiliados/coupons
+│   │       │   │   └── scraper-product.ts        # scraper de produto único por URL (usado pelo /import)
+│   │       │   ├── amazon/
+│   │       │   │   ├── index.ts                  # AmazonProvider: tag de associado + scraper /deals
+│   │       │   │   └── scraper-product.ts        # produto único por ASIN (fetch HTTP + fallback genérico)
+│   │       │   ├── awin/index.ts                 # AwinProvider (Kabum/AliExpress/Stanley) + deeplink cread.php
+│   │       │   └── shopee/index.ts               # ShopeeProvider — sem Open API, link curto manual
 │   │       ├── jobs/
 │   │       │   ├── offers.job.ts                 # pipeline: scrape, IA, posting, repost
-│   │       │   └── scheduler.ts                  # cron jobs agendados
+│   │       │   ├── scrape-cli.ts                 # CLI de scraping 100% LOCAL (ml|hub|amazon|all)
+│   │       │   └── scheduler.ts                  # cron jobs agendados (SÓ posting/repost — sem scraping)
 │   │       ├── ai/index.ts                       # evaluateOffer + analyzeMarketValue + generatePostMessage
 │   │       ├── channels/telegram/index.ts        # sendMessage + sendPhoto
 │   │       ├── api/routes/
@@ -71,9 +79,13 @@ ml-afiliados/
 
 ## Variáveis de ambiente (.env)
 ```env
-ANTHROPIC_API_KEY=            # configurado ✅ — $5 de crédito, modelo claude-haiku-4-5
+OPENROUTER_API_KEY=           # configurado ✅ — IA via OpenRouter (deepseek-chat)
+OPENROUTER_MODEL=             # opcional — default deepseek/deepseek-chat
+ANTHROPIC_API_KEY=            # legado — não é mais usada (IA migrou para OpenRouter)
 TELEGRAM_BOT_TOKEN=           # configurado ✅ — bot criado via @BotFather
 TELEGRAM_CHANNEL_ID=@e_foxofertas  # canal público criado e testado ✅
+AMAZON_ASSOCIATE_TAG=foxofertas04-20  # tag do Amazon Associados (default no código)
+AWIN_AFFILIATE_ID=2953175     # publisher ID Awin (default no código)
 ML_AFFILIATE_ID=28042140      # matt_tool do ML Afiliados
 ML_AFFILIATE_WORD=fuchsecommerce   # matt_word / prefixo do afiliado
 ML_EMAIL=                     # login ML para hub/cupons
@@ -286,12 +298,12 @@ Todos protegidos por `Authorization: Bearer ADMIN_SECRET`. Retornam imediatament
 
 | Método | Rota | Job disparado |
 |--------|------|--------------|
-| `POST` | `/api/admin/job/offers` | `runOffersJob` — scrape /ofertas públicas |
-| `POST` | `/api/admin/job/hub` | `runHubJob` — scrape hub + cupons (requer sessão ML) |
 | `POST` | `/api/admin/job/post` | `runPostingJob` — posta pendentes; `?max=N` sobrescreve ML_POST_MAX |
 | `POST` | `/api/admin/job/repost` | `runRepostJob` — repost de ofertas válidas |
 
-> **⚠️ Comportamento do repost:** só reposta ofertas que **já foram postadas hoje**. Se nenhuma oferta foi postada no dia, o job não faz nada. Para publicar ofertas novas, use `job/post`. Fluxo correto: `job/offers` ou `job/hub` → `job/post` → (nas 12h/20h) `job/repost`.
+> Os endpoints `job/offers` e `job/hub` foram **removidos** — scraping é 100% local (`npm run scrape`), não roda mais no Railway.
+
+> **⚠️ Comportamento do repost:** só reposta ofertas que **já foram postadas hoje**. Se nenhuma oferta foi postada no dia, o job não faz nada. Para publicar ofertas novas, use `job/post`. Fluxo correto: `npm run scrape` (local) → `job/post` → (nas 12h/20h) `job/repost`.
 
 **Exemplo de chamada:**
 ```bash
@@ -440,13 +452,40 @@ Job de posting busca ofertas prontas e as posta de forma cadenciada:
 4. Salva `Post` no banco
 5. Pausa 2s entre posts
 
-## Agendamento (scheduler.ts)
+## Agendamento (scheduler.ts) — SÓ posting/repost no Railway
 ```
-6h diário    → job:offers  — scrape /ofertas públicas (48 produtos) → salva no banco
-7h diário    → job:hub     — scrape /afiliados/hub (até 50 produtos, "Mais vendidos") → salva no banco
-a cada 20min → job:post    — posta até 3 ofertas pendentes no Telegram
-12h e 20h    → job:repost  — repost de ofertas postadas HOJE (máx 2x/dia por oferta, intervalo mín. 4h)
+a cada 20min → posting — posta até ML_POST_MAX ofertas pendentes no Telegram
+12h e 20h    → repost  — repost de ofertas postadas HOJE (máx 2x/dia por oferta, intervalo mín. 4h)
 ```
+
+**⚠️ Scraping NÃO roda mais no Railway.** Os crons de 6h/7h foram removidos — scraping no Railway pesava o container e sofria CAPTCHA/bloqueios de IP de datacenter, além de bugs de sessão no hub ML. Todo scraping é 100% local e manual via `scrape-cli.ts` (grava direto no Postgres do Railway pela `DATABASE_URL`, então o posting agendado do Railway posta os produtos normalmente). Os endpoints admin `job/offers` e `job/hub` foram removidos pelo mesmo motivo (restam `job/post` e `job/repost`).
+
+## Scraping local (scrape-cli.ts)
+```bash
+# na raiz do monorepo (ou dentro de packages/backend):
+npm run scrape          # todas as plataformas (ml + amazon + hub)
+npm run scrape:ml       # só ofertas públicas do ML
+npm run scrape:hub      # só hub de afiliados ML + cupons (abre browser p/ login se sessão expirou)
+npm run scrape:amazon   # só ofertas do dia da Amazon (/deals)
+```
+Shopee e Awin (Kabum/AliExpress/Stanley) não têm scraping de listagem — produtos entram via import por URL no painel admin (`/admin/import`).
+
+## Providers multi-plataforma
+
+| Provider (`Offer.provider`) | Link de afiliado | Import por URL | Scrape de listagem |
+|---|---|---|---|
+| `mercadolivre` | `?matt_tool=28042140&matt_word=fuchsecommerce` | ✅ API ML → HTTP → Playwright | ✅ /ofertas + hub |
+| `amazon` | `?tag=foxofertas04-20` | ✅ HTTP (productTitle/a-offscreen) → genérico | ✅ /deals (local) |
+| `kabum` | Awin deeplink mid=17729 | ✅ JSON-LD via html-product.ts | ❌ |
+| `aliexpress` | Awin deeplink mid=18879 | ⚠️ best-effort (JS-heavy, fallback Playwright) | ❌ |
+| `stanley` | Awin deeplink mid=30599 | ✅ JSON-LD (Shopify) | ❌ |
+| `shopee` | ⚠️ link curto manual | ⚠️ best-effort (bot-protection forte; usar dados manuais) | ❌ |
+
+- **Registry** (`providers/registry.ts`): `resolveProviderByUrl(url)` detecta a plataforma pelo hostname e devolve provider + externalId + scraper de produto. Usado pelo `/api/offers/import`.
+- **externalId prefixado por plataforma** — sem migration: ML mantém `MLB{digits}` (compatível com banco existente); Amazon `AMZN-{ASIN}`; Kabum `KABUM-{id}`; AliExpress `ALIEXP-{id}`; Stanley `STANLEY-{handle}`; Shopee `SHOPEE-{shopId}-{itemId}`. Prefixos garantem unicidade global sem alterar o schema.
+- **Awin deeplink**: `https://www.awin1.com/cread.php?awinmid={MID}&awinaffid=2953175&ued={URL_ENCODED}` — publisher ID 2953175 (PF - Fox Ofertas e Promoções).
+- **Shopee sem Open API**: a conta ainda não tem acesso à Open API de afiliados (pendente "Aplicar" em affiliate.shopee.com.br/open_api). Sem ela não há geração programática do link curto. O form de import mostra campo "Link de afiliado Shopee" quando a URL é da Shopee — gerar em affiliate.shopee.com.br → Link personalizado e colar; sem ele o post sai SEM comissão (o backend loga warning). Quando a API for aprovada, implementar `generateShortLink` via GraphQL (`open-api.affiliate.shopee.com.br/graphql`).
+- **`processOffer` aceita `affiliateUrlOverride`** (último parâmetro) — usado pelo import para o link curto da Shopee.
 
 ## Scraper ML — Detalhes técnicos
 
@@ -512,10 +551,12 @@ a cada 20min → job:post    — posta até 3 ofertas pendentes no Telegram
 - `test:hub` cobre hub + cupons — exibe cupons e primeiros 3 produtos de cada
 
 ## IA (ai/index.ts)
-- Modelo: `claude-haiku-4-5`
-- SDK: `@anthropic-ai/sdk@^0.105.0` (atualizado de 0.39 — corrige bug `ERR_STREAM_PREMATURE_CLOSE`)
-- Todas as respostas passam por `stripMarkdown()` antes de `JSON.parse` — Haiku às vezes retorna JSON dentro de ``` ```json ``` ```
+- **OpenRouter** com modelo `deepseek/deepseek-chat` (V3) — migrado da Claude API por custo
+- Sem SDK: `fetch` direto para `https://openrouter.ai/api/v1/chat/completions` (formato OpenAI-compatible), helper `chat(prompt, maxTokens)` interno
+- Env vars: `OPENROUTER_API_KEY` (obrigatória — **precisa estar no Railway também**, o repost gera copy) e `OPENROUTER_MODEL` (opcional, troca de modelo sem código)
+- Todas as respostas passam por `stripMarkdown()` antes de `JSON.parse` — LLMs às vezes retornam JSON dentro de ``` ```json ``` ```
 - Contexto de tendências injetado em todos os prompts (Copa FIFA 26, Pokémon TCG, inverno BR)
+- Testar: `npm run test:ai` (não grava nada, só chama a API)
 
 ### Funções para ofertas normais (hub / offers-page)
 - `evaluateOffer(offer)` → score 0-10 baseado em desconto, avaliação, tendências, preço
@@ -611,12 +652,15 @@ npm run test:scraper  # scraper público ML — 48 ofertas, sem login
 npm run test:hub      # hub de afiliados — abre browser para login ML
 npm run test:coupons  # cupons do painel — abre browser para login ML
 npm run test:telegram # envia mensagem+foto de teste no canal @e_foxofertas
-npm run test:ai       # testa chamadas à API Claude
+npm run test:ai       # testa OpenRouter/DeepSeek (não grava nada)
+npm run test:providers -- <url>          # resolve provider, scrapa produto e mostra link afiliado
+npm run test:providers -- --amazon-deals # testa scraper de listagem da Amazon
 
-# --- Jobs de scraping (salva no banco, NÃO posta no Telegram) ---
-npm run job:scrape    # roda ofertas + hub em sequência (scrape completo manual)
-npm run job:offers    # scrape apenas /ofertas públicas
-npm run job:hub       # scrape apenas /afiliados/hub
+# --- Scraping local (salva no banco Railway, NÃO posta no Telegram) ---
+npm run scrape         # todas as plataformas (ml + amazon + hub)
+npm run scrape:ml      # apenas /ofertas públicas ML
+npm run scrape:hub     # apenas /afiliados/hub + cupons
+npm run scrape:amazon  # apenas ofertas do dia Amazon
 
 # --- Jobs de posting (lê do banco e posta no Telegram) ---
 npm run job:post      # posta as 5 melhores ofertas pendentes agora
@@ -771,7 +815,12 @@ Quando o hub/coupon scraper começar a falhar (sessão expirada, semanas depois)
 - [ ] Autenticação de usuários (NextAuth ou similar) — pré-requisito para comentários e ofertas de usuário
 - [ ] Sistema de comentários por oferta
 - [ ] Usuários cadastrar ofertas (com aprovação moderada antes de publicar)
-- [ ] Adicionar segundo provider (Amazon Afiliados)
+- [x] **Multi-provider** — Amazon (tag `foxofertas04-20`), Awin (Kabum 17729 / AliExpress 18879 / Stanley 30599, publisher 2953175) e Shopee (link curto manual até Open API ser aprovada); registry detecta provider pela URL no import; externalId prefixado por plataforma (sem migration); badge de loja nos cards ✅
+- [x] **IA migrada para OpenRouter/DeepSeek** — `deepseek/deepseek-chat` via fetch, sem SDK; `@anthropic-ai/sdk` removido; testado com `test:ai` ✅
+- [x] **Scraping 100% local** — crons de 6h/7h e endpoints admin `job/offers`/`job/hub` removidos do Railway; `npm run scrape[:ml|:hub|:amazon]` grava direto no Postgres Railway ✅
+- [ ] **⚠️ ANTES DO MERGE: configurar `OPENROUTER_API_KEY` no Railway** — o repost/posting em produção gera copy via OpenRouter; sem a key os jobs falham
+- [ ] **Shopee Open API** — clicar "Aplicar" em affiliate.shopee.com.br/open_api; quando aprovado, implementar `generateShortLink` GraphQL para gerar link curto automaticamente
+- [ ] **Awin product feeds** — datafeed API para scrape de listagem de Kabum/AliExpress/Stanley (hoje só import por URL)
 - [ ] Remover `Filters.tsx` (legado, não utilizado desde o redesign do feed)
 - [ ] Analytics: Google Analytics 4 ou Plausible — medir cliques nos links de afiliado (conversão)
 - [ ] Domínio próprio — apontar para Vercel + atualizar `NEXT_PUBLIC_SITE_URL` para sitemap correto

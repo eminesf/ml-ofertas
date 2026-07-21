@@ -10,18 +10,6 @@ interface JobStatus {
 
 const JOBS = [
   {
-    id: 'offers',
-    label: 'Scrape Ofertas Públicas',
-    description: 'Scrapa /ofertas do ML (48 produtos). Não requer sessão.',
-    icon: '🔍',
-  },
-  {
-    id: 'hub',
-    label: 'Scrape Hub + Cupons',
-    description: 'Scrapa /afiliados/hub e cupons. Requer ML_SESSION_JSON válida.',
-    icon: '🏪',
-  },
-  {
     id: 'post',
     label: 'Postar Pendentes',
     description: 'Posta as melhores ofertas aprovadas pela IA que ainda não foram publicadas.',
@@ -60,7 +48,7 @@ export default function AdminDashboard() {
       <div style={{ marginBottom: '2rem' }}>
         <h1 style={{ margin: '0 0 4px', fontSize: '1.5rem', fontWeight: 900 }}>Dashboard</h1>
         <p style={{ margin: 0, color: '#888', fontSize: 13 }}>
-          Controle manual dos jobs de scraping e posting.
+          Controle manual de posting. Scraping roda 100% local: <code>npm run scrape</code> (ou <code>scrape:ml</code> / <code>scrape:hub</code> / <code>scrape:amazon</code>).
         </p>
       </div>
 
@@ -73,7 +61,7 @@ export default function AdminDashboard() {
         <div>
           <p style={{ margin: '0 0 2px', fontWeight: 700, fontSize: 14 }}>📥 Importar oferta manualmente</p>
           <p style={{ margin: 0, fontSize: 12, color: '#888' }}>
-            Cole uma URL do ML para scraping, avaliação por IA e posting imediato.
+            Cole uma URL (ML, Amazon, Shopee, KaBuM!, AliExpress, Stanley) para scraping, IA e posting imediato.
           </p>
         </div>
         <Link

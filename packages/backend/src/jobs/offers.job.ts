@@ -56,10 +56,11 @@ export async function processOffer(
   couponDiscount?: string,
   couponMinValue?: number,
   couponMaxDiscount?: number,
-  forcePost: boolean = false
+  forcePost: boolean = false,
+  affiliateUrlOverride?: string
 ) {
   const tag = `[Job][${raw.externalId}][${source}]`
-  const affiliateUrl = provider.buildAffiliateLink(raw.productUrl)
+  const affiliateUrl = affiliateUrlOverride || provider.buildAffiliateLink(raw.productUrl)
 
   // Classifica categoria pelo título (prioriza valor explícito, exceto 'geral' que é só default)
   const category = (!raw.category || raw.category === 'geral')

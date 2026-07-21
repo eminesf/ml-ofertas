@@ -1,7 +1,36 @@
-import Anthropic from '@anthropic-ai/sdk'
 import { RawOffer } from '../providers/base.provider'
 
-const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+// IA via OpenRouter (deepseek-chat) — formato OpenAI-compatible.
+// OPENROUTER_MODEL permite trocar de modelo sem mexer no código.
+const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions'
+const OPENROUTER_MODEL = process.env.OPENROUTER_MODEL || 'deepseek/deepseek-chat'
+
+async function chat(prompt: string, maxTokens: number): Promise<string> {
+  const apiKey = process.env.OPENROUTER_API_KEY
+  if (!apiKey) throw new Error('OPENROUTER_API_KEY não configurada')
+
+  const res = await fetch(OPENROUTER_URL, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: OPENROUTER_MODEL,
+      max_tokens: maxTokens,
+      messages: [{ role: 'user', content: prompt }],
+    }),
+    signal: AbortSignal.timeout(90000),
+  })
+
+  if (!res.ok) {
+    const body = await res.text().catch(() => '')
+    throw new Error(`OpenRouter ${res.status}: ${body.slice(0, 300)}`)
+  }
+
+  const data = await res.json()
+  return data.choices?.[0]?.message?.content ?? ''
+}
 
 function stripMarkdown(text: string): string {
   return text.replace(/```(?:json)?\n?/g, '').replace(/```/g, '').trim()
@@ -47,7 +76,7 @@ export async function evaluateOffer(offer: RawOffer): Promise<OfferEvaluation> {
 
   const prompt = `Você é um especialista em ofertas e afiliados no Brasil. Data de hoje: ${today}.
 ${TRENDS_CONTEXT}
-Avalie essa oferta do Mercado Livre com nota de 0 a 10.
+Avalie essa oferta de e-commerce com nota de 0 a 10.
 
 Oferta:
 - Título: ${offer.title}
@@ -67,13 +96,7 @@ Critérios de pontuação:
 Responda APENAS com JSON válido, sem markdown:
 {"score": 7, "shouldPost": true, "reason": "motivo breve"}`
 
-  const response = await client.messages.create({
-    model: 'claude-haiku-4-5',
-    max_tokens: 200,
-    messages: [{ role: 'user', content: prompt }]
-  })
-
-  const text = response.content[0].type === 'text' ? response.content[0].text : ''
+  const text = await chat(prompt, 200)
   try {
     return JSON.parse(stripMarkdown(text)) as OfferEvaluation
   } catch {
@@ -100,13 +123,7 @@ Avalie:
 Responda APENAS com JSON válido, sem markdown:
 {"isCompetitive": true, "reason": "motivo curto", "suggestedHighlight": "Menor preço do mercado"}`
 
-  const response = await client.messages.create({
-    model: 'claude-haiku-4-5',
-    max_tokens: 250,
-    messages: [{ role: 'user', content: prompt }]
-  })
-
-  const text = response.content[0].type === 'text' ? response.content[0].text : ''
+  const text = await chat(prompt, 250)
   try {
     return JSON.parse(stripMarkdown(text)) as MarketAnalysis
   } catch {
@@ -148,13 +165,7 @@ IMPORTANTE: O cupom aplica no CARRINHO TOTAL, não por produto isolado. Produtos
 Responda APENAS com JSON válido, sem markdown:
 {"score": 7, "shouldPost": true, "reason": "motivo breve considerando o cupom"}`
 
-  const response = await client.messages.create({
-    model: 'claude-haiku-4-5',
-    max_tokens: 200,
-    messages: [{ role: 'user', content: prompt }]
-  })
-
-  const text = response.content[0].type === 'text' ? response.content[0].text : ''
+  const text = await chat(prompt, 200)
   try {
     return JSON.parse(stripMarkdown(text)) as OfferEvaluation
   } catch {
@@ -223,13 +234,7 @@ ${whatsappCouponBlock}
 Responda APENAS com JSON válido, sem markdown:
 {"telegram": "mensagem telegram aqui", "whatsapp": "mensagem whatsapp aqui"}`
 
-  const response = await client.messages.create({
-    model: 'claude-haiku-4-5',
-    max_tokens: 900,
-    messages: [{ role: 'user', content: prompt }]
-  })
-
-  const text = response.content[0].type === 'text' ? response.content[0].text : ''
+  const text = await chat(prompt, 900)
   try {
     return JSON.parse(stripMarkdown(text)) as GeneratedPost
   } catch {
@@ -294,13 +299,7 @@ ${couponCode ? `🎟️ Cupom: ${couponCode}` : ''}
 Responda APENAS com JSON válido, sem markdown:
 {"telegram": "mensagem telegram aqui", "whatsapp": "mensagem whatsapp aqui"}`
 
-  const response = await client.messages.create({
-    model: 'claude-haiku-4-5',
-    max_tokens: 800,
-    messages: [{ role: 'user', content: prompt }]
-  })
-
-  const text = response.content[0].type === 'text' ? response.content[0].text : ''
+  const text = await chat(prompt, 800)
   try {
     return JSON.parse(stripMarkdown(text)) as GeneratedPost
   } catch {

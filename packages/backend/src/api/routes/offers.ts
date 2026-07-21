@@ -1,7 +1,6 @@
 import { Router } from 'express'
 import { prisma } from '../../utils/prisma'
-import { MercadoLivreProvider } from '../../providers/mercadolivre'
-import { scrapeProductByUrl } from '../../providers/mercadolivre/scraper-product'
+import { resolveProviderByUrl, PROVIDER_LABELS } from '../../providers/registry'
 import { processOffer } from '../../jobs/offers.job'
 import { sendPhoto, sendMessage } from '../../channels/telegram'
 
@@ -55,6 +54,7 @@ router.get('/', async (req, res) => {
 router.post('/import', async (req, res) => {
   const {
     url,
+    affiliateShortLink,
     couponCode, couponDiscount, couponMinValue, couponMaxDiscount,
     manualTitle, manualSalePrice, manualOriginalPrice, manualImageUrl,
   } = req.body
@@ -66,11 +66,15 @@ router.post('/import', async (req, res) => {
   const hasCoupon = !!couponCode
   const hasManualData = !!(manualTitle && manualSalePrice)
 
-  const idMatch = url.match(/MLB-?(\d+)/)
-  if (!idMatch) {
-    return res.status(400).json({ error: 'URL inválida — ID MLB não encontrado na URL' })
+  const resolved = resolveProviderByUrl(url)
+  if (!resolved) {
+    return res.status(400).json({
+      error: 'URL não reconhecida. Plataformas suportadas: Mercado Livre, Amazon, Shopee, KaBuM!, AliExpress e Stanley.',
+    })
   }
-  const externalId = `MLB${idMatch[1]}`
+  const { provider, externalId, scrapeProduct } = resolved
+  const providerLabel = PROVIDER_LABELS[provider.name] || provider.name
+  console.log(`[Import] Provider detectado: ${providerLabel} (${externalId})`)
 
   const existing = await prisma.offer.findUnique({ where: { externalId } })
   if (existing) {
@@ -98,8 +102,8 @@ router.post('/import', async (req, res) => {
     console.log(`[Import] Dados manuais: "${raw.title}" R$${raw.salePrice} (${raw.discountPct}% OFF)`)
   } else {
     try {
-      console.log(`[Import] Scraping: ${url}`)
-      raw = await scrapeProductByUrl(url)
+      console.log(`[Import] Scraping (${providerLabel}): ${url}`)
+      raw = await scrapeProduct(url)
     } catch (err) {
       console.error('[Import] Erro no scraping:', err)
       return res.status(400).json({ error: 'Não foi possível extrair dados do produto' })
@@ -117,9 +121,9 @@ router.post('/import', async (req, res) => {
   // Persiste o cupom no banco para o frontend mostrar os detalhes
   if (hasCoupon) {
     await prisma.coupon.upsert({
-      where: { code_provider: { code: couponCode.trim(), provider: 'mercadolivre' } },
+      where: { code_provider: { code: couponCode.trim(), provider: provider.name } },
       create: {
-        provider: 'mercadolivre',
+        provider: provider.name,
         code: couponCode.trim(),
         discount: discountText,
         minValue: minValueNum > 0 ? minValueNum : null,
@@ -133,18 +137,27 @@ router.post('/import', async (req, res) => {
     })
   }
 
-  const mlProvider = new MercadoLivreProvider()
   const source = hasCoupon ? 'coupon' : 'manual'
+
+  // Shopee sem Open API: o link de afiliado curto (s.shopee.com.br) vem do form.
+  // Para os demais providers o link é construído automaticamente.
+  const affiliateOverride = (affiliateShortLink && typeof affiliateShortLink === 'string' && affiliateShortLink.trim())
+    ? affiliateShortLink.trim()
+    : undefined
+  if (provider.name === 'shopee' && !affiliateOverride) {
+    console.warn('[Import] Shopee sem link de afiliado — publicando com URL do produto (SEM comissão)')
+  }
 
   try {
     await processOffer(
-      raw, mlProvider,
+      raw, provider,
       hasCoupon ? couponCode : undefined,
       source,
       discountText || undefined,
       minValueNum || undefined,
       maxDiscountNum,
       true, // admin import sempre posta, independente do score
+      affiliateOverride,
     )
   } catch (err) {
     console.error('[Import] Erro ao processar oferta:', err)
