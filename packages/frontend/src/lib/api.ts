@@ -57,6 +57,7 @@ export async function getOffers(params?: {
   limit?: number
   minDiscount?: number
   sort?: 'discount' | 'recent' | 'score' | 'votes'
+  q?: string
 }): Promise<OffersResponse> {
   const qs = new URLSearchParams()
   if (params?.provider) qs.set('provider', params.provider)
@@ -65,6 +66,7 @@ export async function getOffers(params?: {
   if (params?.limit) qs.set('limit', String(params.limit))
   if (params?.minDiscount) qs.set('minDiscount', String(params.minDiscount))
   if (params?.sort) qs.set('sort', params.sort)
+  if (params?.q) qs.set('q', params.q)
   const res = await fetch(`${API_URL}/api/offers?${qs}`, { cache: 'no-store' })
   if (!res.ok) return { offers: [], total: 0, page: 1, limit: 24 }
   return res.json()

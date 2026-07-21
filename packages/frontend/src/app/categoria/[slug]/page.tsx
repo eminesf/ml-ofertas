@@ -1,5 +1,7 @@
+import { Suspense } from 'react'
 import { getOffers } from '@/lib/api'
 import OfferCard from '@/components/OfferCard'
+import SearchBar from '@/components/SearchBar'
 
 const CATEGORY_LABELS: Record<string, string> = {
   'eletronicos': 'Eletrônicos',
@@ -12,7 +14,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   'geral': 'Geral',
 }
 
-interface SearchParams { pagina?: string }
+interface SearchParams { pagina?: string; q?: string }
 
 export default async function CategoriaPage({
   params,
@@ -24,23 +26,37 @@ export default async function CategoriaPage({
   const { slug } = await params
   const sp = await searchParams
   const page = Number(sp.pagina) || 1
+  const q = sp.q?.trim() || undefined
+  const qSuffix = q ? `&q=${encodeURIComponent(q)}` : ''
 
-  const { offers, total } = await getOffers({ category: decodeURIComponent(slug), limit: 20, page, sort: 'recent' })
+  const { offers, total } = await getOffers({ category: decodeURIComponent(slug), limit: 20, page, sort: 'recent', q })
   const totalPages = Math.ceil(total / 20)
   const label = CATEGORY_LABELS[slug] || slug
 
   return (
     <main style={{ maxWidth: 860, margin: '0 auto', padding: '1.5rem 1rem' }}>
       <a href="/" className="back-btn">← Início</a>
+
+      <Suspense fallback={<div className="search-bar-wrap" style={{ height: 52 }} />}>
+        <SearchBar />
+      </Suspense>
+
       <h1 style={{ fontSize: '1.4rem', fontWeight: 700, marginBottom: '1.25rem' }}>
         {label}
         <span style={{ color: '#999', fontWeight: 400, fontSize: '0.9rem', marginLeft: 8 }}>({total})</span>
       </h1>
 
+      {q && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: '1rem', fontSize: 14, color: '#555' }}>
+          <span>Resultados para <strong>&quot;{q}&quot;</strong></span>
+          <a href={`/categoria/${slug}`} style={{ color: '#a15c00', textDecoration: 'underline', fontSize: 13 }}>limpar busca</a>
+        </div>
+      )}
+
       {offers.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '4rem 1rem', color: '#888' }}>
           <p style={{ fontSize: 48, margin: 0 }}>🛍️</p>
-          <p>Nenhuma oferta nessa categoria ainda.</p>
+          <p>{q ? <>Nenhuma oferta encontrada para &quot;{q}&quot;.</> : 'Nenhuma oferta nessa categoria ainda.'}</p>
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
@@ -50,9 +66,9 @@ export default async function CategoriaPage({
 
       {totalPages > 1 && (
         <div style={{ display: 'flex', justifyContent: 'center', gap: '0.375rem', marginTop: '2rem' }}>
-          {page > 1 && <a href={`?pagina=${page - 1}`} style={pageBtn}>← Anterior</a>}
+          {page > 1 && <a href={`?pagina=${page - 1}${qSuffix}`} style={pageBtn}>← Anterior</a>}
           <span style={{ ...pageBtn, background: '#FFE600', fontWeight: 700 }}>{page} / {totalPages}</span>
-          {page < totalPages && <a href={`?pagina=${page + 1}`} style={pageBtn}>Próxima →</a>}
+          {page < totalPages && <a href={`?pagina=${page + 1}${qSuffix}`} style={pageBtn}>Próxima →</a>}
         </div>
       )}
     </main>

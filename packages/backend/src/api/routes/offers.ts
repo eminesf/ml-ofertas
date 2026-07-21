@@ -8,7 +8,7 @@ import { sendPhoto, sendMessage } from '../../channels/telegram'
 const router = Router()
 
 router.get('/', async (req, res) => {
-  const { provider, category, limit = '20', page = '1', minDiscount, sort } = req.query
+  const { provider, category, limit = '20', page = '1', minDiscount, sort, q } = req.query
   const take = Math.min(Number(limit), 100)
   const skip = (Number(page) - 1) * take
 
@@ -16,6 +16,7 @@ router.get('/', async (req, res) => {
     ...(provider ? { provider: String(provider) } : {}),
     ...(category ? { category: String(category) } : {}),
     ...(minDiscount ? { discountPct: { gte: Number(minDiscount) } } : {}),
+    ...(q ? { title: { contains: String(q), mode: 'insensitive' } } : {}),
   }
 
   const orderBy: any = sort === 'discount'

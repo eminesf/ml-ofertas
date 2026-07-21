@@ -37,7 +37,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <a href="/categoria/casa" style={navLink}>Casa</a>
               <a href="/categoria/beleza" style={navLink}>Beleza</a>
             </nav>
-
           </div>
         </header>
 

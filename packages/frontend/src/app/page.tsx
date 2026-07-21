@@ -1,5 +1,7 @@
+import { Suspense } from "react";
 import { getOffers } from "@/lib/api";
 import OfferCard from "@/components/OfferCard";
+import SearchBar from "@/components/SearchBar";
 
 export const metadata = {
 	title: "Fox Ofertas — Promoções e Cupons do Mercado Livre",
@@ -18,6 +20,7 @@ const PAGE_SIZE = 20;
 interface SearchParams {
 	ordenar?: string;
 	pagina?: string;
+	q?: string;
 }
 
 export default async function HomePage({
@@ -29,15 +32,21 @@ export default async function HomePage({
 	const page = Number(params.pagina) || 1;
 	const sort =
 		(params.ordenar as "recent" | "votes" | "discount") || "recent";
+	const q = params.q?.trim() || undefined;
 
-	const { offers, total } = await getOffers({ limit: PAGE_SIZE, page, sort });
+	const { offers, total } = await getOffers({ limit: PAGE_SIZE, page, sort, q });
 	const totalPages = Math.ceil(total / PAGE_SIZE);
+	const qSuffix = q ? `&q=${encodeURIComponent(q)}` : "";
 
 	return (
 		<main
 			suppressHydrationWarning
 			style={{ maxWidth: 860, margin: "0 auto", padding: "1.5rem 1rem" }}
 		>
+			<Suspense fallback={<div className="search-bar-wrap" style={{ height: 52 }} />}>
+				<SearchBar />
+			</Suspense>
+
 			{/* Tabs de ordenação */}
 			<div
 				style={{
@@ -53,7 +62,7 @@ export default async function HomePage({
 				{TABS.map((tab) => (
 					<a
 						key={tab.value}
-						href={`?ordenar=${tab.value}`}
+						href={`?ordenar=${tab.value}${qSuffix}`}
 						style={{
 							textDecoration: "none",
 							fontWeight: 600,
@@ -73,13 +82,35 @@ export default async function HomePage({
 				</span>
 			</div>
 
+			{q && (
+				<div
+					style={{
+						display: "flex",
+						alignItems: "center",
+						gap: 8,
+						marginBottom: "1rem",
+						fontSize: 14,
+						color: "#555",
+					}}
+				>
+					<span>
+						Resultados para <strong>&quot;{q}&quot;</strong>
+					</span>
+					<a href="/" style={{ color: "#a15c00", textDecoration: "underline", fontSize: 13 }}>
+						limpar busca
+					</a>
+				</div>
+			)}
+
 			{/* Feed */}
 			{offers.length === 0 ? (
 				<div
 					style={{ textAlign: "center", padding: "4rem 1rem", color: "#888" }}
 				>
 					<p style={{ fontSize: 48, margin: 0 }}>🛍️</p>
-					<p>Nenhuma oferta disponível ainda.</p>
+					<p>
+						{q ? <>Nenhuma oferta encontrada para &quot;{q}&quot;.</> : "Nenhuma oferta disponível ainda."}
+					</p>
 				</div>
 			) : (
 				<div
@@ -103,7 +134,7 @@ export default async function HomePage({
 					}}
 				>
 					{page > 1 && (
-						<a href={`?ordenar=${sort}&pagina=${page - 1}`} style={pageBtn}>
+						<a href={`?ordenar=${sort}&pagina=${page - 1}${qSuffix}`} style={pageBtn}>
 							← Anterior
 						</a>
 					)}
@@ -118,7 +149,7 @@ export default async function HomePage({
 						) : (
 							<a
 								key={p}
-								href={`?ordenar=${sort}&pagina=${p}`}
+								href={`?ordenar=${sort}&pagina=${p}${qSuffix}`}
 								style={{ ...pageBtn, ...(p === page ? activePage : {}) }}
 							>
 								{p}
@@ -126,7 +157,7 @@ export default async function HomePage({
 						),
 					)}
 					{page < totalPages && (
-						<a href={`?ordenar=${sort}&pagina=${page + 1}`} style={pageBtn}>
+						<a href={`?ordenar=${sort}&pagina=${page + 1}${qSuffix}`} style={pageBtn}>
 							Próxima →
 						</a>
 					)}
