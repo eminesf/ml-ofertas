@@ -9,9 +9,9 @@ Bot automatizado de ofertas para afiliados **multi-plataforma**: Mercado Livre, 
 - **Frontend**: Next.js 15 (App Router) — SSR + client components para interatividade
 - **IA**: OpenRouter (`deepseek/deepseek-chat`) via fetch direto (formato OpenAI-compatible) — migrado da Claude API por custo; `OPENROUTER_MODEL` env var permite trocar de modelo sem código
 - **Canal**: Telegram Bot API (REST)
-- **Banco local**: SQLite (`packages/backend/prisma/dev.db`) — apenas dev
-- **Banco produção**: PostgreSQL no Railway — `DATABASE_URL` via env var
-- **Hospedagem**: Railway (backend + PostgreSQL) + Vercel (frontend) ✅ em produção
+- **Banco atual**: PostgreSQL 16 em Docker no PC (`docker-compose.yml`, porta `5433`) — `DATABASE_URL=postgresql://mlofertas:mlofertas@localhost:5433/mlofertas`
+- **Hospedagem atual (desde 2026-10-31)**: tudo roda 24h no PC via pm2 (`ecosystem.config.js`: `ml-ofertas-backend` + `ml-ofertas-frontend` em :3002). Railway **desativado** (não pago) — URL antiga comentada no `.env`; Vercel ainda no ar mas sem backend (pendente: expor API via Cloudflare Tunnel)
+- `dev.db` (SQLite) é legado de junho/2026 — não é mais usado
 
 ## Estrutura de pastas
 ```
@@ -33,7 +33,8 @@ ml-afiliados/
 │   │       │   ├── amazon/
 │   │       │   │   ├── index.ts                  # AmazonProvider: tag de associado + scraper /deals
 │   │       │   │   └── scraper-product.ts        # produto único por ASIN (fetch HTTP + fallback genérico)
-│   │       │   ├── awin/index.ts                 # AwinProvider (Kabum/AliExpress/Stanley) + deeplink cread.php
+│   │       │   ├── awin/index.ts                 # AwinProvider (Kabum/AliExpress/Stanley) + deeplink cread.php + feedIds
+│   │       │   ├── awin/feed.ts                  # scrape de listagem via product feed Awin (CSV gzip) + queda de preço (FeedPrice)
 │   │       │   └── shopee/index.ts               # ShopeeProvider — sem Open API, link curto manual
 │   │       ├── jobs/
 │   │       │   ├── offers.job.ts                 # pipeline: scrape, IA, posting, repost
@@ -456,7 +457,11 @@ Job de posting busca ofertas prontas e as posta de forma cadenciada:
 ```
 a cada 20min → posting — posta até ML_POST_MAX ofertas pendentes no Telegram
 12h e 20h    → repost  — repost de ofertas postadas HOJE (máx 2x/dia por oferta, intervalo mín. 4h)
+6h15, 12h15 e 18h15 → feeds Awin (Kabum + Stanley), requer AWIN_FEED_API_KEY
+minutos 5 e 35 → posting WhatsApp, só com WHATSAPP_ENABLED=true
 ```
+
+Início automático no PC: tarefa `ml-ofertas-pm2-resurrect` roda `scripts/start-local.ps1` no login (Docker → Postgres → `pm2 resurrect`; log em `~/.pm2/start-local.log`).
 
 **⚠️ Scraping NÃO roda mais no Railway.** Os crons de 6h/7h foram removidos — scraping no Railway pesava o container e sofria CAPTCHA/bloqueios de IP de datacenter, além de bugs de sessão no hub ML. Todo scraping é 100% local e manual via `scrape-cli.ts` (grava direto no Postgres do Railway pela `DATABASE_URL`, então o posting agendado do Railway posta os produtos normalmente). Os endpoints admin `job/offers` e `job/hub` foram removidos pelo mesmo motivo (restam `job/post` e `job/repost`).
 
@@ -467,8 +472,24 @@ npm run scrape          # todas as plataformas (ml + amazon + hub)
 npm run scrape:ml       # só ofertas públicas do ML
 npm run scrape:hub      # só hub de afiliados ML + cupons (abre browser p/ login se sessão expirou)
 npm run scrape:amazon   # só ofertas do dia da Amazon (/deals)
+npm run scrape:awin     # product feeds Awin (Kabum + Stanley) — requer AWIN_FEED_API_KEY
+npm run scrape:show     # tudo, com browser visível (ou `-- --show` em qualquer alvo, dentro de packages/backend)
 ```
-Shopee e Awin (Kabum/AliExpress/Stanley) não têm scraping de listagem — produtos entram via import por URL no painel admin (`/admin/import`).
+Shopee e AliExpress não têm scraping de listagem — produtos entram via import por URL no painel admin (`/admin/import`).
+
+### Product feeds Awin (`awin/feed.ts`)
+- Download: `productdata.awin.com/datafeed/download/apikey/{AWIN_FEED_API_KEY}/fid/{ids}/columns/.../format/csv/compression/gzip/` — chave = segmento de 32 hex da URL "Download da Lista de Feed" (Ferramentas → Crie um Feed). CORS bloqueia o download pelo browser; só via Node.
+- Pré-filtro antes da IA: em estoque, moeda BRL, desconto ≥ 20%, ordenado por desconto, máx `AWIN_FEED_MAX` (padrão 30) por loja.
+- **Stanley** (feed 72033): preço "de" em `base_price` ("220.00 BRL") ✅
+- **Kabum** (feed 46967, ~5k produtos): feed **não tem preço "de"** (`custom_3` é o preço parcelado ~5% acima — não usar). `discountSource: 'priceDrop'` → tabela `FeedPrice` guarda último preço; queda ≥ 20% entre scrapes vira oferta com o preço anterior como `originalPrice`. Primeiro scrape só forma a base.
+- **AliExpress**: 20 feeds BR & LATAM (47201..47257) vêm em **CNY/USD** e inglês → sem `feedIds` de propósito.
+- `externalId` via `awinExternalId(url)` — mesmo formato do import por URL (sem duplicar).
+
+## WhatsApp (grupo via Baileys)
+- `channels/whatsapp/index.ts` — `@whiskeysockets/baileys` **7.0.0-rc14**, mesma versão do bot-leilao. Pacote ESM carregado sob demanda: requer Node >= 22.12.
+- Parear: botão "Conectar WhatsApp" em `/admin` (`WhatsAppModal.tsx`, consulta `/api/admin/whatsapp/status` a cada 3s, mostra QR e grupos) ou `npm run whatsapp:login` com o backend parado. Sessão em `packages/.wa-session/` (gitignored, contém credenciais).
+- Liga com `WHATSAPP_ENABLED=true` + `WHATSAPP_GROUP_JID=<id>@g.us`. Opcionais: `WHATSAPP_POST_MAX` (1 por rodada), `WHATSAPP_HOURS` (`8-22`), `WHATSAPP_MAX_AGE_HOURS` (48).
+- `runWhatsAppPostingJob` roda nos minutos 5 e 35. Cada canal controla seus próprios `Post` (`channel`): filtros de Telegram e repost usam `channel: 'telegram'`.
 
 ## Providers multi-plataforma
 
@@ -476,9 +497,9 @@ Shopee e Awin (Kabum/AliExpress/Stanley) não têm scraping de listagem — prod
 |---|---|---|---|
 | `mercadolivre` | `?matt_tool=28042140&matt_word=fuchsecommerce` | ✅ API ML → HTTP → Playwright | ✅ /ofertas + hub |
 | `amazon` | `?tag=foxofertas04-20` | ✅ HTTP (productTitle/a-offscreen) → genérico | ✅ /deals (local) |
-| `kabum` | Awin deeplink mid=17729 | ✅ JSON-LD via html-product.ts | ❌ |
+| `kabum` | Awin deeplink mid=17729 | ✅ JSON-LD via html-product.ts | ✅ feed Awin (queda de preço) |
 | `aliexpress` | Awin deeplink mid=18879 | ⚠️ best-effort (JS-heavy, fallback Playwright) | ❌ |
-| `stanley` | Awin deeplink mid=30599 | ✅ JSON-LD (Shopify) | ❌ |
+| `stanley` | Awin deeplink mid=30599 | ✅ JSON-LD (Shopify) | ✅ feed Awin |
 | `shopee` | ⚠️ link curto manual | ⚠️ best-effort (bot-protection forte; usar dados manuais) | ❌ |
 
 - **Registry** (`providers/registry.ts`): `resolveProviderByUrl(url)` detecta a plataforma pelo hostname e devolve provider + externalId + scraper de produto. Usado pelo `/api/offers/import`.
@@ -820,7 +841,10 @@ Quando o hub/coupon scraper começar a falhar (sessão expirada, semanas depois)
 - [x] **Scraping 100% local** — crons de 6h/7h e endpoints admin `job/offers`/`job/hub` removidos do Railway; `npm run scrape[:ml|:hub|:amazon]` grava direto no Postgres Railway ✅
 - [ ] **⚠️ ANTES DO MERGE: configurar `OPENROUTER_API_KEY` no Railway** — o repost/posting em produção gera copy via OpenRouter; sem a key os jobs falham
 - [ ] **Shopee Open API** — clicar "Aplicar" em affiliate.shopee.com.br/open_api; quando aprovado, implementar `generateShortLink` GraphQL para gerar link curto automaticamente
-- [ ] **Awin product feeds** — datafeed API para scrape de listagem de Kabum/AliExpress/Stanley (hoje só import por URL)
+- [x] **Awin product feeds** — `scrape:awin` para Kabum (queda de preço via `FeedPrice`) e Stanley; AliExpress fora (feeds em CNY/USD) ✅
+- [x] **Hospedagem local** — Postgres no Docker (:5433) + pm2 (backend + frontend) + tarefa `ml-ofertas-pm2-resurrect` no login + Docker Desktop AutoStart ✅
+- [ ] **Cloudflare Tunnel para a API** — adicionar hostname (ex: `api-ofertas.emiliano.dev.br` → `127.0.0.1:3001`) no tunnel `bot-leilao` já existente; reiniciar cloudflared derruba o bot de leilão por segundos → fazer fora de leilão. Depois atualizar `NEXT_PUBLIC_API_URL` na Vercel e redeploy
+- [ ] **Contexto de tendências da IA desatualizado** — prompts ainda citam Copa FIFA 26 (já passou); revisar em `ai/index.ts`
 - [ ] Remover `Filters.tsx` (legado, não utilizado desde o redesign do feed)
 - [ ] Analytics: Google Analytics 4 ou Plausible — medir cliques nos links de afiliado (conversão)
 - [ ] Domínio próprio — apontar para Vercel + atualizar `NEXT_PUBLIC_SITE_URL` para sitemap correto

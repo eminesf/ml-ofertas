@@ -2,14 +2,19 @@
   "name": "ml-afiliados",
   "version": "1.0.0",
   "private": true,
-  "workspaces": ["packages/*"],
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
     "dev": "concurrently \"npm run dev -w @ml-afiliados/backend\" \"npm run dev -w @ml-afiliados/frontend\"",
     "build": "npm run build --workspaces --if-present",
     "scrape": "npm run scrape -w @ml-afiliados/backend",
+    "scrape:show": "npm run scrape:show -w @ml-afiliados/backend",
     "scrape:ml": "npm run scrape:ml -w @ml-afiliados/backend",
     "scrape:hub": "npm run scrape:hub -w @ml-afiliados/backend",
-    "scrape:amazon": "npm run scrape:amazon -w @ml-afiliados/backend"
+    "scrape:amazon": "npm run scrape:amazon -w @ml-afiliados/backend",
+    "scrape:awin": "npm run scrape:awin -w @ml-afiliados/backend",
+    "whatsapp:login": "npm run whatsapp:login -w @ml-afiliados/backend"
   },
   "devDependencies": {
     "concurrently": "^9.0.0"

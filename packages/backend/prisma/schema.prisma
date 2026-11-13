@@ -60,3 +60,14 @@ model Post {
   repostedAt      DateTime?
   success         Boolean   @default(true)
 }
+
+// Último preço visto de cada produto de feed sem preço "de" (ex: Kabum via Awin).
+// Queda relevante entre dois scrapes vira oferta — o preço anterior faz papel de originalPrice.
+model FeedPrice {
+  externalId String   @id
+  provider   String
+  price      Float
+  updatedAt  DateTime @updatedAt
+
+  @@index([provider])
+}

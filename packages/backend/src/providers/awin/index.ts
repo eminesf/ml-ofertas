@@ -1,5 +1,6 @@
 import { AffiliateProvider, RawOffer } from '../base.provider'
 import { fetchGenericProduct } from '../html-product'
+import { scrapeAwinFeed } from './feed'
 
 // Publisher ID do painel ui.awin.com (PF - Fox Ofertas e Promoções)
 const DEFAULT_AFFILIATE_ID = '2953175'
@@ -10,12 +11,17 @@ export interface AwinAdvertiser {
   label: string
   mid: number         // awinmid
   domains: string[]   // hostnames que identificam o anunciante
+  feedIds?: string[]  // product feeds (Ferramentas → Crie um Feed → lista de feeds)
+  // 'feed' (padrão) = preço "de" vem no feed | 'priceDrop' = feed sem preço "de", desconto = queda vs scrape anterior
+  discountSource?: 'feed' | 'priceDrop'
 }
 
 export const AWIN_ADVERTISERS: AwinAdvertiser[] = [
-  { name: 'kabum', label: 'KaBuM!', mid: 17729, domains: ['kabum.com.br'] },
+  // Feed Kabum só traz preço à vista (custom_3 é o parcelado, ~5% acima — não é desconto real)
+  { name: 'kabum', label: 'KaBuM!', mid: 17729, domains: ['kabum.com.br'], feedIds: ['46967'], discountSource: 'priceDrop' },
+  // Sem feedIds de propósito: feeds BR & LATAM (47201..47257) vêm em CNY/USD e em inglês — só import por URL
   { name: 'aliexpress', label: 'AliExpress', mid: 18879, domains: ['aliexpress.com', 'pt.aliexpress.com', 'aliexpress.us'] },
-  { name: 'stanley', label: 'Stanley', mid: 30599, domains: ['stanley1913.com', 'stanley1913.com.br', 'stanley.com.br'] },
+  { name: 'stanley', label: 'Stanley', mid: 30599, domains: ['stanley1913.com', 'stanley1913.com.br', 'stanley.com.br'], feedIds: ['72033'] },
 ]
 
 export function findAwinAdvertiser(url: string): AwinAdvertiser | null {
@@ -70,11 +76,9 @@ export class AwinProvider implements AffiliateProvider {
     return `https://www.awin1.com/cread.php?awinmid=${this.advertiser.mid}&awinaffid=${this.affiliateId}&ued=${encodeURIComponent(productUrl)}`
   }
 
-  // Sem scraping de listagem por ora — Awin exige acesso a product feeds (datafeed API).
-  // Produtos entram via import manual por URL (/api/offers/import).
+  // Listagem via product feed da Awin (ver feed.ts) — import por URL continua disponível
   async scrapeOffers(): Promise<RawOffer[]> {
-    console.log(`[Awin:${this.name}] Scraping de listagem não implementado (usar import por URL)`)
-    return []
+    return scrapeAwinFeed(this.advertiser)
   }
 }
 

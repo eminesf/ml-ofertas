@@ -1,6 +1,7 @@
 'use client'
 import { useState } from 'react'
 import Link from 'next/link'
+import WhatsAppModal from '@/components/WhatsAppModal'
 
 interface JobStatus {
   loading: boolean
@@ -24,6 +25,7 @@ const JOBS = [
 ]
 
 export default function AdminDashboard() {
+  const [whatsAppOpen, setWhatsAppOpen] = useState(false)
   const [statuses, setStatuses] = useState<Record<string, JobStatus>>(
     Object.fromEntries(JOBS.map(j => [j.id, { loading: false, result: null, error: null }]))
   )
@@ -75,6 +77,31 @@ export default function AdminDashboard() {
           Abrir →
         </Link>
       </div>
+
+      {/* WhatsApp */}
+      <div style={{
+        background: '#fff', borderRadius: 14, padding: '1.25rem 1.5rem',
+        border: '1px solid #e5e5e5', marginBottom: '1.5rem',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+      }}>
+        <div>
+          <p style={{ margin: '0 0 2px', fontWeight: 700, fontSize: 14 }}>💬 WhatsApp</p>
+          <p style={{ margin: 0, fontSize: 12, color: '#888' }}>
+            Mostra o QR code para parear o número e lista os grupos.
+          </p>
+        </div>
+        <button
+          onClick={() => setWhatsAppOpen(true)}
+          style={{
+            background: '#1a1a2e', color: '#fff', border: 'none', borderRadius: 8,
+            padding: '8px 16px', fontWeight: 700, fontSize: 13,
+            cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap',
+          }}
+        >
+          Conectar WhatsApp
+        </button>
+      </div>
+      {whatsAppOpen && <WhatsAppModal onClose={() => setWhatsAppOpen(false)} />}
 
       {/* Jobs */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>

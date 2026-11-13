@@ -37,7 +37,7 @@ export class AmazonProvider implements AffiliateProvider {
   async scrapeOffers(): Promise<RawOffer[]> {
     console.log('[Amazon] Iniciando scraping de ofertas do dia...')
     const browser = await chromium.launch({
-      headless: true,
+      headless: process.env.SCRAPE_HEADLESS !== 'false',
       args: ['--disable-blink-features=AutomationControlled', '--no-sandbox', '--disable-dev-shm-usage'],
     })
     const offers: RawOffer[] = []
