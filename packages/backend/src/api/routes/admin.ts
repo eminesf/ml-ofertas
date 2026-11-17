@@ -1,6 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express'
-import { MercadoLivreProvider } from '../../providers/mercadolivre'
-import { runOffersJob, runHubJob, runPostingJob, runRepostJob } from '../../jobs/offers.job'
+import QRCode from 'qrcode'
+import { runPostingJob, runRepostJob } from '../../jobs/offers.job'
+import { connectWhatsApp, getWhatsAppStatus, isWhatsAppEnabled, listWhatsAppGroups } from '../../channels/whatsapp'
 
 const router = Router()
 
@@ -14,20 +15,8 @@ function requireAdminSecret(req: Request, res: Response, next: NextFunction) {
 
 router.use(requireAdminSecret)
 
-const mlProvider = new MercadoLivreProvider()
-const providers = [mlProvider]
-
-// POST /api/admin/job/offers — scrape /ofertas públicas
-router.post('/job/offers', (req, res) => {
-  runOffersJob(mlProvider).catch(console.error)
-  res.json({ started: true, job: 'offers' })
-})
-
-// POST /api/admin/job/hub — scrape hub de afiliados + cupons (requer sessão ML)
-router.post('/job/hub', (req, res) => {
-  runHubJob(providers).catch(console.error)
-  res.json({ started: true, job: 'hub' })
-})
+// Scraping (offers/hub/amazon) não roda mais no Railway — é 100% local via
+// `npm run scrape` (ver jobs/scrape-cli.ts). Endpoints remotos removidos.
 
 // POST /api/admin/job/post — posta ofertas pendentes imediatamente
 router.post('/job/post', (req, res) => {
@@ -40,6 +29,32 @@ router.post('/job/post', (req, res) => {
 router.post('/job/repost', (req, res) => {
   runRepostJob().catch(console.error)
   res.json({ started: true, job: 'repost' })
+})
+
+// GET /api/admin/whatsapp/status — estado da conexão e QR pendente (data URL)
+router.get('/whatsapp/status', async (_req, res) => {
+  try {
+    const { conectado, conectando, qr } = getWhatsAppStatus()
+    const qrImage = qr ? await QRCode.toDataURL(qr, { width: 320, margin: 2 }) : null
+    res.json({ conectado, conectando, qrImage, habilitado: isWhatsAppEnabled() })
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message || 'Erro ao gerar o QR' })
+  }
+})
+
+// POST /api/admin/whatsapp/connect — inicia a conexão/pareamento (idempotente)
+router.post('/whatsapp/connect', (_req, res) => {
+  connectWhatsApp({ pair: true }).catch(err => console.error('[WhatsApp] Falha ao conectar:', err))
+  res.json({ started: true })
+})
+
+// GET /api/admin/whatsapp/groups — grupos do número, para preencher WHATSAPP_GROUP_JID
+router.get('/whatsapp/groups', async (_req, res) => {
+  try {
+    res.json({ groups: await listWhatsAppGroups() })
+  } catch (err: any) {
+    res.status(503).json({ error: err?.message || 'WhatsApp não conectado' })
+  }
 })
 
 export default router

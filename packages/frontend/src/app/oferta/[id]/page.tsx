@@ -6,6 +6,19 @@ import VoteButton from '@/components/VoteButton'
 import CouponCopy from '@/components/CouponCopy'
 import BackButton from '@/components/BackButton'
 
+const STORE_NAMES: Record<string, string> = {
+  mercadolivre: 'Mercado Livre',
+  amazon: 'Amazon',
+  shopee: 'Shopee',
+  kabum: 'KaBuM!',
+  aliexpress: 'AliExpress',
+  stanley: 'Stanley',
+}
+
+function storeName(provider: string): string {
+  return STORE_NAMES[provider] || provider
+}
+
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params
   const offer = await getOffer(id)
@@ -13,7 +26,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 
   const priceStr = `R$ ${offer.salePrice.toFixed(2).replace('.', ',')}`
   const discountStr = offer.discountPct > 0 ? ` (-${offer.discountPct}% OFF)` : ''
-  const description = `${priceStr}${discountStr} no Mercado Livre. Encontre as melhores promoções no Fox Ofertas.`
+  const description = `${priceStr}${discountStr} em ${storeName(offer.provider)}. Encontre as melhores promoções no Fox Ofertas.`
 
   return {
     title: `${offer.title} — Fox Ofertas`,
@@ -141,7 +154,7 @@ export default async function OfertaPage({ params }: { params: Promise<{ id: str
               marginBottom: '0.75rem',
             }}
           >
-            🛒 Ver oferta no Mercado Livre →
+            🛒 Ver oferta em {storeName(offer.provider)} →
           </a>
 
          

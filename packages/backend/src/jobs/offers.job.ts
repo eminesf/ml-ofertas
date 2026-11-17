@@ -3,6 +3,7 @@ import { classifyCategory } from '../utils/category'
 import { AffiliateProvider } from '../providers/base.provider'
 import { evaluateOffer, generatePostMessage, analyzeMarketValue, evaluateCouponOffer, generateCouponPostMessage, CouponContext, GeneratedPost } from '../ai'
 import { sendPhoto, sendMessage } from '../channels/telegram'
+import { isWhatsAppEnabled, isWhatsAppConnected, sendWhatsAppPost } from '../channels/whatsapp'
 import { Offer } from '@prisma/client'
 import { scrapeHubProducts } from '../providers/mercadolivre/scraper-hub'
 import { scrapeCouponsAndProducts } from '../providers/mercadolivre/scraper-coupons'
@@ -56,10 +57,11 @@ export async function processOffer(
   couponDiscount?: string,
   couponMinValue?: number,
   couponMaxDiscount?: number,
-  forcePost: boolean = false
+  forcePost: boolean = false,
+  affiliateUrlOverride?: string
 ) {
   const tag = `[Job][${raw.externalId}][${source}]`
-  const affiliateUrl = provider.buildAffiliateLink(raw.productUrl)
+  const affiliateUrl = affiliateUrlOverride || provider.buildAffiliateLink(raw.productUrl)
 
   // Classifica categoria pelo título (prioriza valor explícito, exceto 'geral' que é só default)
   const category = (!raw.category || raw.category === 'geral')
@@ -274,7 +276,7 @@ export async function runHubJob(providers: AffiliateProvider[]) {
     // Resumo final
     const [totalOffers, readyToPost, hubCount, couponCount] = await Promise.all([
       prisma.offer.count(),
-      prisma.offer.count({ where: { telegramMessage: { not: null }, aiScore: { gte: MIN_AI_SCORE }, posts: { none: {} } } }),
+      prisma.offer.count({ where: { telegramMessage: { not: null }, aiScore: { gte: MIN_AI_SCORE }, posts: { none: { channel: 'telegram' } } } }),
       prisma.offer.count({ where: { source: 'hub' } }),
       prisma.offer.count({ where: { source: 'coupon' } }),
     ])
@@ -296,7 +298,7 @@ export async function runPostingJob(maxPosts = 3) {
     where: {
       telegramMessage: { not: null },
       aiScore: { gte: MIN_AI_SCORE },
-      posts: { none: {} },
+      posts: { none: { channel: 'telegram' } },
     },
     orderBy: { aiScore: 'desc' },
     take: maxPosts,
@@ -330,6 +332,55 @@ export async function runPostingJob(maxPosts = 3) {
   console.log('[Job] Posting job concluído')
 }
 
+function isWithinWhatsAppHours(): boolean {
+  const [start, end] = (process.env.WHATSAPP_HOURS || '8-22').split('-').map(Number)
+  const hour = new Date().getHours()
+  return hour >= start && hour < end
+}
+
+// Cadência baixa de propósito: Baileys é não oficial e volume alto arrisca banir o número.
+// Só ofertas recentes, para ligar o canal não despejar a fila antiga (com preço velho) no grupo.
+export async function runWhatsAppPostingJob(maxPosts = 1) {
+  if (!isWhatsAppEnabled() || !isWithinWhatsAppHours()) return
+  if (!isWhatsAppConnected()) {
+    console.warn('[Job] WhatsApp desconectado, pulando posting')
+    return
+  }
+
+  const maxAgeHours = parseInt(process.env.WHATSAPP_MAX_AGE_HOURS || '48', 10)
+  const pending = await prisma.offer.findMany({
+    where: {
+      whatsappMessage: { not: null },
+      aiScore: { gte: MIN_AI_SCORE },
+      createdAt: { gte: new Date(Date.now() - maxAgeHours * 3600000) },
+      posts: { none: { channel: 'whatsapp' } },
+    },
+    orderBy: [{ aiScore: 'desc' }, { createdAt: 'desc' }],
+    take: maxPosts,
+  })
+
+  console.log(`[Job] WhatsApp: ${pending.length} ofertas para postar`)
+
+  for (const [index, offer] of pending.entries()) {
+    if (index > 0) await new Promise(r => setTimeout(r, 20000 + Math.random() * 20000))
+    try {
+      const success = await sendWhatsAppPost(offer.whatsappMessage!, offer.imageUrl)
+      await prisma.post.create({
+        data: {
+          offerId: offer.id,
+          channel: 'whatsapp',
+          message: offer.whatsappMessage!,
+          whatsappMessage: offer.whatsappMessage,
+          success,
+        }
+      })
+      console.log(`[Job] WhatsApp ${success ? 'postado' : 'falhou'}: "${offer.title}"`)
+    } catch (err) {
+      console.error(`[Job] Erro ao postar no WhatsApp ${offer.id}:`, err)
+    }
+  }
+}
+
 export async function runRepostJob() {
   console.log('[Job] Iniciando job de repost')
   const todayStart = new Date()
@@ -337,9 +388,9 @@ export async function runRepostJob() {
 
   const offers = await prisma.offer.findMany({
     where: {
-      posts: { some: { sentAt: { gte: todayStart }, success: true } }
+      posts: { some: { channel: 'telegram', sentAt: { gte: todayStart }, success: true } }
     },
-    include: { posts: { orderBy: { sentAt: 'desc' } } }
+    include: { posts: { where: { channel: 'telegram' }, orderBy: { sentAt: 'desc' } } }
   })
 
   for (const offer of offers) {

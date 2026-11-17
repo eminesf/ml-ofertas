@@ -2,6 +2,15 @@ import { Offer } from '@/lib/api'
 import VoteButton from './VoteButton'
 import CouponCopy from './CouponCopy'
 
+const PROVIDER_LABELS: Record<string, { label: string; bg: string; fg: string }> = {
+  mercadolivre: { label: 'Mercado Livre', bg: '#fff159', fg: '#333' },
+  amazon: { label: 'Amazon', bg: '#232f3e', fg: '#ff9900' },
+  shopee: { label: 'Shopee', bg: '#ee4d2d', fg: '#fff' },
+  kabum: { label: 'KaBuM!', bg: '#0f2b92', fg: '#ff6500' },
+  aliexpress: { label: 'AliExpress', bg: '#e62e04', fg: '#fff' },
+  stanley: { label: 'Stanley', bg: '#1a3c34', fg: '#fff' },
+}
+
 function timeAgo(dateStr: string): string {
   const diff = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000)
   if (diff < 60) return 'agora'
@@ -12,6 +21,7 @@ function timeAgo(dateStr: string): string {
 }
 
 export default function OfferCard({ offer }: { offer: Offer }) {
+  const providerBadge = PROVIDER_LABELS[offer.provider]
   return (
     <div style={{
       display: 'flex', background: '#fff', borderRadius: 12,
@@ -43,6 +53,11 @@ export default function OfferCard({ offer }: { offer: Offer }) {
         style={{ flex: 1, padding: '10px 12px', textDecoration: 'none', color: 'inherit', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 5, minWidth: 0 }}
       >
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {providerBadge && (
+            <span style={{ background: providerBadge.bg, color: providerBadge.fg, fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 20 }}>
+              {providerBadge.label}
+            </span>
+          )}
           {offer.discountPct > 0 ? (
             <span style={{ background: '#e53e3e', color: '#fff', fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 20 }}>
               -{offer.discountPct}% OFF

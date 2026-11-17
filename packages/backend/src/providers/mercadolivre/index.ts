@@ -24,7 +24,7 @@ export class MercadoLivreProvider implements AffiliateProvider {
 
   private async createBrowser() {
     const browser = await chromium.launch({
-      headless: true,
+      headless: process.env.SCRAPE_HEADLESS !== 'false',
       args: [
         '--disable-blink-features=AutomationControlled',
         '--no-sandbox',
