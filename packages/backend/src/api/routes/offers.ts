@@ -139,14 +139,11 @@ router.post('/import', async (req, res) => {
 
   const source = hasCoupon ? 'coupon' : 'manual'
 
-  // Shopee sem Open API: o link de afiliado curto (s.shopee.com.br) vem do form.
-  // Para os demais providers o link é construído automaticamente.
+  // Link de afiliado colado no form (opcional): tem precedência sobre o gerado.
+  // Shopee gera sozinho via SHOPEE_AFFILIATE_ID (ver providers/shopee).
   const affiliateOverride = (affiliateShortLink && typeof affiliateShortLink === 'string' && affiliateShortLink.trim())
     ? affiliateShortLink.trim()
     : undefined
-  if (provider.name === 'shopee' && !affiliateOverride) {
-    console.warn('[Import] Shopee sem link de afiliado — publicando com URL do produto (SEM comissão)')
-  }
 
   try {
     await processOffer(

@@ -1,16 +1,18 @@
 import { AffiliateProvider, RawOffer } from '../base.provider'
 import { fetchGenericProduct } from '../html-product'
+import { scrapeShopeeFeed } from './feed'
 
-// A conta ainda NÃO tem acesso à Open API de afiliados da Shopee (AppID pendente
-// de aprovação em affiliate.shopee.com.br/open_api). Sem a API não há como gerar
-// o link curto de afiliado (s.shopee.com.br/...) programaticamente.
+// Link de afiliado sem Open API: o redirecionador oficial do programa,
+// https://shope.ee/an_redir?origin_link=<produto>&affiliate_id=<ID>&sub_id=<origem>
+// (o mesmo formato do "product_short link" do feed, que vem sem affiliate_id).
+// O redirect leva utm_source=an_<ID> + utm_medium=affiliates — testado.
+// SHOPEE_AFFILIATE_ID = campo affiliate_id do perfil em affiliate.shopee.com.br.
 //
-// Fluxo atual: o admin gera o link curto no portal ("Link personalizado") e cola
-// no campo "Link de afiliado" do formulário de import. Se não informar, o link
-// publicado é a própria URL do produto (sem comissão) — o import route avisa.
-//
-// Quando a Open API for aprovada: implementar generateShortLink via GraphQL
-// (open-api.affiliate.shopee.com.br/graphql) com SHOPEE_APP_ID/SHOPEE_APP_SECRET.
+// Listagem: feed de produto diário do portal (ver feed.ts).
+// Open API (GraphQL, link curto s.shopee.com.br): a conta não tem acesso —
+// o botão "Aplicar" fica desativado; o acesso é pedido ao gerente da conta.
+
+const SUB_ID = 'foxofertas'
 
 export function extractShopeeIds(url: string): { shopId: string; itemId: string } | null {
   // formato slug: produto-i.{shopId}.{itemId}
@@ -26,14 +28,18 @@ export class ShopeeProvider implements AffiliateProvider {
   name = 'shopee'
 
   buildAffiliateLink(productUrl: string): string {
-    // Sem Open API não há conversão automática — retorna a URL recebida.
-    // O import route substitui pelo link curto quando o admin fornece.
-    return productUrl
+    const affiliateId = process.env.SHOPEE_AFFILIATE_ID
+    const ids = extractShopeeIds(productUrl)
+    if (!affiliateId || !ids) {
+      console.warn(`[Shopee] Link SEM comissão (${!affiliateId ? 'SHOPEE_AFFILIATE_ID não configurado' : 'URL sem shopId/itemId'}): ${productUrl}`)
+      return productUrl
+    }
+    const origin = `https://shopee.com.br/product/${ids.shopId}/${ids.itemId}`
+    return `https://shope.ee/an_redir?origin_link=${encodeURIComponent(origin)}&affiliate_id=${affiliateId}&sub_id=${SUB_ID}`
   }
 
   async scrapeOffers(): Promise<RawOffer[]> {
-    console.log('[Shopee] Scraping de listagem não implementado (usar import por URL)')
-    return []
+    return scrapeShopeeFeed()
   }
 }
 

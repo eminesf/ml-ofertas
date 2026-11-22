@@ -1,120 +1,74 @@
+import Link from 'next/link'
+import { ShoppingBag, Sparkles, Star } from 'lucide-react'
 import { Offer } from '@/lib/api'
+import { Badge } from '@/components/ui/badge'
+import { STORES, brl, cn, timeAgo } from '@/lib/utils'
 import VoteButton from './VoteButton'
 import CouponCopy from './CouponCopy'
 
-const PROVIDER_LABELS: Record<string, { label: string; bg: string; fg: string }> = {
-  mercadolivre: { label: 'Mercado Livre', bg: '#fff159', fg: '#333' },
-  amazon: { label: 'Amazon', bg: '#232f3e', fg: '#ff9900' },
-  shopee: { label: 'Shopee', bg: '#ee4d2d', fg: '#fff' },
-  kabum: { label: 'KaBuM!', bg: '#0f2b92', fg: '#ff6500' },
-  aliexpress: { label: 'AliExpress', bg: '#e62e04', fg: '#fff' },
-  stanley: { label: 'Stanley', bg: '#1a3c34', fg: '#fff' },
-}
-
-function timeAgo(dateStr: string): string {
-  const diff = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000)
-  if (diff < 60) return 'agora'
-  if (diff < 3600) return `${Math.floor(diff / 60)}min atrás`
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h atrás`
-  if (diff < 604800) return `${Math.floor(diff / 86400)}d atrás`
-  return new Date(dateStr).toLocaleDateString('pt-BR')
-}
-
+// Mobile: card horizontal compacto (imagem à esquerda). sm+: card vertical em grade.
+// O card inteiro é clicável (link "esticado"); voto e cupom ficam acima com z-10.
 export default function OfferCard({ offer }: { offer: Offer }) {
-  const providerBadge = PROVIDER_LABELS[offer.provider]
+  const store = STORES[offer.provider]
+  const hasDiscount = offer.discountPct > 0 && offer.originalPrice > offer.salePrice
+
   return (
-    <div style={{
-      display: 'flex', background: '#fff', borderRadius: 12,
-      border: '1px solid #e5e5e5', boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
-      overflow: 'hidden', transition: 'box-shadow 0.2s',
-    }}>
-      {/* Coluna de voto */}
-      <div style={{
-        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-        width: 58, flexShrink: 0, background: '#fafafa', borderRight: '1px solid #f0f0f0',
-      }}>
-        <VoteButton offerId={offer.id} initialVotes={offer.upvotes ?? 0} />
+    <article className="group relative flex overflow-hidden rounded-xl border bg-card shadow-xs transition-all hover:-translate-y-0.5 hover:shadow-md sm:flex-col">
+      <div className="relative w-28 shrink-0 bg-white sm:aspect-square sm:w-full">
+        {offer.imageUrl ? (
+          <img
+            src={offer.imageUrl}
+            alt=""
+            loading="lazy"
+            className="absolute inset-0 size-full object-contain p-2 transition-transform duration-300 group-hover:scale-[1.03] sm:p-4"
+          />
+        ) : (
+          <div className="absolute inset-0 flex items-center justify-center text-muted-foreground">
+            <ShoppingBag className="size-8" />
+          </div>
+        )}
+        {hasDiscount && (
+          <Badge variant="deal" className="absolute top-2 left-2 rounded-md px-1.5 text-[11px] sm:text-xs">
+            -{offer.discountPct}%
+          </Badge>
+        )}
       </div>
 
-      {/* Imagem */}
-      <a
-        href={`/oferta/${offer.id}`}
-        style={{ display: 'block', flexShrink: 0, width: 110, background: '#f8f8f8', textDecoration: 'none' }}
-      >
-        {offer.imageUrl
-          ? <img src={offer.imageUrl} alt={offer.title} style={{ width: '100%', height: '100%', objectFit: 'contain', padding: 8, display: 'block' }} />
-          : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32 }}>🛍️</div>
-        }
-      </a>
-
-      {/* Informações */}
-      <a
-        href={`/oferta/${offer.id}`}
-        style={{ flex: 1, padding: '10px 12px', textDecoration: 'none', color: 'inherit', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 5, minWidth: 0 }}
-      >
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          {providerBadge && (
-            <span style={{ background: providerBadge.bg, color: providerBadge.fg, fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 20 }}>
-              {providerBadge.label}
-            </span>
+      <div className="flex min-w-0 flex-1 flex-col gap-1.5 border-l p-3 sm:border-t sm:border-l-0 sm:p-4">
+        <div className="flex flex-wrap items-center gap-1.5">
+          {store && <span className={cn('rounded-md px-1.5 py-0.5 text-[10px] font-bold', store.className)}>{store.label}</span>}
+          {!hasDiscount && (
+            <Badge className="h-5 bg-violet-600 px-1.5 text-[10px]">
+              <Sparkles /> Oferta especial
+            </Badge>
           )}
-          {offer.discountPct > 0 ? (
-            <span style={{ background: '#e53e3e', color: '#fff', fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 20 }}>
-              -{offer.discountPct}% OFF
-            </span>
-          ) : (
-            <span style={{ background: '#7c3aed', color: '#fff', fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 20 }}>
-              ⚡ Oferta especial!
-            </span>
-          )}
-          {offer.couponCode && (
-            <CouponCopy code={offer.couponCode} variant="badge" minValue={offer.couponMinValue} />
-          )}
+          {offer.couponCode && <CouponCopy code={offer.couponCode} variant="badge" minValue={offer.couponMinValue} />}
         </div>
 
-        <p style={{
-          margin: 0, fontSize: 14, fontWeight: 600, color: '#1a1a1a', lineHeight: 1.4,
-          display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
-        }}>
-          {offer.title}
-        </p>
+        <h3 className="line-clamp-2 text-[13px] leading-snug font-medium text-foreground sm:text-sm">
+          <Link href={`/oferta/${offer.id}`} className="after:absolute after:inset-0">
+            {offer.title}
+          </Link>
+        </h3>
 
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 20, fontWeight: 800, color: '#1a1a1a', lineHeight: 1 }}>
-            R$ {offer.salePrice.toFixed(2).replace('.', ',')}
+        <div className="mt-auto flex flex-wrap items-baseline gap-x-2">
+          <span className="text-lg font-extrabold tracking-tight sm:text-xl">{brl(offer.salePrice)}</span>
+          {hasDiscount && <span className="text-xs text-muted-foreground line-through">{brl(offer.originalPrice)}</span>}
+        </div>
+
+        <div className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
+          <span className="flex min-w-0 items-center gap-2">
+            {offer.rating ? (
+              <span className="flex items-center gap-0.5">
+                <Star className="size-3 fill-amber-400 text-amber-400" />
+                {offer.rating.toFixed(1)}
+              </span>
+            ) : null}
+            <span className="truncate">{timeAgo(offer.createdAt)}</span>
           </span>
-          {offer.originalPrice > offer.salePrice && (
-            <span style={{ fontSize: 12, color: '#bbb', textDecoration: 'line-through' }}>
-              R$ {offer.originalPrice.toFixed(2).replace('.', ',')}
-            </span>
-          )}
+          <VoteButton offerId={offer.id} initialVotes={offer.upvotes ?? 0} />
         </div>
-
-        <div style={{ display: 'flex', gap: 10, color: '#999', fontSize: 11, flexWrap: 'wrap', alignItems: 'center' }}>
-          {offer.rating && <span>⭐ {offer.rating.toFixed(1)}</span>}
-          <span>{timeAgo(offer.createdAt)}</span>
-          {offer.suggestedHighlight && (
-            <span className="offer-highlight" style={{ color: '#2d7d46', fontWeight: 600 }}>✅ {offer.suggestedHighlight}</span>
-          )}
-        </div>
-      </a>
-
-      {/* CTA */}
-      <div className="offer-cta" style={{ display: 'flex', alignItems: 'center', padding: '12px 14px', flexShrink: 0 }}>
-        <a
-          href={`/oferta/${offer.id}`}
-          className="btn-cta"
-          style={{
-            background: '#FFE600', color: '#333',
-            padding: '10px 14px', borderRadius: 10,
-            fontWeight: 700, fontSize: 13, textDecoration: 'none',
-            textAlign: 'center', whiteSpace: 'nowrap',
-            display: 'block',
-          }}
-        >
-          Ver oferta →
-        </a>
       </div>
-    </div>
+    </article>
   )
 }

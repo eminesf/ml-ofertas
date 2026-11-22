@@ -14,6 +14,7 @@
     "scrape:hub": "npm run scrape:hub -w @ml-afiliados/backend",
     "scrape:amazon": "npm run scrape:amazon -w @ml-afiliados/backend",
     "scrape:awin": "npm run scrape:awin -w @ml-afiliados/backend",
+    "scrape:shopee": "npm run scrape:shopee -w @ml-afiliados/backend",
     "whatsapp:login": "npm run whatsapp:login -w @ml-afiliados/backend"
   },
   "devDependencies": {

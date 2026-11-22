@@ -10,7 +10,7 @@ Bot automatizado de ofertas para afiliados **multi-plataforma**: Mercado Livre, 
 - **IA**: OpenRouter (`deepseek/deepseek-chat`) via fetch direto (formato OpenAI-compatible) — migrado da Claude API por custo; `OPENROUTER_MODEL` env var permite trocar de modelo sem código
 - **Canal**: Telegram Bot API (REST)
 - **Banco atual**: PostgreSQL 16 em Docker no PC (`docker-compose.yml`, porta `5433`) — `DATABASE_URL=postgresql://mlofertas:mlofertas@localhost:5433/mlofertas`
-- **Hospedagem atual (desde 2026-10-31)**: tudo roda 24h no PC via pm2 (`ecosystem.config.js`: `ml-ofertas-backend` + `ml-ofertas-frontend` em :3002). Railway **desativado** (não pago) — URL antiga comentada no `.env`; Vercel ainda no ar mas sem backend (pendente: expor API via Cloudflare Tunnel)
+- **Hospedagem atual (desde 2026-10-31)**: tudo roda 24h no PC via pm2 (`ecosystem.config.js`: `ml-ofertas-backend` + `ml-ofertas-frontend` em :3002). Railway **desativado** (não pago) — URL antiga comentada no `.env`; Vercel (`foxpromocoes.vercel.app`) usa a API do PC via Cloudflare Tunnel: `NEXT_PUBLIC_API_URL=https://api-ofertas.emiliano.dev.br`
 - `dev.db` (SQLite) é legado de junho/2026 — não é mais usado
 
 ## Estrutura de pastas
@@ -35,7 +35,8 @@ ml-afiliados/
 │   │       │   │   └── scraper-product.ts        # produto único por ASIN (fetch HTTP + fallback genérico)
 │   │       │   ├── awin/index.ts                 # AwinProvider (Kabum/AliExpress/Stanley) + deeplink cread.php + feedIds
 │   │       │   ├── awin/feed.ts                  # scrape de listagem via product feed Awin (CSV gzip) + queda de preço (FeedPrice)
-│   │       │   └── shopee/index.ts               # ShopeeProvider — sem Open API, link curto manual
+│   │       │   ├── shopee/index.ts               # ShopeeProvider — link an_redir com SHOPEE_AFFILIATE_ID (sem Open API)
+│   │       │   └── shopee/feed.ts                # feed de produto diário do portal (CSV, 10k produtos/arquivo)
 │   │       ├── jobs/
 │   │       │   ├── offers.job.ts                 # pipeline: scrape, IA, posting, repost
 │   │       │   ├── scrape-cli.ts                 # CLI de scraping 100% LOCAL (ml|hub|amazon|all)
@@ -458,10 +459,12 @@ Job de posting busca ofertas prontas e as posta de forma cadenciada:
 a cada 20min → posting — posta até ML_POST_MAX ofertas pendentes no Telegram
 12h e 20h    → repost  — repost de ofertas postadas HOJE (máx 2x/dia por oferta, intervalo mín. 4h)
 6h15, 12h15 e 18h15 → feeds Awin (Kabum + Stanley), requer AWIN_FEED_API_KEY
+7h40 e 21h40 → feed Shopee, requer SHOPEE_FEED_URLS
+9h30 e 15h30 → scrape ML /ofertas + Amazon /deals (Playwright em processo filho; PULA se o bot-leilao tiver leilão ativo ou agendado nos próximos 90 min — lê C:/dev/bot-leilao/data/leilao.db só leitura via utils/leilao-guard.ts)
 minutos 5 e 35 → posting WhatsApp, só com WHATSAPP_ENABLED=true
 ```
 
-Início automático no PC: tarefa `ml-ofertas-pm2-resurrect` roda `scripts/start-local.ps1` no login (Docker → Postgres → `pm2 resurrect`; log em `~/.pm2/start-local.log`).
+Início automático no PC: tarefa `ml-ofertas-pm2-resurrect` roda `scripts/start-local.ps1` no login **e a cada 10 min**. Se a API (3001) e o site (3002) respondem, sai sem fazer nada; senão sobe Docker → Postgres → `pm2 resurrect` + `pm2 start ecosystem.config.js`. Log em `~/.pm2/start-local.log`. (Em 11/11/2026 um reinício do Windows Update + falha da execução no login deixou tudo fora do ar por 8 dias — por isso a repetição.)
 
 **⚠️ Scraping NÃO roda mais no Railway.** Os crons de 6h/7h foram removidos — scraping no Railway pesava o container e sofria CAPTCHA/bloqueios de IP de datacenter, além de bugs de sessão no hub ML. Todo scraping é 100% local e manual via `scrape-cli.ts` (grava direto no Postgres do Railway pela `DATABASE_URL`, então o posting agendado do Railway posta os produtos normalmente). Os endpoints admin `job/offers` e `job/hub` foram removidos pelo mesmo motivo (restam `job/post` e `job/repost`).
 
@@ -473,9 +476,16 @@ npm run scrape:ml       # só ofertas públicas do ML
 npm run scrape:hub      # só hub de afiliados ML + cupons (abre browser p/ login se sessão expirou)
 npm run scrape:amazon   # só ofertas do dia da Amazon (/deals)
 npm run scrape:awin     # product feeds Awin (Kabum + Stanley) — requer AWIN_FEED_API_KEY
+npm run scrape:shopee   # feed de produto da Shopee — requer SHOPEE_FEED_URLS
 npm run scrape:show     # tudo, com browser visível (ou `-- --show` em qualquer alvo, dentro de packages/backend)
 ```
-Shopee e AliExpress não têm scraping de listagem — produtos entram via import por URL no painel admin (`/admin/import`).
+AliExpress não tem scraping de listagem — produtos entram via import por URL no painel admin (`/admin/import`).
+
+### Feed de produto Shopee (`shopee/feed.ts`)
+- Portal de afiliados → Criativo → Feed de produto → "Ver Link": 2 feeds ("Shopee Oficial BR", "Shopee Brasil"), CSV atualizado 1x/dia (~20h). O download não pede login — o `id` da URL identifica a conta → URLs só no `.env` (`SHOPEE_FEED_URLS`, separadas por vírgula).
+- Parser próprio (`parseFeedCsv`) que recorta campos por índice e guarda só as colunas usadas: o `parseCsv` da Awin estourou a memória com os ~22 MB de descrições.
+- Filtro antes da IA: desconto 20–70% (acima disso é quase sempre preço "de" inflado), nota ≥ 4.5, preço ≥ R$10, máx. 2 por loja, ordenado por nota e depois desconto, até `SHOPEE_FEED_MAX` (20).
+- O `product short link` do feed vem SEM `affiliate_id` — não usar.
 
 ### Product feeds Awin (`awin/feed.ts`)
 - Download: `productdata.awin.com/datafeed/download/apikey/{AWIN_FEED_API_KEY}/fid/{ids}/columns/.../format/csv/compression/gzip/` — chave = segmento de 32 hex da URL "Download da Lista de Feed" (Ferramentas → Crie um Feed). CORS bloqueia o download pelo browser; só via Node.
@@ -500,12 +510,12 @@ Shopee e AliExpress não têm scraping de listagem — produtos entram via impor
 | `kabum` | Awin deeplink mid=17729 | ✅ JSON-LD via html-product.ts | ✅ feed Awin (queda de preço) |
 | `aliexpress` | Awin deeplink mid=18879 | ⚠️ best-effort (JS-heavy, fallback Playwright) | ❌ |
 | `stanley` | Awin deeplink mid=30599 | ✅ JSON-LD (Shopify) | ✅ feed Awin |
-| `shopee` | ⚠️ link curto manual | ⚠️ best-effort (bot-protection forte; usar dados manuais) | ❌ |
+| `shopee` | `shope.ee/an_redir?origin_link=…&affiliate_id=SHOPEE_AFFILIATE_ID&sub_id=foxofertas` | ⚠️ best-effort (bot-protection forte; usar dados manuais) | ✅ feed de produto diário |
 
 - **Registry** (`providers/registry.ts`): `resolveProviderByUrl(url)` detecta a plataforma pelo hostname e devolve provider + externalId + scraper de produto. Usado pelo `/api/offers/import`.
 - **externalId prefixado por plataforma** — sem migration: ML mantém `MLB{digits}` (compatível com banco existente); Amazon `AMZN-{ASIN}`; Kabum `KABUM-{id}`; AliExpress `ALIEXP-{id}`; Stanley `STANLEY-{handle}`; Shopee `SHOPEE-{shopId}-{itemId}`. Prefixos garantem unicidade global sem alterar o schema.
 - **Awin deeplink**: `https://www.awin1.com/cread.php?awinmid={MID}&awinaffid=2953175&ued={URL_ENCODED}` — publisher ID 2953175 (PF - Fox Ofertas e Promoções).
-- **Shopee sem Open API**: a conta ainda não tem acesso à Open API de afiliados (pendente "Aplicar" em affiliate.shopee.com.br/open_api). Sem ela não há geração programática do link curto. O form de import mostra campo "Link de afiliado Shopee" quando a URL é da Shopee — gerar em affiliate.shopee.com.br → Link personalizado e colar; sem ele o post sai SEM comissão (o backend loga warning). Quando a API for aprovada, implementar `generateShortLink` via GraphQL (`open-api.affiliate.shopee.com.br/graphql`).
+- **Shopee sem Open API**: o botão "Aplicar" em affiliate.shopee.com.br/open_api fica desativado ("peça acesso ao gerente da conta"). Não faz falta: o link de afiliado é o redirecionador `shope.ee/an_redir` com `affiliate_id` (campo `affiliate_id` de `/api/v3/user/profile` no portal → `SHOPEE_AFFILIATE_ID`); o redirect leva `utm_source=an_<ID>&utm_medium=affiliates` (testado). O campo "Link de afiliado" do import ficou opcional — se preenchido, sobrescreve o gerado.
 - **`processOffer` aceita `affiliateUrlOverride`** (último parâmetro) — usado pelo import para o link curto da Shopee.
 
 ## Scraper ML — Detalhes técnicos
@@ -839,12 +849,12 @@ Quando o hub/coupon scraper começar a falhar (sessão expirada, semanas depois)
 - [x] **Multi-provider** — Amazon (tag `foxofertas04-20`), Awin (Kabum 17729 / AliExpress 18879 / Stanley 30599, publisher 2953175) e Shopee (link curto manual até Open API ser aprovada); registry detecta provider pela URL no import; externalId prefixado por plataforma (sem migration); badge de loja nos cards ✅
 - [x] **IA migrada para OpenRouter/DeepSeek** — `deepseek/deepseek-chat` via fetch, sem SDK; `@anthropic-ai/sdk` removido; testado com `test:ai` ✅
 - [x] **Scraping 100% local** — crons de 6h/7h e endpoints admin `job/offers`/`job/hub` removidos do Railway; `npm run scrape[:ml|:hub|:amazon]` grava direto no Postgres Railway ✅
-- [ ] **⚠️ ANTES DO MERGE: configurar `OPENROUTER_API_KEY` no Railway** — o repost/posting em produção gera copy via OpenRouter; sem a key os jobs falham
-- [ ] **Shopee Open API** — clicar "Aplicar" em affiliate.shopee.com.br/open_api; quando aprovado, implementar `generateShortLink` GraphQL para gerar link curto automaticamente
+- [x] **Shopee** — feed de produto diário (`scrape:shopee`, 7h40/21h40) + link de afiliado automático (`an_redir` + `SHOPEE_AFFILIATE_ID`) ✅
+- [x] **ML e Amazon agendados** — 9h30/15h30 com trava de leilão (`leilao-guard.ts`); hub ML continua manual ✅
 - [x] **Awin product feeds** — `scrape:awin` para Kabum (queda de preço via `FeedPrice`) e Stanley; AliExpress fora (feeds em CNY/USD) ✅
 - [x] **Hospedagem local** — Postgres no Docker (:5433) + pm2 (backend + frontend) + tarefa `ml-ofertas-pm2-resurrect` no login + Docker Desktop AutoStart ✅
-- [ ] **Cloudflare Tunnel para a API** — adicionar hostname (ex: `api-ofertas.emiliano.dev.br` → `127.0.0.1:3001`) no tunnel `bot-leilao` já existente; reiniciar cloudflared derruba o bot de leilão por segundos → fazer fora de leilão. Depois atualizar `NEXT_PUBLIC_API_URL` na Vercel e redeploy
-- [ ] **Contexto de tendências da IA desatualizado** — prompts ainda citam Copa FIFA 26 (já passou); revisar em `ai/index.ts`
-- [ ] Remover `Filters.tsx` (legado, não utilizado desde o redesign do feed)
+- [x] **Cloudflare Tunnel para a API** — `api-ofertas.emiliano.dev.br` → `127.0.0.1:3001` no tunnel do bot-leilao (`~/.cloudflared/config.yml`); `start-local.ps1` sobe o cloudflared se não estiver rodando. Para trocar config sem derrubar o leilão: subir um 2º conector com a config nova e só então matar o antigo ✅
+- [x] **Frontend redesenhado com shadcn/ui + Tailwind v4** — grade responsiva, CTA fixo no mobile, header com busca e chips de categoria ✅
+- [x] **Contexto de tendências da IA** — Black Friday/Natal/13º/verão (nov–dez 2026); revisar `TRENDS_CONTEXT` em `ai/index.ts` a cada estação ✅
 - [ ] Analytics: Google Analytics 4 ou Plausible — medir cliques nos links de afiliado (conversão)
 - [ ] Domínio próprio — apontar para Vercel + atualizar `NEXT_PUBLIC_SITE_URL` para sitemap correto

@@ -1,20 +1,30 @@
-import { Suspense } from 'react'
+import Link from 'next/link'
+import type { Metadata } from 'next'
+import { X } from 'lucide-react'
 import { getOffers } from '@/lib/api'
-import OfferCard from '@/components/OfferCard'
-import SearchBar from '@/components/SearchBar'
+import { EmptyState, OfferGrid, Pagination, SortTabs, parseSort } from '@/components/Feed'
+import { CATEGORIES } from '@/lib/utils'
 
-const CATEGORY_LABELS: Record<string, string> = {
-  'eletronicos': 'Eletrônicos',
-  'esporte': 'Esporte e Suplementos',
-  'moda': 'Moda e Acessórios',
-  'casa': 'Casa e Eletrodomésticos',
-  'beleza': 'Beleza e Cuidados',
-  'automotivo': 'Automotivo',
-  'ferramentas': 'Ferramentas',
-  'geral': 'Geral',
+const PAGE_SIZE = 24
+
+function labelFor(slug: string) {
+  return CATEGORIES.find(c => c.slug === slug)?.label || (slug === 'geral' ? 'Geral' : slug)
 }
 
-interface SearchParams { pagina?: string; q?: string }
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const { slug } = await params
+  const label = labelFor(slug)
+  return {
+    title: `${label} em promoção — Fox Ofertas`,
+    description: `Ofertas de ${label.toLowerCase()} selecionadas por IA no Fox Ofertas.`,
+  }
+}
+
+interface SearchParams {
+  pagina?: string
+  q?: string
+  ordenar?: string
+}
 
 export default async function CategoriaPage({
   params,
@@ -25,58 +35,45 @@ export default async function CategoriaPage({
 }) {
   const { slug } = await params
   const sp = await searchParams
-  const page = Number(sp.pagina) || 1
+  const page = Math.max(1, Number(sp.pagina) || 1)
+  const sort = parseSort(sp.ordenar)
   const q = sp.q?.trim() || undefined
-  const qSuffix = q ? `&q=${encodeURIComponent(q)}` : ''
+  const base = `/categoria/${slug}`
 
-  const { offers, total } = await getOffers({ category: decodeURIComponent(slug), limit: 20, page, sort: 'recent', q })
-  const totalPages = Math.ceil(total / 20)
-  const label = CATEGORY_LABELS[slug] || slug
+  const { offers, total } = await getOffers({ category: decodeURIComponent(slug), limit: PAGE_SIZE, page, sort, q })
+  const totalPages = Math.ceil(total / PAGE_SIZE)
 
   return (
-    <main style={{ maxWidth: 860, margin: '0 auto', padding: '1.5rem 1rem' }}>
-      <a href="/" className="back-btn">← Início</a>
-
-      <Suspense fallback={<div className="search-bar-wrap" style={{ height: 52 }} />}>
-        <SearchBar />
-      </Suspense>
-
-      <h1 style={{ fontSize: '1.4rem', fontWeight: 700, marginBottom: '1.25rem' }}>
-        {label}
-        <span style={{ color: '#999', fontWeight: 400, fontSize: '0.9rem', marginLeft: 8 }}>({total})</span>
-      </h1>
+    <main className="mx-auto max-w-6xl px-4 py-5 sm:py-8">
+      <div className="mb-5 flex flex-wrap items-end justify-between gap-2">
+        <div>
+          <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">Categoria</p>
+          <h1 className="text-2xl font-extrabold tracking-tight sm:text-3xl">{labelFor(slug)}</h1>
+        </div>
+        <span className="text-sm text-muted-foreground tabular-nums">{total.toLocaleString('pt-BR')} ofertas</span>
+      </div>
 
       {q && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: '1rem', fontSize: 14, color: '#555' }}>
-          <span>Resultados para <strong>&quot;{q}&quot;</strong></span>
-          <a href={`/categoria/${slug}`} style={{ color: '#a15c00', textDecoration: 'underline', fontSize: 13 }}>limpar busca</a>
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <p className="font-semibold">
+            Resultados para <span className="text-muted-foreground">&ldquo;{q}&rdquo;</span>
+          </p>
+          <Link
+            href={base}
+            className="inline-flex items-center gap-1 rounded-full border bg-card px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground"
+          >
+            <X className="size-3" /> limpar
+          </Link>
         </div>
       )}
 
-      {offers.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '4rem 1rem', color: '#888' }}>
-          <p style={{ fontSize: 48, margin: 0 }}>🛍️</p>
-          <p>{q ? <>Nenhuma oferta encontrada para &quot;{q}&quot;.</> : 'Nenhuma oferta nessa categoria ainda.'}</p>
-        </div>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
-          {offers.map(offer => <OfferCard key={offer.id} offer={offer} />)}
-        </div>
-      )}
+      <div className="mb-4">
+        <SortTabs base={base} sort={sort} q={q} total={total} />
+      </div>
 
-      {totalPages > 1 && (
-        <div style={{ display: 'flex', justifyContent: 'center', gap: '0.375rem', marginTop: '2rem' }}>
-          {page > 1 && <a href={`?pagina=${page - 1}${qSuffix}`} style={pageBtn}>← Anterior</a>}
-          <span style={{ ...pageBtn, background: '#FFE600', fontWeight: 700 }}>{page} / {totalPages}</span>
-          {page < totalPages && <a href={`?pagina=${page + 1}${qSuffix}`} style={pageBtn}>Próxima →</a>}
-        </div>
-      )}
+      {offers.length === 0 ? <EmptyState q={q} clearHref={base} /> : <OfferGrid offers={offers} />}
+
+      <Pagination base={base} page={page} totalPages={totalPages} sort={sort} q={q} />
     </main>
   )
-}
-
-const pageBtn: React.CSSProperties = {
-  textDecoration: 'none', color: '#555',
-  background: '#fff', border: '1px solid #ddd',
-  padding: '7px 14px', borderRadius: 8, fontWeight: 600, fontSize: 13,
 }

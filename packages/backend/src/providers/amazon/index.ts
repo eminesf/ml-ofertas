@@ -121,7 +121,20 @@ export class AmazonProvider implements AffiliateProvider {
             }
             if (!title || title.length < 10) continue;
 
-            var imageUrl = img ? (img.src || '') : '';
+            // a imagem pode ficar fora do container escolhido (o card do grid é
+            // um ancestral) e chega via lazy-load: sobe até achar uma <img> real
+            var imgEl = img;
+            var up = card;
+            for (var lvl = 0; (!imgEl || !/^https?:/.test(imgEl.currentSrc || imgEl.src || '')) && up && lvl < 6; lvl++) {
+              up = up.parentElement;
+              if (up) imgEl = up.querySelector('img[src^="http"], img[srcset]');
+            }
+            var imageUrl = '';
+            if (imgEl) {
+              imageUrl = imgEl.currentSrc || imgEl.getAttribute('data-src') || imgEl.src || '';
+              if (!/^https?:/.test(imageUrl) && imgEl.srcset) imageUrl = imgEl.srcset.split(',')[0].trim().split(' ')[0];
+              if (!/^https?:/.test(imageUrl)) imageUrl = '';
+            }
 
             seen[asin] = true;
             result.push({ asin: asin, title: title, salePrice: salePrice, discountPct: discountPct, imageUrl: imageUrl });

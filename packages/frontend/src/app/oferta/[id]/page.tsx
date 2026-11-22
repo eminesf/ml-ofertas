@@ -1,32 +1,23 @@
-import { getOffer, getOffers } from '@/lib/api'
 import { notFound } from 'next/navigation'
 import type { Metadata } from 'next'
-import OfferCard from '@/components/OfferCard'
+import { ExternalLink, ShieldCheck, ShoppingBag, Sparkles, Star, TrendingDown } from 'lucide-react'
+import { getOffer, getOffers } from '@/lib/api'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Separator } from '@/components/ui/separator'
+import { OfferGrid } from '@/components/Feed'
 import VoteButton from '@/components/VoteButton'
 import CouponCopy from '@/components/CouponCopy'
 import BackButton from '@/components/BackButton'
-
-const STORE_NAMES: Record<string, string> = {
-  mercadolivre: 'Mercado Livre',
-  amazon: 'Amazon',
-  shopee: 'Shopee',
-  kabum: 'KaBuM!',
-  aliexpress: 'AliExpress',
-  stanley: 'Stanley',
-}
-
-function storeName(provider: string): string {
-  return STORE_NAMES[provider] || provider
-}
+import { STORES, brl, cn, storeName, timeAgo } from '@/lib/utils'
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params
   const offer = await getOffer(id)
   if (!offer) return {}
 
-  const priceStr = `R$ ${offer.salePrice.toFixed(2).replace('.', ',')}`
   const discountStr = offer.discountPct > 0 ? ` (-${offer.discountPct}% OFF)` : ''
-  const description = `${priceStr}${discountStr} em ${storeName(offer.provider)}. Encontre as melhores promoções no Fox Ofertas.`
+  const description = `${brl(offer.salePrice)}${discountStr} em ${storeName(offer.provider)}. Encontre as melhores promoções no Fox Ofertas.`
 
   return {
     title: `${offer.title} — Fox Ofertas`,
@@ -51,127 +42,124 @@ export default async function OfertaPage({ params }: { params: Promise<{ id: str
   const offer = await getOffer(id)
   if (!offer) notFound()
 
-  const { offers: related } = await getOffers({ category: offer.category, limit: 6 })
-  const relatedOffers = related.filter(o => o.id !== offer.id).slice(0, 4)
+  const { offers: related } = await getOffers({ category: offer.category, limit: 9 })
+  const relatedOffers = related.filter(o => o.id !== offer.id).slice(0, 8)
 
-  const hasDiscount = offer.originalPrice > offer.salePrice
+  const hasDiscount = offer.discountPct > 0 && offer.originalPrice > offer.salePrice
+  const store = STORES[offer.provider]
+  const cta = (
+    <Button asChild variant="brand" size="lg" className="h-12 w-full rounded-xl text-base">
+      <a href={offer.affiliateUrl} target="_blank" rel="noopener noreferrer sponsored">
+        Ir para {storeName(offer.provider)} <ExternalLink />
+      </a>
+    </Button>
+  )
 
   return (
-    <main style={{ maxWidth: 940, margin: '0 auto', padding: '1.5rem 1rem' }}>
+    <main className="mx-auto max-w-6xl px-4 py-4 pb-28 sm:py-8 sm:pb-8">
       <BackButton />
 
-      <div style={{
-        background: '#fff', borderRadius: 16, padding: '2rem',
-        boxShadow: '0 2px 8px rgba(0,0,0,0.07)', display: 'flex', gap: '2rem', flexWrap: 'wrap',
-      }}>
-        {/* Imagem */}
-        <div style={{ flex: '0 0 auto', width: 300 }}>
-          {offer.imageUrl
-            ? <img src={offer.imageUrl} alt={offer.title} style={{ width: '100%', objectFit: 'contain', borderRadius: 12, maxHeight: 300 }} />
-            : <div style={{ width: '100%', height: 260, background: '#f8f8f8', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 64 }}>🛍️</div>
-          }
-
-          {/* Voto na página de detalhe */}
-          <div style={{ marginTop: '1rem', display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'center' }}>
-            <VoteButton offerId={offer.id} initialVotes={offer.upvotes ?? 0} />
-            <span style={{ fontSize: 13, color: '#888' }}>Essa oferta é boa?</span>
+      <div className="grid gap-5 md:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] md:gap-8">
+        <div className="relative overflow-hidden rounded-2xl border bg-white">
+          <div className="relative aspect-square">
+            {offer.imageUrl ? (
+              <img src={offer.imageUrl} alt={offer.title} className="absolute inset-0 size-full object-contain p-6 sm:p-10" />
+            ) : (
+              <div className="absolute inset-0 flex items-center justify-center text-muted-foreground">
+                <ShoppingBag className="size-16" />
+              </div>
+            )}
           </div>
+          {hasDiscount && (
+            <Badge variant="deal" className="absolute top-3 left-3 px-2 py-1 text-sm">
+              -{offer.discountPct}%
+            </Badge>
+          )}
         </div>
 
-        {/* Detalhes */}
-        <div style={{ flex: 1, minWidth: 260 }}>
-          <div style={{ display: 'flex', gap: 8, marginBottom: '0.75rem', flexWrap: 'wrap' }}>
-            {offer.discountPct > 0 ? (
-              <span style={{ background: '#e53e3e', color: '#fff', fontSize: 13, fontWeight: 700, padding: '4px 12px', borderRadius: 20 }}>
-                -{offer.discountPct}% OFF
-              </span>
-            ) : (
-              <span style={{ background: '#7c3aed', color: '#fff', fontSize: 13, fontWeight: 700, padding: '4px 12px', borderRadius: 20 }}>
-                ⚡ Oferta especial!
-              </span>
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-wrap items-center gap-1.5">
+            {store && <span className={cn('rounded-md px-2 py-0.5 text-xs font-bold', store.className)}>{store.label}</span>}
+            {!hasDiscount && (
+              <Badge className="bg-violet-600">
+                <Sparkles /> Oferta especial
+              </Badge>
             )}
-            {offer.couponCode && (
-              <span style={{ background: '#FFE600', color: '#333', fontSize: 13, fontWeight: 700, padding: '4px 12px', borderRadius: 20 }}>
-                🎟️ Cupom disponível
-              </span>
-            )}
-            {offer.aiScore && (
-              <span style={{ background: '#f0fdf4', color: '#166534', fontSize: 13, fontWeight: 700, padding: '4px 12px', borderRadius: 20 }}>
-                ⭐ IA: {offer.aiScore}/10
-              </span>
-            )}
+            {offer.aiScore ? (
+              <Badge variant="success">
+                <Sparkles /> IA {offer.aiScore}/10
+              </Badge>
+            ) : null}
+            <span className="text-xs text-muted-foreground">· {timeAgo(offer.createdAt)}</span>
           </div>
 
-          <h1 style={{ fontSize: '1.4rem', fontWeight: 700, margin: '0 0 1rem', lineHeight: 1.35 }}>
-            {offer.title}
-          </h1>
+          <h1 className="text-xl leading-snug font-bold tracking-tight sm:text-2xl">{offer.title}</h1>
 
-          {offer.rating && (
-            <p style={{ margin: '0 0 0.75rem', color: '#666', fontSize: 14 }}>
-              ⭐ {offer.rating.toFixed(1)} de avaliação
+          {offer.rating ? (
+            <p className="flex items-center gap-1 text-sm text-muted-foreground">
+              <Star className="size-4 fill-amber-400 text-amber-400" />
+              <span className="font-medium text-foreground">{offer.rating.toFixed(1)}</span> de avaliação na loja
             </p>
-          )}
+          ) : null}
 
-          {/* Preços */}
-          <div style={{ marginBottom: '1rem' }}>
+          <div className="rounded-2xl border bg-card p-4 sm:p-5">
+            {hasDiscount && <p className="text-sm text-muted-foreground line-through">{brl(offer.originalPrice)}</p>}
+            <p className="text-3xl font-extrabold tracking-tight sm:text-4xl">{brl(offer.salePrice)}</p>
             {hasDiscount && (
-              <div style={{ color: '#bbb', fontSize: 15, textDecoration: 'line-through' }}>
-                R$ {offer.originalPrice.toFixed(2).replace('.', ',')}
-              </div>
+              <p className="mt-1 flex items-center gap-1 text-sm font-semibold text-success">
+                <TrendingDown className="size-4" /> Você economiza {brl(offer.originalPrice - offer.salePrice)}
+              </p>
             )}
-            <div style={{ fontSize: 36, fontWeight: 800, color: '#1a1a1a', lineHeight: 1.1 }}>
-              R$ {offer.salePrice.toFixed(2).replace('.', ',')}
-            </div>
-            {hasDiscount && (
-              <div style={{ color: '#2d7d46', fontWeight: 600, fontSize: 14, marginTop: 4 }}>
-                Você economiza R$ {(offer.originalPrice - offer.salePrice).toFixed(2).replace('.', ',')}
-              </div>
-            )}
+            <div className="mt-4 hidden sm:block">{cta}</div>
+            <p className="mt-3 flex items-center gap-1.5 text-xs text-muted-foreground">
+              <ShieldCheck className="size-3.5" /> Compra feita direto no site oficial da loja.
+            </p>
           </div>
 
-          {/* Cupom */}
           {offer.couponCode && (
-            <CouponCopy code={offer.couponCode} variant="box" amount={offer.couponAmount ?? undefined} minValue={offer.couponMinValue} />
+            <CouponCopy
+              code={offer.couponCode}
+              variant="box"
+              amount={offer.couponAmount ?? undefined}
+              minValue={offer.couponMinValue}
+            />
           )}
 
-          {/* Destaque */}
           {offer.suggestedHighlight && (
-            <p style={{ color: '#2d7d46', fontWeight: 600, marginBottom: '1rem', fontSize: 14 }}>
-              ✅ {offer.suggestedHighlight}
-            </p>
+            <div className="flex gap-3 rounded-xl bg-success/10 p-4 text-sm">
+              <Sparkles className="mt-0.5 size-4 shrink-0 text-success" />
+              <div>
+                <p className="font-semibold text-success">Por que vale a pena</p>
+                <p className="text-foreground/80">{offer.suggestedHighlight}</p>
+              </div>
+            </div>
           )}
 
-          {/* CTA */}
-          <a
-            href={offer.affiliateUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="btn-cta"
-            style={{
-              display: 'block', background: '#FFE600', color: '#333',
-              textAlign: 'center', padding: '14px 24px', borderRadius: 12,
-              fontWeight: 700, fontSize: 16, textDecoration: 'none',
-              marginBottom: '0.75rem',
-            }}
-          >
-            🛒 Ver oferta em {storeName(offer.provider)} →
-          </a>
-
-         
+          <div className="flex items-center gap-3">
+            <VoteButton offerId={offer.id} initialVotes={offer.upvotes ?? 0} size="lg" />
+            <span className="text-sm text-muted-foreground">Essa oferta está boa? Esquente ela!</span>
+          </div>
         </div>
       </div>
 
-      {/* Ofertas relacionadas */}
       {relatedOffers.length > 0 && (
-        <div style={{ marginTop: '2.5rem' }}>
-          <h2 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '1rem' }}>
-            Ofertas relacionadas
-          </h2>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem' }}>
-            {relatedOffers.map(o => <OfferCard key={o.id} offer={o} />)}
-          </div>
-        </div>
+        <section className="mt-10">
+          <Separator className="mb-6" />
+          <h2 className="mb-4 text-lg font-bold tracking-tight">Você também pode gostar</h2>
+          <OfferGrid offers={relatedOffers} />
+        </section>
       )}
+
+      {/* CTA fixo no mobile — sempre ao alcance do polegar */}
+      <div className="fixed inset-x-0 bottom-0 z-30 border-t bg-background/95 px-4 pt-3 pb-safe backdrop-blur sm:hidden">
+        <div className="flex items-center gap-3 pr-16">
+          <div className="min-w-0">
+            <p className="text-lg leading-none font-extrabold">{brl(offer.salePrice)}</p>
+            {hasDiscount && <p className="text-xs font-semibold text-deal">-{offer.discountPct}% OFF</p>}
+          </div>
+          <div className="flex-1">{cta}</div>
+        </div>
+      </div>
     </main>
   )
 }

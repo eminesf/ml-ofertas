@@ -1,18 +1,35 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
+import { Flame } from 'lucide-react'
+import { cn } from '@/lib/utils'
 
 const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
 
-export default function VoteButton({ offerId, initialVotes }: { offerId: string; initialVotes: number }) {
+// "Temperatura" da oferta: clicar esquenta (+1), clicar de novo desfaz.
+export default function VoteButton({
+  offerId,
+  initialVotes,
+  size = 'sm',
+  className,
+}: {
+  offerId: string
+  initialVotes: number
+  size?: 'sm' | 'lg'
+  className?: string
+}) {
   const [votes, setVotes] = useState(initialVotes)
   const [voted, setVoted] = useState(false)
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    setVoted(localStorage.getItem(`vote_${offerId}`) === '1')
+    try {
+      setVoted(localStorage.getItem(`vote_${offerId}`) === '1')
+    } catch {}
   }, [offerId])
 
-  async function toggle() {
+  async function toggle(e: React.MouseEvent) {
+    e.preventDefault()
+    e.stopPropagation()
     if (loading) return
     setLoading(true)
     try {
@@ -23,33 +40,35 @@ export default function VoteButton({ offerId, initialVotes }: { offerId: string;
       setVotes(data.upvotes)
       const next = !voted
       setVoted(next)
-      if (next) localStorage.setItem(`vote_${offerId}`, '1')
-      else localStorage.removeItem(`vote_${offerId}`)
+      try {
+        if (next) localStorage.setItem(`vote_${offerId}`, '1')
+        else localStorage.removeItem(`vote_${offerId}`)
+      } catch {}
     } finally {
       setLoading(false)
     }
   }
 
-  const color = votes > 10 ? '#ea580c' : votes > 0 ? '#f97316' : votes < 0 ? '#3b82f6' : '#bbb'
-
+  const hot = votes > 10
   return (
     <button
+      type="button"
       onClick={toggle}
       disabled={loading}
-      title={voted ? 'Remover voto' : 'Votar nessa oferta'}
-      style={{
-        display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2,
-        background: 'none', border: 'none', cursor: loading ? 'wait' : 'pointer',
-        padding: '6px 4px', borderRadius: 8, transition: 'opacity 0.15s',
-        opacity: loading ? 0.6 : 1,
-      }}
+      aria-pressed={voted}
+      title={voted ? 'Remover voto' : 'Essa oferta está quente!'}
+      className={cn(
+        'relative z-10 inline-flex items-center gap-1 rounded-full border font-semibold tabular-nums transition-colors disabled:opacity-60',
+        size === 'lg' ? 'h-10 px-4 text-sm' : 'h-7 px-2.5 text-xs',
+        voted
+          ? 'border-orange-200 bg-orange-50 text-orange-600'
+          : 'bg-card text-muted-foreground hover:border-orange-200 hover:text-orange-600',
+        hot && !voted && 'text-orange-600',
+        className,
+      )}
     >
-      <span style={{ fontSize: 20, color: voted ? '#ea580c' : '#ccc', lineHeight: 1, transition: 'color 0.15s' }}>
-        ▲
-      </span>
-      <span style={{ fontSize: 13, fontWeight: 800, color, lineHeight: 1 }}>
-        {votes}°
-      </span>
+      <Flame className={cn(size === 'lg' ? 'size-4' : 'size-3.5', voted && 'fill-orange-500 text-orange-500')} />
+      {votes}°
     </button>
   )
 }
