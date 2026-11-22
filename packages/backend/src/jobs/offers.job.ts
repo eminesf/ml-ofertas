@@ -2,7 +2,7 @@ import { prisma } from '../utils/prisma'
 import { classifyCategory, isBook } from '../utils/category'
 import { AffiliateProvider } from '../providers/base.provider'
 import { evaluateOffer, generatePostMessage, analyzeMarketValue, evaluateCouponOffer, generateCouponPostMessage, CouponContext, GeneratedPost } from '../ai'
-import { publishOffer, postPriority, canPostNow, ensureShortCode, shortLink, cleanTitle } from '../utils/publish'
+import { publishOffer, postPriority, canPostNow, TELEGRAM_SOURCE_MAX_AGE_HOURS, ensureShortCode, shortLink, cleanTitle } from '../utils/publish'
 import { Offer } from '@prisma/client'
 import { scrapeHubProducts } from '../providers/mercadolivre/scraper-hub'
 import { scrapeCouponsAndProducts } from '../providers/mercadolivre/scraper-coupons'
@@ -318,7 +318,9 @@ export async function runPostingJob(maxPosts = 1, force = false) {
   const recent = await prisma.post.findMany({ where: { channel: 'telegram' }, orderBy: { sentAt: 'desc' }, take: 4, include: { offer: { select: { category: true, provider: true, title: true } } } })
   const kind = (t: string) => (t.match(/^\S+/)?.[0] || '').toLowerCase()
   const pending: typeof candidates = []
-  const pool = [...candidates]
+  // Oferta dos canais do Telegram com mais de 6h provavelmente já acabou
+  const tgCutoff = Date.now() - TELEGRAM_SOURCE_MAX_AGE_HOURS * 3600000
+  const pool = candidates.filter(o => o.source !== 'telegram' || o.createdAt.getTime() >= tgCutoff)
   const seen = recent.map(p => p.offer)
   while (pending.length < maxPosts && pool.length) {
     const score = (o: typeof candidates[number]) => postPriority(o)

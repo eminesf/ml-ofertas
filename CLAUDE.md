@@ -459,7 +459,7 @@ Job de posting busca ofertas prontas e as posta de forma cadenciada:
 
 ## Agendamento (scheduler.ts) — SÓ posting/repost no Railway
 ```
-a cada 20min → posting — POST_MAX (1) oferta, a MESMA no Telegram e no WhatsApp (utils/publish.ts), só em POST_HOURS (8-23), só com imagem e ≤ POST_MAX_AGE_HOURS (72h); fila = nota IA + bônus de ticket baixo + variedade de categoria/loja
+a cada 20min → posting — POST_MAX (1) oferta, a MESMA no Telegram e no WhatsApp (utils/publish.ts), só em POST_HOURS (8-23), só com imagem e ≤ POST_MAX_AGE_HOURS (72h); fila = nota IA + bônus de ticket baixo + variedade de categoria/loja; ofertas dos canais do Telegram (source `telegram`) têm +6 e só valem por 6h
 12h e 20h    → repost  — até REPOST_MAX (3) ofertas postadas HOJE, nos dois canais (máx 2x/dia por oferta, intervalo mín. 4h)
 6h15, 12h15 e 18h15 → feeds Awin (Kabum + Stanley), requer AWIN_FEED_API_KEY
 7h40 e 21h40 → feed Shopee, requer SHOPEE_FEED_URLS
