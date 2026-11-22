@@ -11,7 +11,7 @@ export const SORTS: { value: Sort; label: string; icon: React.ComponentType<{ cl
   { value: 'recent', label: 'Novas', icon: Clock },
   { value: 'votes', label: 'Quentes', icon: Flame },
   { value: 'discount', label: 'Maior desconto', icon: Percent },
-  { value: 'score', label: 'Top IA', icon: Sparkles },
+  { value: 'score', label: 'Top ofertas', icon: Sparkles },
 ]
 
 export function parseSort(value?: string): Sort {

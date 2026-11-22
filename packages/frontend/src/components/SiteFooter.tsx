@@ -20,7 +20,7 @@ export default function SiteFooter() {
             <span className="font-extrabold tracking-tight">Fox Ofertas</span>
           </div>
           <p className="max-w-sm text-sm text-muted-foreground">
-            Garimpamos promoções em várias lojas e uma IA avalia cada uma antes de publicar. Os preços podem mudar a
+            Garimpamos promoções o dia todo em várias lojas. Os preços podem mudar a
             qualquer momento — confira sempre no site da loja.
           </p>
         </div>

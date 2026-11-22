@@ -1,12 +1,12 @@
 import Link from 'next/link'
-import { Bot, X } from 'lucide-react'
+import { Flame, X } from 'lucide-react'
 import { getOffers } from '@/lib/api'
 import { EmptyState, OfferGrid, Pagination, SortTabs, parseSort } from '@/components/Feed'
 
 export const metadata = {
-  title: 'Fox Ofertas — Promoções e cupons selecionados por IA',
+  title: 'Fox Ofertas — Promoções, cupons e descontos de verdade todo dia',
   description:
-    'As melhores promoções e cupons da internet — selecionados por IA.',
+    'Oferta relâmpago, cupom e preço lá embaixo, atualizados o dia todo. Achou, aproveitou — antes que acabe!',
 }
 
 const PAGE_SIZE = 24
@@ -34,13 +34,13 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
           <div className="pointer-events-none absolute -top-16 -right-10 size-56 rounded-full bg-brand/25 blur-3xl" />
           <div className="relative max-w-xl space-y-3">
             <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-2.5 py-1 text-xs font-medium">
-              <Bot className="size-3.5 text-brand" /> Curadoria com inteligência artificial
+              <Flame className="size-3.5 text-brand" /> Ofertas novas o dia todo
             </span>
             <h1 className="text-2xl leading-tight font-extrabold tracking-tight sm:text-4xl">
-              Só promoção que vale a pena. <span className="text-brand">Sem enrolação.</span>
+              Desconto de verdade, todo dia. <span className="text-brand">Antes que acabe.</span>
             </h1>
             <p className="hidden text-sm text-white/70 sm:block sm:text-base">
-              Garimpamos ofertas o dia todo e a IA descarta preço inflado antes de chegar aqui.
+              Preço lá embaixo, cupom e oferta relâmpago num lugar só. Corre, que promoção boa não espera ninguém.
             </p>
           </div>
         </section>
