@@ -39,11 +39,11 @@ export default function WelcomeModal({ whatsappUrl }: { whatsappUrl?: string | n
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent className="gap-5 overflow-hidden p-0 sm:max-w-sm">
         <div className="flex justify-center bg-brand pt-6 pb-4">
-          <img src="/logo_png.png" alt="Fox Ofertas" className="h-20" />
+          <img src="/logo_png.png" alt="Fox Promoções" className="h-20" />
         </div>
         <div className="space-y-5 px-6 pb-6">
           <DialogHeader>
-            <DialogTitle className="text-xl font-extrabold">Bem-vindo ao Fox Ofertas!</DialogTitle>
+            <DialogTitle className="text-xl font-extrabold">Bem-vindo ao Fox Promoções!</DialogTitle>
             <DialogDescription className="leading-relaxed">
               Entre no nosso grupo e receba as melhores promoções direto no celular, antes de todo mundo.
             </DialogDescription>

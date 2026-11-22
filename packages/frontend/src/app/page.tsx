@@ -10,7 +10,7 @@ export async function generateMetadata({ searchParams }: { searchParams: Promise
   // Busca interna não é indexada; páginas 2+ apontam para si mesmas
   if (q) return { title: `Busca: ${q}`, robots: { index: false, follow: true } }
   return {
-    title: { absolute: 'Fox Ofertas — Promoções, cupons e descontos de verdade todo dia' },
+    title: { absolute: 'Fox Promoções — Cupons e descontos de verdade todo dia' },
     alternates: { canonical: page > 1 ? `/?pagina=${page}` : '/' },
   }
 }

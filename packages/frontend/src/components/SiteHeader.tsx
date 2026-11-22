@@ -18,12 +18,12 @@ export default function SiteHeader({ whatsappUrl }: { whatsappUrl?: string | nul
     <header className="sticky top-0 z-40 border-b bg-background/85 backdrop-blur-md supports-[backdrop-filter]:bg-background/70">
       <div className="h-1 bg-brand" />
       <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-2.5 sm:gap-6">
-        <Link href="/" className="flex shrink-0 items-center gap-2.5" aria-label="Fox Ofertas — início">
+        <Link href="/" className="flex shrink-0 items-center gap-2.5" aria-label="Fox Promoções — início">
           <span className="flex size-10 items-center justify-center overflow-hidden rounded-xl bg-brand shadow-sm">
             <img src="/logo_png.png" alt="" className="size-9 object-contain" />
           </span>
           <span className="leading-tight">
-            <span className="block text-base font-extrabold tracking-tight">Fox Ofertas</span>
+            <span className="block text-base font-extrabold tracking-tight">Fox Promoções</span>
             <span className="block text-[11px] font-medium text-muted-foreground">Promoção boa todo dia</span>
           </span>
         </Link>

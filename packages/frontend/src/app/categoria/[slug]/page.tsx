@@ -17,7 +17,7 @@ export async function generateMetadata({ params }: { params: Promise<{ slug: str
   return {
     title: `${label} em promoção`,
     alternates: { canonical: `/categoria/${slug}` },
-    description: `Promoções e cupons de ${label.toLowerCase()} com desconto de verdade no Fox Ofertas.`,
+    description: `Promoções e cupons de ${label.toLowerCase()} com desconto de verdade no Fox Promoções.`,
   }
 }
 

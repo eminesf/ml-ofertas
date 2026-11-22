@@ -18,7 +18,7 @@ export default function SiteFooter({ whatsappUrl }: { whatsappUrl?: string | nul
             <span className="flex size-9 items-center justify-center overflow-hidden rounded-xl bg-brand">
               <img src="/logo_png.png" alt="" className="size-8 object-contain" />
             </span>
-            <span className="font-extrabold tracking-tight">Fox Ofertas</span>
+            <span className="font-extrabold tracking-tight">Fox Promoções</span>
           </div>
           <p className="max-w-sm text-sm text-muted-foreground">
             Garimpamos promoções o dia todo em várias lojas. Os preços podem mudar a
@@ -61,7 +61,7 @@ export default function SiteFooter({ whatsappUrl }: { whatsappUrl?: string | nul
       </div>
       <div className="border-t">
         <p className="mx-auto max-w-6xl px-4 py-4 text-xs text-muted-foreground">
-          © 2026 Fox Ofertas · Podemos receber comissão por compras feitas pelos links, sem custo extra para você.
+          © 2026 Fox Promoções · Podemos receber comissão por compras feitas pelos links, sem custo extra para você.
         </p>
       </div>
     </footer>
