@@ -1,4 +1,4 @@
-import { chromium } from 'playwright'
+import { newMlContext, saveMlSession, isMlBlockedUrl, reportMlBlocked } from './browser'
 import { RawOffer } from '../base.provider'
 
 // PRODUCT_SCRIPT mantido para fallback Playwright
@@ -252,24 +252,16 @@ async function scrapeWithPlaywright(
   externalId: string,
   cleanUrl: string,
 ): Promise<RawOffer | null> {
-  const browser = await chromium.launch({
-    headless: true,
-    args: ['--disable-blink-features=AutomationControlled', '--no-sandbox', '--disable-dev-shm-usage'],
-  })
-  const context = await browser.newContext({
-    userAgent:
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
-    viewport: { width: 1280, height: 800 },
-    locale: 'pt-BR',
-  })
-  await context.addInitScript(
-    'Object.defineProperty(navigator, "webdriver", { get: function() { return false } })',
-  )
+  const { browser, context } = await newMlContext()
   const page = await context.newPage()
 
   try {
     console.log(`[ScrapeProduct] Playwright navegando para: ${navUrl}`)
     await page.goto(navUrl, { waitUntil: 'networkidle', timeout: 60000 })
+    if (isMlBlockedUrl(page.url())) {
+      await reportMlBlocked('import de produto')
+      return null
+    }
 
     await page
       .waitForSelector(
@@ -295,6 +287,7 @@ async function scrapeWithPlaywright(
       console.error('[ScrapeProduct] Dados insuficientes:', data)
       return null
     }
+    await saveMlSession(context)
 
     return {
       externalId,
@@ -313,10 +306,12 @@ async function scrapeWithPlaywright(
 
 export async function scrapeProductByUrl(url: string): Promise<RawOffer | null> {
   const urlWithoutFragment = url.split('#')[0]
-  const navUrl = urlWithoutFragment.split('?')[0]
+  const pdpItem = urlWithoutFragment.match(/pdp_filters=item_id(?:%3A|:)(MLB\d+)/i)?.[1]
+  // páginas /up/MLBU... precisam do item escolhido; o resto da query é rastreamento
+  const navUrl = urlWithoutFragment.split('?')[0] + (pdpItem ? `?pdp_filters=item_id%3A${pdpItem}` : '')
 
   // wid = item específico (variação); pode vir em query OU em fragmento
-  const widMatch = url.match(/[?&#]wid=(MLB\d+)/)
+  const widMatch = url.match(/[?&#]wid=(MLB\d+)/) || (pdpItem ? [pdpItem, pdpItem] as RegExpMatchArray : null)
 
   const idMatch = url.match(/MLB-?(\d+)/)
   if (!idMatch) {

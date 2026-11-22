@@ -3,6 +3,7 @@ import { prisma } from '../../utils/prisma'
 import { resolveProviderByUrl, PROVIDER_LABELS } from '../../providers/registry'
 import { processOffer } from '../../jobs/offers.job'
 import { publishOffer } from '../../utils/publish'
+import { mlRecentlyBlocked } from '../../providers/mercadolivre/browser'
 
 const router = Router()
 
@@ -109,6 +110,9 @@ router.post('/import', async (req, res) => {
       return res.status(400).json({ error: 'Não foi possível extrair dados do produto' })
     }
     if (!raw) {
+      if (provider.name === 'mercadolivre' && mlRecentlyBlocked()) {
+        return res.status(400).json({ error: 'O Mercado Livre pediu verificação (captcha). No PC, rode "npm run ml:login" e resolva na janela — ou use a opção de inserir dados manualmente.' })
+      }
       return res.status(400).json({ error: 'Produto não encontrado ou sem dados de preço. Use a opção de inserir dados manualmente.' })
     }
   }
