@@ -1,5 +1,5 @@
 import { prisma } from '../utils/prisma'
-import { classifyCategory } from '../utils/category'
+import { classifyCategory, isBook } from '../utils/category'
 import { AffiliateProvider } from '../providers/base.provider'
 import { evaluateOffer, generatePostMessage, analyzeMarketValue, evaluateCouponOffer, generateCouponPostMessage, CouponContext, GeneratedPost } from '../ai'
 import { publishOffer, postPriority, canPostNow, ensureShortCode, shortLink, cleanTitle } from '../utils/publish'
@@ -61,6 +61,10 @@ export async function processOffer(
 ) {
   raw = { ...raw, title: cleanTitle(raw.title) }
   const tag = `[Job][${raw.externalId}][${source}]`
+  if (isBook(raw.title, raw.externalId)) {
+    console.log(`${tag} Livro — fora do catálogo, pulando`)
+    return
+  }
   const affiliateUrl = affiliateUrlOverride || provider.buildAffiliateLink(raw.productUrl)
 
   // Classifica categoria pelo título (prioriza valor explícito, exceto 'geral' que é só default)

@@ -16,7 +16,7 @@ import { RawOffer } from '../providers/base.provider'
 const STATE_FILE = path.join(__dirname, '..', '..', '..', '.telegram-sources.json')
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36'
 
-interface ChannelPost { id: number; text: string; links: string[]; price: number | null }
+interface ChannelPost { id: number; text: string; links: string[]; price: number | null; coupon: string | null }
 
 function loadState(): Record<string, number> {
   try { return JSON.parse(fs.readFileSync(STATE_FILE, 'utf8')) } catch { return {} }
@@ -54,7 +54,8 @@ export async function fetchChannelPosts(channel: string): Promise<ChannelPost[]>
     const links = [...textHtml.matchAll(/href="(https?:\/\/[^"]+)"/g)]
       .map(m => m[1].replace(/&amp;/g, '&'))
       .filter(u => !/t\.me\/|telegram\.(org|me)/.test(u))
-    return { id, text, links, price: parsePrice(text) }
+    const coupon = text.match(/cupom:?\s*([A-Z0-9]{5,20})\b/i)?.[1]?.toUpperCase() || null
+    return { id, text, links, price: parsePrice(text), coupon }
   }).filter(p => Number.isFinite(p.id))
 }
 
@@ -178,13 +179,17 @@ export async function runTelegramSourceJob() {
           console.log(`${tag} não foi possível ler o produto: ${product.url}`)
           continue
         }
-        // Preço já subiu desde o post de origem → promoção acabou
-        if (raw.salePrice > post.price * 1.1) {
+        // Preço já subiu desde o post de origem → promoção acabou. Post com cupom/Pix
+        // mostra o preço final (cupom aplicado), então a tolerância é maior.
+        const tolerance = post.coupon || /pix/i.test(post.text) ? 1.25 : 1.1
+        if (raw.salePrice > post.price * tolerance) {
           console.log(`${tag} preço subiu (canal R$${post.price} → loja R$${raw.salePrice}), pulando`)
           continue
         }
 
-        await processOffer({ ...raw, externalId: resolved.externalId }, resolved.provider, undefined, 'telegram')
+        // Cupom público da loja citado no post (ex.: SITETODO2211 do ML) vai junto no nosso copy
+        if (post.coupon) console.log(`${tag} cupom no post: ${post.coupon}`)
+        await processOffer({ ...raw, externalId: resolved.externalId }, resolved.provider, post.coupon || undefined, 'telegram')
       } catch (err: any) {
         console.error(`${tag} erro:`, err?.message || err)
       }
