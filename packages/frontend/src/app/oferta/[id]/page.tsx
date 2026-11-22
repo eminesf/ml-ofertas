@@ -87,7 +87,7 @@ export default async function OfertaPage({ params }: { params: Promise<{ id: str
             )}
             {offer.aiScore ? (
               <Badge variant="success">
-                <Sparkles /> IA {offer.aiScore}/10
+                <Sparkles /> Nota {offer.aiScore}/10
               </Badge>
             ) : null}
             <span className="text-xs text-muted-foreground">· {timeAgo(offer.createdAt)}</span>

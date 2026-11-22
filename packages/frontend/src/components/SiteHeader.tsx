@@ -22,7 +22,7 @@ export default function SiteHeader() {
           </span>
           <span className="leading-tight">
             <span className="block text-base font-extrabold tracking-tight">Fox Ofertas</span>
-            <span className="block text-[11px] font-medium text-muted-foreground">Promoções selecionadas por IA</span>
+            <span className="block text-[11px] font-medium text-muted-foreground">Promoção boa todo dia</span>
           </span>
         </Link>
 
