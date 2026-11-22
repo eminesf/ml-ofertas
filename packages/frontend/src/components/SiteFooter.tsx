@@ -4,8 +4,9 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { CATEGORIES } from '@/lib/utils'
 import TelegramIcon, { TELEGRAM_URL } from './TelegramIcon'
+import WhatsAppIcon from './WhatsAppIcon'
 
-export default function SiteFooter() {
+export default function SiteFooter({ whatsappUrl }: { whatsappUrl?: string | null }) {
   const pathname = usePathname()
   if (pathname.startsWith('/admin')) return null
 
@@ -38,11 +39,21 @@ export default function SiteFooter() {
 
         <div>
           <p className="mb-3 text-sm font-semibold">Receba primeiro</p>
+          {whatsappUrl && (
+            <a
+              href={whatsappUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mb-2 flex items-center gap-2 text-sm font-medium text-foreground hover:text-[#1ebe5b]"
+            >
+              <WhatsAppIcon className="size-4 text-[#25D366]" /> Grupo de promoções no WhatsApp
+            </a>
+          )}
           <a
             href={TELEGRAM_URL}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
+            className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
           >
             <TelegramIcon className="size-4 text-[#229ED9]" /> @e_foxofertas
           </a>

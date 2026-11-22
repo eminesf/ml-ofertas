@@ -167,3 +167,20 @@ export async function sendWhatsAppToSelf(text: string): Promise<boolean> {
   await sock.sendMessage(jid, { text })
   return true
 }
+
+// Link de convite do grupo (o número pareado precisa ser admin). Cache de 6h;
+// WHATSAPP_INVITE_URL no .env sobrescreve.
+let inviteCache: { url: string; at: number } | null = null
+export async function getWhatsAppInviteLink(): Promise<string | null> {
+  if (process.env.WHATSAPP_INVITE_URL) return process.env.WHATSAPP_INVITE_URL
+  if (inviteCache && Date.now() - inviteCache.at < 6 * 3600_000) return inviteCache.url
+  const jid = process.env.WHATSAPP_GROUP_JID
+  if (!sock || !isOpen || !jid?.endsWith('@g.us')) return inviteCache?.url ?? null
+  try {
+    const code = await sock.groupInviteCode(jid)
+    if (code) inviteCache = { url: `https://chat.whatsapp.com/${code}`, at: Date.now() }
+  } catch (err: any) {
+    console.warn('[WhatsApp] Não foi possível obter link de convite:', err?.message)
+  }
+  return inviteCache?.url ?? null
+}

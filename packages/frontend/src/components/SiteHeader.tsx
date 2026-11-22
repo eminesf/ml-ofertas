@@ -5,10 +5,11 @@ import { usePathname } from 'next/navigation'
 import { Flame } from 'lucide-react'
 import SearchBar from './SearchBar'
 import TelegramIcon, { TELEGRAM_URL } from './TelegramIcon'
+import WhatsAppIcon, { WHATSAPP_GREEN } from './WhatsAppIcon'
 import { Button } from '@/components/ui/button'
 import { CATEGORIES, cn } from '@/lib/utils'
 
-export default function SiteHeader() {
+export default function SiteHeader({ whatsappUrl }: { whatsappUrl?: string | null }) {
   const pathname = usePathname()
   if (pathname.startsWith('/admin')) return null
 
@@ -30,13 +31,28 @@ export default function SiteHeader() {
           <SearchBar />
         </div>
 
-        <Button asChild size="sm" className="ml-auto bg-[#229ED9] text-white hover:bg-[#1c8cc2]">
-          <a href={TELEGRAM_URL} target="_blank" rel="noopener noreferrer">
-            <TelegramIcon className="size-4" />
-            <span className="hidden sm:inline">Canal no Telegram</span>
-            <span className="sm:hidden">Seguir</span>
-          </a>
-        </Button>
+        <div className="ml-auto flex shrink-0 items-center gap-1.5">
+          {whatsappUrl && (
+            <Button asChild size="sm" className={cn('h-9 rounded-full px-3.5 font-semibold shadow-sm sm:px-4', WHATSAPP_GREEN)}>
+              <a href={whatsappUrl} target="_blank" rel="noopener noreferrer">
+                <WhatsAppIcon className="size-4" />
+                <span className="hidden sm:inline">Promos no WhatsApp</span>
+                <span className="sm:hidden">Entrar</span>
+              </a>
+            </Button>
+          )}
+          <Button
+            asChild
+            size="sm"
+            variant="outline"
+            className={cn('h-9 rounded-full text-[#229ED9]', whatsappUrl ? 'w-9 px-0' : 'px-3.5')}
+          >
+            <a href={TELEGRAM_URL} target="_blank" rel="noopener noreferrer" aria-label="Canal no Telegram" title="Canal no Telegram">
+              <TelegramIcon className="size-4" />
+              {!whatsappUrl && <span className="text-foreground">Telegram</span>}
+            </a>
+          </Button>
+        </div>
       </div>
 
       <div className="mx-auto max-w-6xl px-4 pb-2.5 md:hidden">
