@@ -95,6 +95,13 @@ const RULES: Array<{ category: string; keywords: string[] }> = [
   },
 ]
 
+// Livros ficam fora do canal (não convertem). Amazon: ASIN de livro é o ISBN-10
+// (só dígitos/X); produtos comuns começam com "B0".
+export function isBook(title: string, externalId?: string): boolean {
+  if (externalId && /^AMZN-\d{9}[\dX]$/i.test(externalId)) return true
+  return /\b(livros?|capa comum|capa dura|mangás?|hist[óo]ria em quadrinhos|box com \d+ livros|edi[çc][ãa]o de luxo|ebook|kindle unlimited)\b/i.test(title)
+}
+
 export function classifyCategory(title: string): string {
   const t = title.toLowerCase()
   for (const rule of RULES) {

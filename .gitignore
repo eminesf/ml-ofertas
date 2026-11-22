@@ -9,3 +9,4 @@ dist
 .wa-session/
 *.tsbuildinfo
 .telegram-sources.json
+packages/livros-removidos-*.json
