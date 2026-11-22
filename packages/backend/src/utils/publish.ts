@@ -63,11 +63,17 @@ export function cleanTitle(title: string): string {
 }
 
 // Ticket baixo converte mais (compra por impulso): pesa o preço na fila de posting
-export function postPriority(o: Pick<Offer, 'aiScore' | 'salePrice' | 'discountPct'>): number {
+// Ofertas vindas dos canais do Telegram (source 'telegram') furam a fila: já foram
+// garimpadas por gente e expiram rápido.
+export const TELEGRAM_SOURCE_BONUS = 6
+export const TELEGRAM_SOURCE_MAX_AGE_HOURS = 6
+
+export function postPriority(o: Pick<Offer, 'aiScore' | 'salePrice' | 'discountPct'> & { source?: string }): number {
   const p = o.salePrice
   const priceBonus = p <= 50 ? 3 : p <= 100 ? 2.5 : p <= 200 ? 2 : p <= 400 ? 1 : p <= 1000 ? 0 : p <= 2000 ? -2 : -4
   const discountBonus = o.discountPct >= 40 ? 0.5 : 0
-  return (o.aiScore ?? 0) + priceBonus + discountBonus
+  const sourceBonus = o.source === 'telegram' ? TELEGRAM_SOURCE_BONUS : 0
+  return (o.aiScore ?? 0) + priceBonus + discountBonus + sourceBonus
 }
 
 function inPostingHours(): boolean {
