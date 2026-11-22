@@ -1,12 +1,18 @@
 import Link from 'next/link'
+import type { Metadata } from 'next'
 import { Flame, X } from 'lucide-react'
 import { getOffers } from '@/lib/api'
 import { EmptyState, OfferGrid, Pagination, SortTabs, parseSort } from '@/components/Feed'
 
-export const metadata = {
-  title: 'Fox Ofertas — Promoções, cupons e descontos de verdade todo dia',
-  description:
-    'Oferta relâmpago, cupom e preço lá embaixo, atualizados o dia todo. Achou, aproveitou — antes que acabe!',
+export async function generateMetadata({ searchParams }: { searchParams: Promise<SearchParams> }): Promise<Metadata> {
+  const { q, pagina } = await searchParams
+  const page = Math.max(1, Number(pagina) || 1)
+  // Busca interna não é indexada; páginas 2+ apontam para si mesmas
+  if (q) return { title: `Busca: ${q}`, robots: { index: false, follow: true } }
+  return {
+    title: { absolute: 'Fox Ofertas — Promoções, cupons e descontos de verdade todo dia' },
+    alternates: { canonical: page > 1 ? `/?pagina=${page}` : '/' },
+  }
 }
 
 const PAGE_SIZE = 24
