@@ -158,3 +158,12 @@ export async function sendWhatsAppPost(text: string, imageUrl?: string | null): 
     return false
   }
 }
+
+// Mensagem para o próprio número pareado ("Você" no WhatsApp) — avisos para o dono do bot
+export async function sendWhatsAppToSelf(text: string): Promise<boolean> {
+  const self = sock?.user?.id
+  if (!sock || !self) return false
+  const jid = self.split(':')[0].split('@')[0] + '@s.whatsapp.net'
+  await sock.sendMessage(jid, { text })
+  return true
+}
