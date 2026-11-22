@@ -2,8 +2,7 @@ import { prisma } from '../utils/prisma'
 import { classifyCategory } from '../utils/category'
 import { AffiliateProvider } from '../providers/base.provider'
 import { evaluateOffer, generatePostMessage, analyzeMarketValue, evaluateCouponOffer, generateCouponPostMessage, CouponContext, GeneratedPost } from '../ai'
-import { sendPhoto, sendMessage } from '../channels/telegram'
-import { isWhatsAppEnabled, isWhatsAppConnected, sendWhatsAppPost } from '../channels/whatsapp'
+import { publishOffer, postPriority, canPostNow, ensureShortCode, shortLink, cleanTitle } from '../utils/publish'
 import { Offer } from '@prisma/client'
 import { scrapeHubProducts } from '../providers/mercadolivre/scraper-hub'
 import { scrapeCouponsAndProducts } from '../providers/mercadolivre/scraper-coupons'
@@ -60,6 +59,7 @@ export async function processOffer(
   forcePost: boolean = false,
   affiliateUrlOverride?: string
 ) {
+  raw = { ...raw, title: cleanTitle(raw.title) }
   const tag = `[Job][${raw.externalId}][${source}]`
   const affiliateUrl = affiliateUrlOverride || provider.buildAffiliateLink(raw.productUrl)
 
@@ -189,9 +189,11 @@ export async function processOffer(
 
   let generated
   try {
+    // copy já sai com o link curto do site (/r/{code}), não com o link de afiliado cheio
+    const postUrl = shortLink(await ensureShortCode(raw.externalId))
     generated = couponCtx
-      ? await generateCouponPostMessage(raw, affiliateUrl, couponCtx, marketAnalysis.suggestedHighlight)
-      : await generatePostMessage(raw, affiliateUrl, couponCode, marketAnalysis.suggestedHighlight)
+      ? await generateCouponPostMessage(raw, postUrl, couponCtx, marketAnalysis.suggestedHighlight)
+      : await generatePostMessage(raw, postUrl, couponCode, marketAnalysis.suggestedHighlight)
   } catch (err) {
     console.error(`${tag} Erro ao gerar copy:`, err)
     return
@@ -290,39 +292,45 @@ export async function runHubJob(providers: AffiliateProvider[]) {
   console.log('[Job] Hub job concluído')
 }
 
-export async function runPostingJob(maxPosts = 3) {
+// Posting único: a MESMA oferta vai para Telegram e WhatsApp (link curto do site).
+// Só ofertas com imagem e recentes; fila ordenada por nota da IA + bônus de ticket baixo.
+export async function runPostingJob(maxPosts = 1, force = false) {
+  if (!force && !canPostNow()) return
   console.log(`[Job] Iniciando job de posting (máx ${maxPosts} posts)`)
 
-  // Busca ofertas aprovadas pela IA que ainda não foram postadas
-  const pending = await prisma.offer.findMany({
+  const maxAgeHours = parseInt(process.env.POST_MAX_AGE_HOURS || '72', 10)
+  const candidates = await prisma.offer.findMany({
     where: {
       telegramMessage: { not: null },
+      imageUrl: { not: null },
       aiScore: { gte: MIN_AI_SCORE },
-      posts: { none: { channel: 'telegram' } },
+      createdAt: { gte: new Date(Date.now() - maxAgeHours * 3600000) },
+      posts: { none: {} },
     },
-    orderBy: { aiScore: 'desc' },
-    take: maxPosts,
+    take: 300,
   })
+  // Variedade: penaliza categoria/loja/tipo que saíram nos últimos posts (evita 7 livros seguidos)
+  const recent = await prisma.post.findMany({ where: { channel: 'telegram' }, orderBy: { sentAt: 'desc' }, take: 4, include: { offer: { select: { category: true, provider: true, title: true } } } })
+  const kind = (t: string) => (t.match(/^\S+/)?.[0] || '').toLowerCase()
+  const pending: typeof candidates = []
+  const pool = [...candidates]
+  const seen = recent.map(p => p.offer)
+  while (pending.length < maxPosts && pool.length) {
+    const score = (o: typeof candidates[number]) => postPriority(o)
+      - 1.5 * seen.filter(r => r.category === o.category).length
+      - 0.5 * seen.filter(r => r.provider === o.provider).length
+      - 1 * seen.filter(r => kind(r.title) === kind(o.title)).length
+    pool.sort((a, b) => score(b) - score(a))
+    const next = pool.shift()!
+    pending.push(next)
+    seen.unshift(next)
+  }
 
-  console.log(`[Job] ${pending.length} ofertas pendentes de posting`)
+  console.log(`[Job] ${candidates.length} ofertas na fila, postando ${pending.length}`)
 
   for (const offer of pending) {
     try {
-      const success = offer.imageUrl
-        ? await sendPhoto(offer.imageUrl, offer.telegramMessage!)
-        : await sendMessage(offer.telegramMessage!)
-
-      await prisma.post.create({
-        data: {
-          offerId: offer.id,
-          channel: 'telegram',
-          message: offer.telegramMessage!,
-          whatsappMessage: offer.whatsappMessage,
-          success,
-        }
-      })
-
-      console.log(`[Job] Postado: "${offer.title}" (score: ${offer.aiScore})`)
+      await publishOffer(offer)
       await new Promise(r => setTimeout(r, 2000))
     } catch (err) {
       console.error(`[Job] Erro ao postar ${offer.id}:`, err)
@@ -330,55 +338,6 @@ export async function runPostingJob(maxPosts = 3) {
   }
 
   console.log('[Job] Posting job concluído')
-}
-
-function isWithinWhatsAppHours(): boolean {
-  const [start, end] = (process.env.WHATSAPP_HOURS || '8-22').split('-').map(Number)
-  const hour = new Date().getHours()
-  return hour >= start && hour < end
-}
-
-// Cadência baixa de propósito: Baileys é não oficial e volume alto arrisca banir o número.
-// Só ofertas recentes, para ligar o canal não despejar a fila antiga (com preço velho) no grupo.
-export async function runWhatsAppPostingJob(maxPosts = 1) {
-  if (!isWhatsAppEnabled() || !isWithinWhatsAppHours()) return
-  if (!isWhatsAppConnected()) {
-    console.warn('[Job] WhatsApp desconectado, pulando posting')
-    return
-  }
-
-  const maxAgeHours = parseInt(process.env.WHATSAPP_MAX_AGE_HOURS || '48', 10)
-  const pending = await prisma.offer.findMany({
-    where: {
-      whatsappMessage: { not: null },
-      aiScore: { gte: MIN_AI_SCORE },
-      createdAt: { gte: new Date(Date.now() - maxAgeHours * 3600000) },
-      posts: { none: { channel: 'whatsapp' } },
-    },
-    orderBy: [{ aiScore: 'desc' }, { createdAt: 'desc' }],
-    take: maxPosts,
-  })
-
-  console.log(`[Job] WhatsApp: ${pending.length} ofertas para postar`)
-
-  for (const [index, offer] of pending.entries()) {
-    if (index > 0) await new Promise(r => setTimeout(r, 20000 + Math.random() * 20000))
-    try {
-      const success = await sendWhatsAppPost(offer.whatsappMessage!, offer.imageUrl)
-      await prisma.post.create({
-        data: {
-          offerId: offer.id,
-          channel: 'whatsapp',
-          message: offer.whatsappMessage!,
-          whatsappMessage: offer.whatsappMessage,
-          success,
-        }
-      })
-      console.log(`[Job] WhatsApp ${success ? 'postado' : 'falhou'}: "${offer.title}"`)
-    } catch (err) {
-      console.error(`[Job] Erro ao postar no WhatsApp ${offer.id}:`, err)
-    }
-  }
 }
 
 export async function runRepostJob() {
@@ -393,9 +352,12 @@ export async function runRepostJob() {
     include: { posts: { where: { channel: 'telegram' }, orderBy: { sentAt: 'desc' } } }
   })
 
-  for (const offer of offers) {
+  const maxReposts = parseInt(process.env.REPOST_MAX || '3', 10)
+  const eligible = offers.filter(shouldRepost).sort((a, b) => postPriority(b) - postPriority(a)).slice(0, maxReposts)
+  console.log(`[Job] Repost: ${eligible.length} de ${offers.length} ofertas de hoje`)
+
+  for (const offer of eligible) {
     try {
-      if (!shouldRepost(offer)) continue
 
       const rawOffer = { externalId: offer.externalId, title: offer.title, originalPrice: offer.originalPrice, salePrice: offer.salePrice, discountPct: offer.discountPct, imageUrl: offer.imageUrl || undefined, productUrl: offer.productUrl, rating: offer.rating || undefined }
       let generated: GeneratedPost
@@ -416,20 +378,7 @@ export async function runRepostJob() {
         generated = await generatePostMessage(rawOffer, offer.affiliateUrl, offer.couponCode || undefined, offer.suggestedHighlight || undefined)
       }
 
-      const success = offer.imageUrl
-        ? await sendPhoto(offer.imageUrl, generated.telegram)
-        : await sendMessage(generated.telegram)
-
-      await prisma.post.create({
-        data: {
-          offerId: offer.id,
-          channel: 'telegram',
-          message: generated.telegram,
-          whatsappMessage: generated.whatsapp,
-          repostedAt: new Date(),
-          success
-        }
-      })
+      await publishOffer(offer, { telegramText: generated.telegram, whatsappText: generated.whatsapp, repost: true })
 
       console.log(`[Job] Repostado: "${offer.title}"`)
       await new Promise(r => setTimeout(r, 2000))

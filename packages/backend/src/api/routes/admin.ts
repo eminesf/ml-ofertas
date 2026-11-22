@@ -20,8 +20,8 @@ router.use(requireAdminSecret)
 
 // POST /api/admin/job/post — posta ofertas pendentes imediatamente
 router.post('/job/post', (req, res) => {
-  const maxPosts = parseInt(String(req.query.max || process.env.ML_POST_MAX || '5'), 10)
-  runPostingJob(maxPosts).catch(console.error)
+  const maxPosts = parseInt(String(req.query.max || '1'), 10)
+  runPostingJob(maxPosts, true).catch(console.error)
   res.json({ started: true, job: 'post', maxPosts })
 })
 

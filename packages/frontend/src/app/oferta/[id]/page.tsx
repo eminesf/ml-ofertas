@@ -49,7 +49,7 @@ export default async function OfertaPage({ params }: { params: Promise<{ id: str
   const store = STORES[offer.provider]
   const cta = (
     <Button asChild variant="brand" size="lg" className="h-12 w-full rounded-xl text-base">
-      <a href={offer.affiliateUrl} target="_blank" rel="noopener noreferrer sponsored">
+      <a href={offer.shortCode ? `/r/${offer.shortCode}` : offer.affiliateUrl} target="_blank" rel="noopener noreferrer sponsored">
         Ir para {storeName(offer.provider)} <ExternalLink />
       </a>
     </Button>

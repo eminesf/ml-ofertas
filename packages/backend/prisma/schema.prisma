@@ -30,6 +30,8 @@ model Offer {
   whatsappMessage    String?
   source             String    @default("offers-page")
   upvotes            Int       @default(0)
+  shortCode          String?   @unique   // link curto do site: /r/{shortCode}
+  clicks             Int       @default(0)
   createdAt          DateTime  @default(now())
   posts              Post[]
 }

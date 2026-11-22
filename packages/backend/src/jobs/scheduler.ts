@@ -1,6 +1,6 @@
 import '../env'
 import cron from 'node-cron'
-import { runRepostJob, runPostingJob, runOffersJob, runWhatsAppPostingJob } from './offers.job'
+import { runRepostJob, runPostingJob, runOffersJob } from './offers.job'
 import { connectWhatsApp, isWhatsAppEnabled } from '../channels/whatsapp'
 import { AwinProvider, AWIN_ADVERTISERS } from '../providers/awin'
 import { ShopeeProvider } from '../providers/shopee'
@@ -57,10 +57,11 @@ function runScrapeCli(target: string): Promise<void> {
 export function startScheduler() {
   console.log('[Scheduler] Iniciando...')
 
-  // Posting cadenciado — a cada 20 min, posta até ML_POST_MAX ofertas pendentes
-  const maxPostsPerRun = parseInt(process.env.ML_POST_MAX || '3', 10)
+  // Posting cadenciado — a cada 20 min, posta POST_MAX ofertas em Telegram E WhatsApp
+  // (mesma oferta nos dois; só dentro de POST_HOURS, padrão 8-23). Volume baixo de
+  // propósito: WhatsApp via Baileys arrisca banimento com muitas mensagens.
+  const maxPostsPerRun = parseInt(process.env.POST_MAX || '1', 10)
   cron.schedule('*/20 * * * *', async () => {
-    console.log('[Scheduler] Posting de ofertas pendentes...')
     await runPostingJob(maxPostsPerRun).catch(console.error)
   })
 
@@ -101,11 +102,7 @@ export function startScheduler() {
 
   if (isWhatsAppEnabled()) {
     connectWhatsApp().catch(err => console.error('[WhatsApp] Falha ao conectar:', err))
-    const maxWhatsAppPerRun = parseInt(process.env.WHATSAPP_POST_MAX || '1', 10)
-    cron.schedule('5,35 * * * *', async () => {
-      await runWhatsAppPostingJob(maxWhatsAppPerRun).catch(console.error)
-    })
-    console.log(`[Scheduler] WhatsApp: posting a cada 30min (máx ${maxWhatsAppPerRun})`)
+    console.log('[Scheduler] WhatsApp: recebe as mesmas ofertas do Telegram no posting')
   }
 
   console.log(`[Scheduler] Jobs: posting (a cada 20min, máx ${maxPostsPerRun}), repost (12h/20h). Hub ML é manual (npm run scrape:hub).`)
@@ -116,7 +113,7 @@ if (require.main === module) {
   const args = process.argv.slice(2)
   if (args.includes('--now')) {
     console.log('[Scheduler] Rodando manualmente...')
-    const job = args.includes('--repost') ? runRepostJob() : runPostingJob(5)
+    const job = args.includes('--repost') ? runRepostJob() : runPostingJob(1)
     job.then(() => process.exit(0)).catch(err => { console.error(err); process.exit(1) })
   }
 }

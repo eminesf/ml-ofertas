@@ -19,6 +19,8 @@ export interface Offer {
   imageUrl?: string
   affiliateUrl: string
   productUrl: string
+  shortCode?: string | null
+  clicks?: number
   category?: string
   rating?: number
   aiScore?: number

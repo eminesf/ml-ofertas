@@ -104,8 +104,13 @@ Critérios de pontuação:
 - Desconto ≥ 25% = +2 pontos
 - Produto com avaliação ≥ 4 = +2 pontos
 - Produto com relação direta a uma tendência atual (ver contexto acima) = +2 pontos
-- Preço final ≤ R$200 (alto volume) = +1 ponto
-- Categoria popular (eletrônicos, moda, esporte) = +1 ponto
+- Preço final ≤ R$100 (compra por impulso, converte muito) = +2 pontos
+- Preço final entre R$100 e R$250 = +1 ponto
+- Preço final acima de R$1.500 (compra planejada, converte pouco em canal de ofertas) = -2 pontos
+- Categoria popular (eletrônicos, moda, esporte, casa, beleza) = +1 ponto
+- Item de uso diário e fácil de entender sem pesquisar (acessório, utilidade, cuidado pessoal, consumível) = +1 ponto
+
+O canal privilegia ofertas FÁCEIS de comprar: ticket baixo, produto conhecido e útil. Eletrodoméstico grande ou eletrônico caro só merece nota alta se o desconto for realmente excepcional.
 
 Responda APENAS com JSON válido, sem markdown:
 {"score": 7, "shouldPost": true, "reason": "motivo breve"}`
