@@ -537,6 +537,13 @@ AliExpress não tem scraping de listagem — produtos entram via import por URL 
 - **URLs de produto com variação:** a URL bruta do scraper pode conter `?wid=MLB...` quando o produto tem variações (cor, tamanho). Nesse caso, `cleanUrl` monta `https://produto.mercadolivre.com.br/MLB-XXXXXXX` em vez de limpar a query string. Sem `wid` → produto multi-vendedor → `url.split('?')[0]` (mantém `/p/MLB...`)
 - **`buildAffiliateLink`** apenas appenda `matt_tool` e `matt_word` à URL recebida, sem normalizar domínio — preserva `produto.mercadolivre.com.br` para variações
 
+### Sessão do ML e captcha (`providers/mercadolivre/browser.ts`)
+- Desde ~nov/2026 o ML manda acesso anônimo (página de produto, busca, às vezes /ofertas) para `gz/account-verification` / captcha, e a API pública (`/items`, `/sites/MLB/search`) responde **403** sem token de app.
+- Scrape de /ofertas, import de produto e hub usam a MESMA sessão salva (`packages/.ml-session.json`) via `newMlContext()`; cookies são regravados após cada página OK.
+- Bloqueio detectado → log + aviso no WhatsApp do dono (máx. 1x/12h, `.ml-blocked-notice`) e o import devolve mensagem pedindo `npm run ml:login`.
+- `npm run ml:login`: abre o Chromium **visível**, o dono resolve captcha/login, salva a sessão. Nunca resolver captcha automaticamente.
+- Alternativa futura: app de desenvolvedor do ML (OAuth) para a API oficial.
+
 ### Scraper hub (/afiliados/hub)
 - Requer login autenticado
 - Clica no botão `#best_seller` ("Mais vendidos") após carregar, aguarda `networkidle`

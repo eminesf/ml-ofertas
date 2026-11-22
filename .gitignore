@@ -5,6 +5,7 @@ dist
 *.db
 *.db-journal
 .ml-session.json
+.ml-blocked-notice
 .wa-session/
 *.tsbuildinfo
 .telegram-sources.json

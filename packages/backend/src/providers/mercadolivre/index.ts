@@ -1,4 +1,4 @@
-import { chromium } from 'playwright'
+import { newMlContext, saveMlSession, isMlBlockedUrl, reportMlBlocked } from './browser'
 import { AffiliateProvider, RawOffer } from '../base.provider'
 
 export class MercadoLivreProvider implements AffiliateProvider {
@@ -22,25 +22,9 @@ export class MercadoLivreProvider implements AffiliateProvider {
     }
   }
 
+  // Usa a sessão salva do ML (resolva captcha/login com `npm run ml:login`)
   private async createBrowser() {
-    const browser = await chromium.launch({
-      headless: process.env.SCRAPE_HEADLESS !== 'false',
-      args: [
-        '--disable-blink-features=AutomationControlled',
-        '--no-sandbox',
-        '--disable-dev-shm-usage',
-      ]
-    })
-
-    const context = await browser.newContext({
-      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
-      viewport: { width: 1280, height: 800 },
-      locale: 'pt-BR',
-    })
-
-    await context.addInitScript('Object.defineProperty(navigator, "webdriver", { get: function() { return false } })')
-
-    return { browser, context }
+    return newMlContext()
   }
 
   async scrapeOffers(): Promise<RawOffer[]> {
@@ -54,6 +38,11 @@ export class MercadoLivreProvider implements AffiliateProvider {
         waitUntil: 'networkidle',
         timeout: 60000
       })
+
+      if (isMlBlockedUrl(page.url())) {
+        await reportMlBlocked('scrape de /ofertas')
+        return offers
+      }
 
       await page.waitForSelector('.poly-card', { timeout: 30000 })
       await page.waitForTimeout(2000)
@@ -133,6 +122,7 @@ export class MercadoLivreProvider implements AffiliateProvider {
       }
 
       console.log(`[ML] ${offers.length} ofertas coletadas`)
+      await saveMlSession(context)
     } catch (error) {
       console.error('[ML] Erro no scraping de ofertas:', error)
     } finally {
