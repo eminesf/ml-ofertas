@@ -25,6 +25,7 @@
     "scrape:amazon": "tsx src/jobs/scrape-cli.ts amazon",
     "scrape:awin": "tsx src/jobs/scrape-cli.ts awin",
     "scrape:shopee": "tsx src/jobs/scrape-cli.ts shopee",
+    "scrape:telegram": "tsx src/jobs/scrape-cli.ts telegram",
     "// --- jobs de posting (manuais) ---": "",
     "job:post": "tsx src/jobs/scheduler.ts --now --post",
     "job:repost": "tsx src/jobs/scheduler.ts --now --repost",
