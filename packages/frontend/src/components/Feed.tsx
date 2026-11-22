@@ -99,17 +99,17 @@ export function Pagination({
 
   return (
     <nav aria-label="Paginação" className="mt-8 flex items-center justify-center gap-1">
-      <Button asChild={page > 1} variant="outline" size="sm" disabled={page <= 1} className="gap-1">
-        {page > 1 ? (
+      {page > 1 ? (
+        <Button asChild variant="outline" size="sm" className="gap-1">
           <Link href={link(page - 1)} aria-label="Página anterior">
             <ChevronLeft /> <span className="hidden sm:inline">Anterior</span>
           </Link>
-        ) : (
-          <span>
-            <ChevronLeft /> <span className="hidden sm:inline">Anterior</span>
-          </span>
-        )}
-      </Button>
+        </Button>
+      ) : (
+        <Button variant="outline" size="sm" disabled className="gap-1" aria-label="Página anterior">
+          <ChevronLeft /> <span className="hidden sm:inline">Anterior</span>
+        </Button>
+      )}
 
       <div className="hidden items-center gap-1 sm:flex">
         {buildPageNumbers(page, totalPages).map((p, i) =>
@@ -126,17 +126,17 @@ export function Pagination({
         {page} de {totalPages}
       </span>
 
-      <Button asChild={page < totalPages} variant="outline" size="sm" disabled={page >= totalPages} className="gap-1">
-        {page < totalPages ? (
+      {page < totalPages ? (
+        <Button asChild variant="outline" size="sm" className="gap-1">
           <Link href={link(page + 1)} aria-label="Próxima página">
             <span className="hidden sm:inline">Próxima</span> <ChevronRight />
           </Link>
-        ) : (
-          <span>
-            <span className="hidden sm:inline">Próxima</span> <ChevronRight />
-          </span>
-        )}
-      </Button>
+        </Button>
+      ) : (
+        <Button variant="outline" size="sm" disabled className="gap-1" aria-label="Próxima página">
+          <span className="hidden sm:inline">Próxima</span> <ChevronRight />
+        </Button>
+      )}
     </nav>
   )
 }

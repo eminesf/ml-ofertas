@@ -79,3 +79,16 @@ export async function getOffer(id: string): Promise<Offer | null> {
   if (!res.ok) return null
   return res.json()
 }
+
+// Links dos canais (o do WhatsApp vem do grupo via bot). Cache de 10 min.
+export async function getChannels(): Promise<{ whatsapp: string | null; telegram: string }> {
+  const fallback = { whatsapp: process.env.NEXT_PUBLIC_WHATSAPP_URL || null, telegram: 'https://t.me/e_foxofertas' }
+  try {
+    const res = await fetch(`${API_URL}/api/channels`, { next: { revalidate: 600 }, signal: AbortSignal.timeout(5000) })
+    if (!res.ok) return fallback
+    const data = await res.json()
+    return { whatsapp: data.whatsapp || fallback.whatsapp, telegram: data.telegram || fallback.telegram }
+  } catch {
+    return fallback
+  }
+}
