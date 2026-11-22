@@ -16,7 +16,7 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: 'Fox Ofertas — Promoções e cupons selecionados por IA',
   description:
-    'As melhores promoções do Mercado Livre, Amazon, Shopee, KaBuM!, AliExpress e mais — selecionadas por IA. Economize nas suas compras.',
+    'As melhores promoções e cupons da internet, selecionados por IA. Economize nas suas compras.',
 }
 
 export const viewport: Viewport = {
