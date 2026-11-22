@@ -1,6 +1,5 @@
 import { MetadataRoute } from 'next'
-
-const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
+import { SITE_URL as BASE_URL } from '@/lib/site'
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
 
 const CATEGORIES = ['eletronicos', 'esporte', 'moda', 'casa', 'beleza', 'automotivo', 'ferramentas']
@@ -18,20 +17,23 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     })),
   ]
 
+  // A API devolve no máx. 100 por página: busca até 10 páginas (1.000 ofertas)
   let offerPages: MetadataRoute.Sitemap = []
   try {
-    const res = await fetch(`${API_URL}/api/offers?limit=500&sort=recent`, { cache: 'no-store' })
-    if (res.ok) {
-      const data = await res.json()
-      offerPages = (data.offers as { id: string; createdAt: string }[]).map(offer => ({
+    for (let page = 1; page <= 10; page++) {
+      const res = await fetch(`${API_URL}/api/offers?limit=100&page=${page}&sort=recent`, { next: { revalidate: 3600 } })
+      if (!res.ok) break
+      const data = (await res.json()) as { offers: { id: string; createdAt: string }[] }
+      offerPages.push(...data.offers.map(offer => ({
         url: `${BASE_URL}/oferta/${offer.id}`,
         lastModified: new Date(offer.createdAt),
-        changeFrequency: 'weekly' as const,
+        changeFrequency: 'daily' as const,
         priority: 0.6,
-      }))
+      })))
+      if (data.offers.length < 100) break
     }
   } catch {
-    // Falha silenciosa — sitemap retorna só as páginas estáticas
+    // Falha silenciosa — sitemap retorna o que conseguiu
   }
 
   return [...staticPages, ...offerPages]

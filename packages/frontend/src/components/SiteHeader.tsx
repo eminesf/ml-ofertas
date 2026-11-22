@@ -1,5 +1,6 @@
 'use client'
 
+import { Suspense } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { Flame } from 'lucide-react'
@@ -28,7 +29,9 @@ export default function SiteHeader({ whatsappUrl }: { whatsappUrl?: string | nul
         </Link>
 
         <div className="hidden flex-1 md:block">
-          <SearchBar />
+          <Suspense fallback={<SearchFallback />}>
+            <SearchBar />
+          </Suspense>
         </div>
 
         <div className="ml-auto flex shrink-0 items-center gap-1.5">
@@ -56,7 +59,9 @@ export default function SiteHeader({ whatsappUrl }: { whatsappUrl?: string | nul
       </div>
 
       <div className="mx-auto max-w-6xl px-4 pb-2.5 md:hidden">
-        <SearchBar />
+        <Suspense fallback={<SearchFallback />}>
+          <SearchBar />
+        </Suspense>
       </div>
 
       <nav aria-label="Categorias" className="mx-auto max-w-6xl">
@@ -73,6 +78,11 @@ export default function SiteHeader({ whatsappUrl }: { whatsappUrl?: string | nul
       </nav>
     </header>
   )
+}
+
+// Espaço reservado enquanto a busca carrega (evita o header pular)
+function SearchFallback() {
+  return <div className="h-10 w-full rounded-full border bg-muted/50" />
 }
 
 function NavChip({ href, active, children }: { href: string; active: boolean; children: React.ReactNode }) {

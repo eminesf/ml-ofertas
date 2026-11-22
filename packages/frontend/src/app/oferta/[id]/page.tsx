@@ -10,6 +10,7 @@ import VoteButton from '@/components/VoteButton'
 import CouponCopy from '@/components/CouponCopy'
 import BackButton from '@/components/BackButton'
 import { STORES, brl, cn, storeName, timeAgo } from '@/lib/utils'
+import { SITE_URL } from '@/lib/site'
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params
@@ -20,13 +21,15 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   const description = `${brl(offer.salePrice)}${discountStr} em ${storeName(offer.provider)}. Encontre as melhores promoções no Fox Ofertas.`
 
   return {
-    title: `${offer.title} — Fox Ofertas`,
+    title: offer.title.length > 70 ? offer.title.slice(0, 67) + '…' : offer.title,
     description,
+    alternates: { canonical: `/oferta/${offer.id}` },
     openGraph: {
       title: offer.title,
       description,
       images: offer.imageUrl ? [{ url: offer.imageUrl, width: 600, height: 600, alt: offer.title }] : [],
       type: 'website',
+      url: `/oferta/${offer.id}`,
     },
     twitter: {
       card: 'summary_large_image',
@@ -55,8 +58,26 @@ export default async function OfertaPage({ params }: { params: Promise<{ id: str
     </Button>
   )
 
+  // Dados estruturados do produto (preço e imagem nos resultados do Google)
+  const productJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'Product',
+    name: offer.title,
+    ...(offer.imageUrl ? { image: [offer.imageUrl] } : {}),
+    ...(offer.category ? { category: offer.category } : {}),
+    offers: {
+      '@type': 'Offer',
+      url: `${SITE_URL}/oferta/${offer.id}`,
+      price: offer.salePrice.toFixed(2),
+      priceCurrency: 'BRL',
+      availability: 'https://schema.org/InStock',
+      seller: { '@type': 'Organization', name: storeName(offer.provider) },
+    },
+  }
+
   return (
     <main className="mx-auto max-w-6xl px-4 py-4 pb-28 sm:py-8 sm:pb-8">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(productJsonLd).split('<').join('\\u003c') }} />
       <BackButton />
 
       <div className="grid gap-5 md:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] md:gap-8">
