@@ -15,6 +15,11 @@ const RULES: Array<{ category: string; keywords: string[] }> = [
       'interruptor inteligente', 'lâmpada inteligente', 'tomada inteligente',
       'playstation', 'xbox', 'nintendo switch', 'console ',
       'projetor ', 'smart box', 'nobreak',
+      'alto-falante', 'alto falante', 'smartwatch', 'smart watch', 'galaxy watch', 'apple watch',
+      'headset', 'webcam', 'pendrive', 'cartão de memória', 'cabo usb', 'carregador ',
+      'pen drive', 'ventoinha', 'air cooler', 'water cooler', 'placa-mãe', 'placa mãe', 'gabinete', 'fonte atx',
+      'mousepad', 'mouse pad', 'deskpad', 'desk mat', 'microfone', 'cabo hdmi', 'cabo displayport', 'mesa controladora',
+      'antivírus', 'kaspersky', 'echo dot', 'alexa', 'smart speaker', 'mouse ', 'teclado ',
     ],
   },
   {
@@ -66,6 +71,8 @@ const RULES: Array<{ category: string; keywords: string[] }> = [
       'saco a vácuo', 'sacos a vácuo', 'caixa de papelão', 'caixa organizadora',
       'kit cozinha', 'conjunto de panelas', 'jogo de panelas',
       'ventilador', 'umidificador', 'purificador de ar',
+      'copo térmico', 'garrafa térmica', 'caneca térmica', 'quencher', 'tumbler', 'garrafa de água',
+      'pote hermético', 'porta-temperos', 'luminária', 'cortina', 'tapete ',
     ],
   },
   {
@@ -74,6 +81,7 @@ const RULES: Array<{ category: string; keywords: string[] }> = [
       'cera automotiva', 'tapete automotivo', 'câmera de ré', 'suporte veicular',
       'central multimídia', 'kit lavagem carro', 'shampoo automotivo',
       'pneu ', 'amortecedor', 'filtro de ar automotivo',
+      'para-choque', 'parachoque', 'farol ', 'lanterna traseira', 'retrovisor', 'capa de banco',
     ],
   },
   {

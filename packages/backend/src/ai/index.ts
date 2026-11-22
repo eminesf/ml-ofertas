@@ -9,40 +9,54 @@ async function chat(prompt: string, maxTokens: number): Promise<string> {
   const apiKey = process.env.OPENROUTER_API_KEY
   if (!apiKey) throw new Error('OPENROUTER_API_KEY não configurada')
 
-  const res = await fetch(OPENROUTER_URL, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      model: OPENROUTER_MODEL,
-      max_tokens: maxTokens,
-      messages: [{ role: 'user', content: prompt }],
-    }),
-    signal: AbortSignal.timeout(90000),
-  })
+  // 429/5xx costumam ser limite temporário do provedor do modelo no OpenRouter
+  // (já derrubou repost em 10/11) — tenta de novo com espera crescente.
+  const esperas = [5000, 15000, 30000]
+  for (let tentativa = 0; ; tentativa++) {
+    const res = await fetch(OPENROUTER_URL, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: OPENROUTER_MODEL,
+        max_tokens: maxTokens,
+        messages: [{ role: 'user', content: prompt }],
+      }),
+      signal: AbortSignal.timeout(90000),
+    })
 
-  if (!res.ok) {
+    if (res.ok) {
+      const data = await res.json()
+      return data.choices?.[0]?.message?.content ?? ''
+    }
+
     const body = await res.text().catch(() => '')
-    throw new Error(`OpenRouter ${res.status}: ${body.slice(0, 300)}`)
+    const temporario = res.status === 429 || res.status >= 500
+    if (!temporario || tentativa >= esperas.length) {
+      throw new Error(`OpenRouter ${res.status}: ${body.slice(0, 300)}`)
+    }
+    console.warn(`[IA] OpenRouter ${res.status} — tentando de novo em ${esperas[tentativa] / 1000}s`)
+    await new Promise(r => setTimeout(r, esperas[tentativa]))
   }
-
-  const data = await res.json()
-  return data.choices?.[0]?.message?.content ?? ''
 }
 
 function stripMarkdown(text: string): string {
   return text.replace(/```(?:json)?\n?/g, '').replace(/```/g, '').trim()
 }
 
+// Atualizar a cada estação/data comercial — a IA usa isso na nota e no copy.
 const TRENDS_CONTEXT = `
-Contexto de tendências atuais (junho/julho 2026):
-- Copa do Mundo FIFA 26 (EUA/Canadá/México): alta demanda por álbuns Panini, figurinhas, camisetas de seleção (Brasil, Argentina, Portugal)
+Contexto de tendências atuais (novembro/dezembro 2026):
+- Black Friday (27/11) e Cyber Monday: público caçando desconto real; comparar com o preço de antes
+- Natal: presentes até ~R$200 (eletrônicos pequenos, perfumes, brinquedos, kits de beleza, garrafas térmicas)
+- 13º salário caindo: compras maiores (celular, notebook, TV, eletrodomésticos)
+- Verão chegando no Brasil: ventilador, ar-condicionado, garrafa térmica, moda praia, protetor solar
 - Pokémon TCG: cartas e boosters em alta constante no Brasil
-- Temporada de inverno no Brasil: roupas e calçados aquecidos, cobertores
 - Eletrônicos: sempre em alta, especialmente com desconto > 25%
 - Nike e Adidas com descontos reais são excelentes conversores
+Só cite uma tendência no texto se o produto tiver relação DIRETA com ela — nunca force (ex.: não associe capa de celular à Black Friday sem motivo).
 `
 
 export interface OfferEvaluation {
@@ -89,7 +103,7 @@ Oferta:
 Critérios de pontuação:
 - Desconto ≥ 25% = +2 pontos
 - Produto com avaliação ≥ 4 = +2 pontos
-- Produto relacionado a tendências atuais (Copa, Pokémon) = +2 pontos
+- Produto com relação direta a uma tendência atual (ver contexto acima) = +2 pontos
 - Preço final ≤ R$200 (alto volume) = +1 ponto
 - Categoria popular (eletrônicos, moda, esporte) = +1 ponto
 
@@ -117,7 +131,7 @@ Analise esse produto:
 
 Avalie:
 1. Se o preço parece competitivo para o mercado brasileiro
-2. Se o produto tem alta demanda neste momento (Copa FIFA 26, Pokémon, etc.)
+2. Se o produto tem alta demanda neste momento (ver tendências acima)
 3. Qual destaque usar no copy de vendas
 
 Responda APENAS com JSON válido, sem markdown:
@@ -155,7 +169,7 @@ ${priceInfo}
 Critérios de pontuação:
 - Preço do produto ≤ R$100 = +3 pontos (bom para combo de carrinho)
 - Preço do produto ≤ R$200 = +2 pontos
-- Produto relacionado a tendências atuais (Copa FIFA 26, Pokémon, inverno) = +2 pontos
+- Produto com relação direta a uma tendência atual (ver contexto acima) = +2 pontos
 - Avaliação ≥ 4 estrelas = +2 pontos
 - Categoria popular (eletrônicos, moda, esporte, suplementos) = +1 ponto
 - Cupom exclusivo de afiliado = sempre +1 ponto (diferencial competitivo)
@@ -282,6 +296,7 @@ Gere DUAS versões usando EXATAMENTE os blocos de preço abaixo (NÃO invente ou
 
 Telegram (use HTML: <b>, <i>, <s>, <code>, <a href="">):
 🔥 <b>TÍTULO CHAMATIVO AQUI</b>
+🛒 NOME DO PRODUTO (resumido, até 70 caracteres, sem código de modelo)
 
 ${priceBlock}
 ${couponCode ? `   🎟️ Cupom: <code>${couponCode}</code>` : ''}
@@ -291,7 +306,8 @@ ${offer.rating ? `   ⭐ ${offer.rating}/5.0` : ''}
 
    📌 DESTAQUE (1 linha motivacional)
 
-WhatsApp (apenas texto + emojis, sem HTML, máximo 5 linhas):
+WhatsApp (apenas texto + emojis, sem HTML, máximo 6 linhas):
+🔥 *NOME DO PRODUTO* (resumido, até 70 caracteres)
 ${wpPriceLine}
 ${couponCode ? `🎟️ Cupom: ${couponCode}` : ''}
 👉 ${affiliateUrl}

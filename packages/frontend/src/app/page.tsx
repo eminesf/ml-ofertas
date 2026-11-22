@@ -1,200 +1,80 @@
-import { Suspense } from "react";
-import { getOffers } from "@/lib/api";
-import OfferCard from "@/components/OfferCard";
-import SearchBar from "@/components/SearchBar";
+import Link from 'next/link'
+import { Bot, X } from 'lucide-react'
+import { getOffers } from '@/lib/api'
+import { EmptyState, OfferGrid, Pagination, SortTabs, parseSort } from '@/components/Feed'
+import { STORES, cn } from '@/lib/utils'
 
 export const metadata = {
-	title: "Fox Ofertas — Promoções e Cupons do Mercado Livre",
-	description:
-		"As melhores promoções e cupons do Mercado Livre, selecionadas por IA.",
-};
+  title: 'Fox Ofertas — Promoções e cupons selecionados por IA',
+  description:
+    'As melhores promoções do Mercado Livre, Amazon, Shopee, KaBuM!, AliExpress e mais — selecionadas por IA.',
+}
 
-const TABS = [
-	{ label: "🕐 Novos", value: "recent" },
-	{ label: "🔥 Quentes", value: "votes" },
-	{ label: "% Descontos", value: "discount" },
-] as const;
-
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 24
 
 interface SearchParams {
-	ordenar?: string;
-	pagina?: string;
-	q?: string;
+  ordenar?: string
+  pagina?: string
+  q?: string
 }
 
-export default async function HomePage({
-	searchParams,
-}: {
-	searchParams: Promise<SearchParams>;
-}) {
-	const params = await searchParams;
-	const page = Number(params.pagina) || 1;
-	const sort =
-		(params.ordenar as "recent" | "votes" | "discount") || "recent";
-	const q = params.q?.trim() || undefined;
+export default async function HomePage({ searchParams }: { searchParams: Promise<SearchParams> }) {
+  const params = await searchParams
+  const page = Math.max(1, Number(params.pagina) || 1)
+  const sort = parseSort(params.ordenar)
+  const q = params.q?.trim() || undefined
 
-	const { offers, total } = await getOffers({ limit: PAGE_SIZE, page, sort, q });
-	const totalPages = Math.ceil(total / PAGE_SIZE);
-	const qSuffix = q ? `&q=${encodeURIComponent(q)}` : "";
+  const { offers, total } = await getOffers({ limit: PAGE_SIZE, page, sort, q })
+  const totalPages = Math.ceil(total / PAGE_SIZE)
+  const showHero = page === 1 && !q
 
-	return (
-		<main
-			suppressHydrationWarning
-			style={{ maxWidth: 860, margin: "0 auto", padding: "1.5rem 1rem" }}
-		>
-			<Suspense fallback={<div className="search-bar-wrap" style={{ height: 52 }} />}>
-				<SearchBar />
-			</Suspense>
+  return (
+    <main className="mx-auto max-w-6xl px-4 py-5 sm:py-8">
+      {showHero && (
+        <section className="relative mb-6 overflow-hidden rounded-2xl bg-foreground px-5 py-6 text-background sm:mb-8 sm:px-8 sm:py-9">
+          <div className="pointer-events-none absolute -top-16 -right-10 size-56 rounded-full bg-brand/25 blur-3xl" />
+          <div className="relative max-w-xl space-y-3">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-2.5 py-1 text-xs font-medium">
+              <Bot className="size-3.5 text-brand" /> Curadoria com inteligência artificial
+            </span>
+            <h1 className="text-2xl leading-tight font-extrabold tracking-tight sm:text-4xl">
+              Só promoção que vale a pena. <span className="text-brand">Sem enrolação.</span>
+            </h1>
+            <p className="hidden text-sm text-white/70 sm:block sm:text-base">
+              Garimpamos ofertas o dia todo e a IA descarta preço inflado antes de chegar aqui.
+            </p>
+          </div>
+          <div className="relative mt-5 hidden flex-wrap gap-1.5 sm:flex">
+            {Object.entries(STORES).map(([key, s]) => (
+              <span key={key} className={cn('rounded-md px-2 py-1 text-[11px] font-bold', s.className)}>
+                {s.label}
+              </span>
+            ))}
+          </div>
+        </section>
+      )}
 
-			{/* Tabs de ordenação */}
-			<div
-				style={{
-					display: "flex",
-					alignItems: "center",
-					gap: 4,
-					marginBottom: "1.25rem",
-					borderBottom: "2px solid #e5e5e5",
-					paddingBottom: "0.75rem",
-					flexWrap: "wrap",
-				}}
-			>
-				{TABS.map((tab) => (
-					<a
-						key={tab.value}
-						href={`?ordenar=${tab.value}${qSuffix}`}
-						style={{
-							textDecoration: "none",
-							fontWeight: 600,
-							fontSize: 14,
-							padding: "6px 14px",
-							borderRadius: 20,
-							background: sort === tab.value ? "#FFE600" : "transparent",
-							color: sort === tab.value ? "#333" : "#666",
-							transition: "background 0.15s",
-						}}
-					>
-						{tab.label}
-					</a>
-				))}
-				<span style={{ marginLeft: "auto", color: "#999", fontSize: 13 }}>
-					{total} ofertas
-				</span>
-			</div>
+      {q && (
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <p className="text-lg font-semibold">
+            Resultados para <span className="text-muted-foreground">&ldquo;{q}&rdquo;</span>
+          </p>
+          <Link
+            href="/"
+            className="inline-flex items-center gap-1 rounded-full border bg-card px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground"
+          >
+            <X className="size-3" /> limpar
+          </Link>
+        </div>
+      )}
 
-			{q && (
-				<div
-					style={{
-						display: "flex",
-						alignItems: "center",
-						gap: 8,
-						marginBottom: "1rem",
-						fontSize: 14,
-						color: "#555",
-					}}
-				>
-					<span>
-						Resultados para <strong>&quot;{q}&quot;</strong>
-					</span>
-					<a href="/" style={{ color: "#a15c00", textDecoration: "underline", fontSize: 13 }}>
-						limpar busca
-					</a>
-				</div>
-			)}
+      <div className="mb-4">
+        <SortTabs base="/" sort={sort} q={q} total={total} />
+      </div>
 
-			{/* Feed */}
-			{offers.length === 0 ? (
-				<div
-					style={{ textAlign: "center", padding: "4rem 1rem", color: "#888" }}
-				>
-					<p style={{ fontSize: 48, margin: 0 }}>🛍️</p>
-					<p>
-						{q ? <>Nenhuma oferta encontrada para &quot;{q}&quot;.</> : "Nenhuma oferta disponível ainda."}
-					</p>
-				</div>
-			) : (
-				<div
-					style={{ display: "flex", flexDirection: "column", gap: "0.625rem" }}
-				>
-					{offers.map((offer) => (
-						<OfferCard key={offer.id} offer={offer} />
-					))}
-				</div>
-			)}
+      {offers.length === 0 ? <EmptyState q={q} clearHref="/" /> : <OfferGrid offers={offers} />}
 
-			{/* Paginação */}
-			{totalPages > 1 && (
-				<div
-					style={{
-						display: "flex",
-						justifyContent: "center",
-						gap: "0.375rem",
-						marginTop: "2rem",
-						flexWrap: "wrap",
-					}}
-				>
-					{page > 1 && (
-						<a href={`?ordenar=${sort}&pagina=${page - 1}${qSuffix}`} style={pageBtn}>
-							← Anterior
-						</a>
-					)}
-					{buildPageNumbers(page, totalPages).map((p, i) =>
-						p === "..." ? (
-							<span
-								key={`ellipsis-${i}`}
-								style={{ ...pageBtn, cursor: "default", color: "#999" }}
-							>
-								…
-							</span>
-						) : (
-							<a
-								key={p}
-								href={`?ordenar=${sort}&pagina=${p}${qSuffix}`}
-								style={{ ...pageBtn, ...(p === page ? activePage : {}) }}
-							>
-								{p}
-							</a>
-						),
-					)}
-					{page < totalPages && (
-						<a href={`?ordenar=${sort}&pagina=${page + 1}${qSuffix}`} style={pageBtn}>
-							Próxima →
-						</a>
-					)}
-				</div>
-			)}
-		</main>
-	);
+      <Pagination base="/" page={page} totalPages={totalPages} sort={sort} q={q} />
+    </main>
+  )
 }
-
-function buildPageNumbers(current: number, total: number): (number | "...")[] {
-	if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
-	const pages: (number | "...")[] = [1];
-	if (current > 3) pages.push("...");
-	for (
-		let p = Math.max(2, current - 1);
-		p <= Math.min(total - 1, current + 1);
-		p++
-	)
-		pages.push(p);
-	if (current < total - 2) pages.push("...");
-	pages.push(total);
-	return pages;
-}
-
-const pageBtn: React.CSSProperties = {
-	textDecoration: "none",
-	color: "#555",
-	background: "#fff",
-	border: "1px solid #ddd",
-	padding: "7px 14px",
-	borderRadius: 8,
-	fontWeight: 600,
-	fontSize: 13,
-};
-
-const activePage: React.CSSProperties = {
-	background: "#FFE600",
-	border: "1px solid #e6c800",
-	color: "#333",
-};

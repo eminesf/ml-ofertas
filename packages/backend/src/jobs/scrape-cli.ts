@@ -2,6 +2,7 @@ import '../env'
 import { MercadoLivreProvider } from '../providers/mercadolivre'
 import { AmazonProvider } from '../providers/amazon'
 import { AwinProvider, AWIN_ADVERTISERS } from '../providers/awin'
+import { ShopeeProvider } from '../providers/shopee'
 import { runOffersJob, runHubJob } from './offers.job'
 
 // CLI de scraping 100% LOCAL — grava direto no Postgres do Railway via DATABASE_URL.
@@ -13,12 +14,12 @@ import { runOffersJob, runHubJob } from './offers.job'
 //   hub     → hub de afiliados ML + cupons (requer sessão ML)
 //   amazon  → ofertas do dia da Amazon (/deals)
 //   awin    → product feeds Awin (Kabum, AliExpress, Stanley) — requer AWIN_FEED_API_KEY
+//   shopee  → feed de produto diário da Shopee — requer SHOPEE_FEED_URLS
 //   all     → todos acima em sequência
 //   --show  → abre o browser visível (SCRAPE_HEADLESS=false) para acompanhar o scraping
 //
-// Shopee não tem scraping de listagem — entra via import por URL no painel admin.
 
-const TARGETS = ['ml', 'hub', 'amazon', 'awin', 'all'] as const
+const TARGETS = ['ml', 'hub', 'amazon', 'awin', 'shopee', 'all'] as const
 type Target = (typeof TARGETS)[number]
 
 async function main() {
@@ -44,6 +45,10 @@ async function main() {
     for (const advertiser of AWIN_ADVERTISERS) {
       await runOffersJob(new AwinProvider(advertiser)).catch(err => console.error(`[ScrapeCLI] awin:${advertiser.name} falhou:`, err))
     }
+  }
+
+  if (target === 'shopee' || target === 'all') {
+    await runOffersJob(new ShopeeProvider()).catch(err => console.error('[ScrapeCLI] shopee falhou:', err))
   }
 
   if (target === 'hub' || target === 'all') {

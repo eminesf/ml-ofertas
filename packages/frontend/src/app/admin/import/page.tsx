@@ -170,10 +170,10 @@ export default function AdminImportPage() {
 					/>
 				</div>
 
-				{/* Link de afiliado Shopee (sem Open API não há geração automática) */}
+				{/* Link de afiliado Shopee: gerado sozinho (SHOPEE_AFFILIATE_ID); colar aqui só sobrescreve */}
 				{isShopee && (
 					<div>
-						<label style={label}>Link de afiliado Shopee (s.shopee.com.br/...)</label>
+						<label style={label}>Link de afiliado Shopee (opcional)</label>
 						<input
 							type="url"
 							value={shortLink}
@@ -182,8 +182,8 @@ export default function AdminImportPage() {
 							style={field}
 						/>
 						<p style={{ margin: "6px 0 0", fontSize: 11, color: "#c05621" }}>
-							⚠️ Gere o link em affiliate.shopee.com.br → Link personalizado.
-							Sem ele, o post sai com a URL do produto e você NÃO ganha comissão.
+							O link com o seu ID de afiliado é gerado automaticamente.
+							Só preencha se quiser usar um link curto do portal no lugar.
 						</p>
 					</div>
 				)}

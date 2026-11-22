@@ -1,186 +1,83 @@
-*, *::before, *::after { box-sizing: border-box; }
+@import "tailwindcss";
+@import "tw-animate-css";
 
-@keyframes fadeIn  { from { opacity: 0 } to { opacity: 1 } }
-@keyframes slideUp { from { opacity: 0; transform: translateY(20px) } to { opacity: 1; transform: translateY(0) } }
-
-/* ── Header ─────────────────────────────────────────────── */
-.header-inner {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 0 1rem;
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  height: 64px;
+/* shadcn/ui — tema claro com a cor da marca (amarelo Fox) como destaque */
+:root {
+  --radius: 0.75rem;
+  --background: oklch(0.985 0.002 90);
+  --foreground: oklch(0.21 0.006 285.885);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.21 0.006 285.885);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.21 0.006 285.885);
+  --primary: oklch(0.21 0.006 285.885);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.967 0.001 286.375);
+  --secondary-foreground: oklch(0.21 0.006 285.885);
+  --muted: oklch(0.967 0.001 286.375);
+  --muted-foreground: oklch(0.552 0.016 285.938);
+  --accent: oklch(0.967 0.001 286.375);
+  --accent-foreground: oklch(0.21 0.006 285.885);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.92 0.004 286.32);
+  --input: oklch(0.92 0.004 286.32);
+  --ring: oklch(0.705 0.015 286.067);
+  --brand: #ffe600;
+  --brand-strong: #f5d800;
+  --brand-foreground: #1a1a1a;
+  --deal: oklch(0.6 0.2 25);
+  --success: oklch(0.55 0.14 150);
 }
 
-.header-nav {
-  flex: 1;
-  display: flex;
-  gap: 0.5rem;
-  flex-wrap: wrap;
+@theme inline {
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-brand: var(--brand);
+  --color-brand-strong: var(--brand-strong);
+  --color-brand-foreground: var(--brand-foreground);
+  --color-deal: var(--deal);
+  --color-success: var(--success);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
 }
 
-.search-bar-wrap {
-  position: relative;
-  margin-bottom: 1.25rem;
-}
-
-.search-bar {
-  display: flex;
-  align-items: center;
-  width: 100%;
-  background: #fff;
-  border: 1px solid #e5e5e5;
-  border-radius: 10px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
-  transition: border-color 0.15s, box-shadow 0.15s;
-}
-
-.search-bar:focus-within {
-  border-color: #c9c9c9;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
-}
-
-.search-bar-icon {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: none;
-  background: transparent;
-  cursor: pointer;
-  padding: 0 8px 0 14px;
-  color: #999;
-}
-
-.search-bar:focus-within .search-bar-icon { color: #555; }
-
-.search-bar-input {
-  flex: 1;
-  min-width: 0;
-  border: none;
-  background: transparent;
-  outline: none;
-  padding: 12px 14px 12px 4px;
-  font-size: 14px;
-  font-family: inherit;
-  color: #1a1a1a;
-}
-
-.search-bar-input::placeholder { color: #aaa; }
-
-.search-bar-dropdown {
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 0;
-  right: 0;
-  background: #fff;
-  border: 1px solid #e5e5e5;
-  border-radius: 10px;
-  box-shadow: 0 6px 16px rgba(0,0,0,0.1);
-  overflow: hidden;
-  z-index: 50;
-}
-
-.search-bar-dropdown-label {
-  padding: 10px 14px 4px;
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: #999;
-}
-
-.search-bar-dropdown-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 9px 14px;
-  font-size: 14px;
-  color: #333;
-  cursor: pointer;
-}
-
-.search-bar-dropdown-item:hover { background: #f7f7f7; }
-
-.search-bar-dropdown-remove {
-  flex-shrink: 0;
-  border: none;
-  background: transparent;
-  color: #bbb;
-  font-size: 16px;
-  line-height: 1;
-  cursor: pointer;
-  padding: 2px 6px;
-}
-
-.search-bar-dropdown-remove:hover { color: #666; }
-
-@media (max-width: 680px) {
-  .header-inner {
-    height: auto;
-    flex-wrap: wrap;
-    padding: 10px 1rem 8px;
-    row-gap: 6px;
-    justify-content: center;
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
   }
-  .header-logo {
-    order: 1;
-    width: 100%;
-    justify-content: center;
+  body {
+    @apply bg-background text-foreground antialiased;
+    -webkit-tap-highlight-color: transparent;
   }
-  .header-nav {
-    order: 2;
-    flex: none;
-    width: 100%;
-    overflow-x: auto;
-    flex-wrap: nowrap;
-    padding-bottom: 4px;
-    scrollbar-width: none;
-    -webkit-overflow-scrolling: touch;
-    justify-content: center;
+  button:not(:disabled), [role="button"]:not(:disabled) {
+    cursor: pointer;
   }
-  .header-nav::-webkit-scrollbar { display: none; }
 }
 
-/* ── Cards ───────────────────────────────────────────────── */
-@media (max-width: 520px) {
-  .offer-cta       { display: none !important; }
-  .offer-highlight { display: none !important; }
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar { display: none; }
 }
 
-/* ── Telegram FAB ────────────────────────────────────────── */
-.telegram-fab {
-  transition: transform 0.2s, box-shadow 0.2s;
+@utility pb-safe {
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
 }
-.telegram-fab:hover {
-  transform: scale(1.1);
-  box-shadow: 0 6px 20px rgba(0,0,0,0.3) !important;
-}
-
-/* ── Botão CTA amarelo ───────────────────────────────────── */
-.btn-cta {
-  transition: background 0.15s, transform 0.1s;
-}
-.btn-cta:hover  { background: #e6c800 !important; transform: translateY(-1px); }
-.btn-cta:active { transform: translateY(0); }
-
-/* ── Botão de voltar ─────────────────────────────────────── */
-.back-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: #444;
-  font-size: 13px;
-  font-weight: 600;
-  text-decoration: none;
-  background: #fff;
-  border: 1px solid #e0e0e0;
-  padding: 6px 14px;
-  border-radius: 20px;
-  margin-bottom: 1.25rem;
-  transition: background 0.15s, border-color 0.15s;
-}
-.back-btn:hover { background: #f5f5f5; border-color: #ccc; }
