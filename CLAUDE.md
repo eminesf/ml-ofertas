@@ -456,12 +456,11 @@ Job de posting busca ofertas prontas e as posta de forma cadenciada:
 
 ## Agendamento (scheduler.ts) — SÓ posting/repost no Railway
 ```
-a cada 20min → posting — posta até ML_POST_MAX ofertas pendentes no Telegram
-12h e 20h    → repost  — repost de ofertas postadas HOJE (máx 2x/dia por oferta, intervalo mín. 4h)
+a cada 20min → posting — POST_MAX (1) oferta, a MESMA no Telegram e no WhatsApp (utils/publish.ts), só em POST_HOURS (8-23), só com imagem e ≤ POST_MAX_AGE_HOURS (72h); fila = nota IA + bônus de ticket baixo + variedade de categoria/loja
+12h e 20h    → repost  — até REPOST_MAX (3) ofertas postadas HOJE, nos dois canais (máx 2x/dia por oferta, intervalo mín. 4h)
 6h15, 12h15 e 18h15 → feeds Awin (Kabum + Stanley), requer AWIN_FEED_API_KEY
 7h40 e 21h40 → feed Shopee, requer SHOPEE_FEED_URLS
 9h30 e 15h30 → scrape ML /ofertas + Amazon /deals (Playwright em processo filho; PULA se o bot-leilao tiver leilão ativo ou agendado nos próximos 90 min — lê C:/dev/bot-leilao/data/leilao.db só leitura via utils/leilao-guard.ts)
-minutos 5 e 35 → posting WhatsApp, só com WHATSAPP_ENABLED=true
 ```
 
 Início automático no PC: tarefa `ml-ofertas-pm2-resurrect` roda `scripts/start-local.ps1` no login **e a cada 10 min**. Se a API (3001) e o site (3002) respondem, sai sem fazer nada; senão sobe Docker → Postgres → `pm2 resurrect` + `pm2 start ecosystem.config.js`. Log em `~/.pm2/start-local.log`. (Em 11/11/2026 um reinício do Windows Update + falha da execução no login deixou tudo fora do ar por 8 dias — por isso a repetição.)
@@ -621,6 +620,8 @@ const effectivePrice = canApplyAlone
 Isso corrige o bug de `R$19.90 - R$20 = R$0` para produtos abaixo do mínimo (ex: coqueteleira R$19,90 com cupom de R$20 OFF e mínimo R$120).
 
 ## Links de afiliado
+**Nos posts vai o link curto do site**: `https://foxpromocoes.vercel.app/r/{Offer.shortCode}` → rota `app/r/[code]/route.ts` chama `GET /api/offers/go/:code` (conta `Offer.clicks`, exceto robôs de prévia) e redireciona 302 para o `affiliateUrl`. `SITE_URL` no backend troca o domínio. Copies antigos com link cheio são trocados na hora do envio (`withShortLink`).
+
 Formato: `URL_PRODUTO?matt_tool=28042140&matt_word=fuchsecommerce`
 Exemplo: `https://www.mercadolivre.com.br/p/MLB64311324?matt_tool=28042140&matt_word=fuchsecommerce`
 

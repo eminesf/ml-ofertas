@@ -2,7 +2,7 @@ import { Router } from 'express'
 import { prisma } from '../../utils/prisma'
 import { resolveProviderByUrl, PROVIDER_LABELS } from '../../providers/registry'
 import { processOffer } from '../../jobs/offers.job'
-import { sendPhoto, sendMessage } from '../../channels/telegram'
+import { publishOffer } from '../../utils/publish'
 
 const router = Router()
 
@@ -167,22 +167,10 @@ router.post('/import', async (req, res) => {
   let posted = false
   if (offer.telegramMessage) {
     try {
-      const success = offer.imageUrl
-        ? await sendPhoto(offer.imageUrl, offer.telegramMessage)
-        : await sendMessage(offer.telegramMessage)
-      await prisma.post.create({
-        data: {
-          offerId: offer.id,
-          channel: 'telegram',
-          message: offer.telegramMessage,
-          whatsappMessage: offer.whatsappMessage,
-          success,
-        }
-      })
-      posted = success
-      console.log(`[Import] ${success ? 'Postado' : 'Falha ao postar'}: "${offer.title}"`)
+      // mesma publicação do posting agendado: Telegram + WhatsApp com link curto
+      posted = (await publishOffer(offer)).telegram
     } catch (err) {
-      console.error('[Import] Erro ao postar no Telegram:', err)
+      console.error('[Import] Erro ao postar:', err)
     }
   } else {
     console.log(`[Import] Oferta salva mas sem copy (score IA baixo ou filtrada): "${offer.title}"`)
@@ -190,6 +178,17 @@ router.post('/import', async (req, res) => {
 
   const finalOffer = await prisma.offer.findUnique({ where: { externalId }, include: { posts: true } })
   res.json({ offer: finalOffer, posted })
+})
+
+// Link curto do site (/r/{code}): devolve o destino de afiliado e conta o clique.
+// count=0 quando quem pede é robô de prévia (Telegram/WhatsApp/Facebook)
+router.get('/go/:code', async (req, res) => {
+  const offer = await prisma.offer.findUnique({ where: { shortCode: req.params.code }, select: { id: true, affiliateUrl: true } })
+  if (!offer) return res.status(404).json({ error: 'Link não encontrado' })
+  if (req.query.count !== '0') {
+    await prisma.offer.update({ where: { id: offer.id }, data: { clicks: { increment: 1 } } }).catch(() => {})
+  }
+  res.set('Cache-Control', 'no-store').json({ id: offer.id, url: offer.affiliateUrl })
 })
 
 router.get('/:id', async (req, res) => {
