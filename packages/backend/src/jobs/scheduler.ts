@@ -98,6 +98,12 @@ export function startScheduler() {
       await runScrapeCli('amazon')
     })
     console.log('[Scheduler] Scrape ML + Amazon: 9h30 e 15h30 (pula durante leilão)')
+
+    // Canais públicos do Telegram (TELEGRAM_SOURCES): a cada 20 min, 8h–22h (oferta deles expira rápido)
+    cron.schedule('10,30,50 8-22 * * *', async () => {
+      await runScrapeCli('telegram')
+    })
+    console.log('[Scheduler] Fontes Telegram: a cada 20 min, 8h–22h')
   }
 
   if (isWhatsAppEnabled()) {

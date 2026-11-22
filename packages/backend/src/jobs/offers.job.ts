@@ -122,7 +122,8 @@ export async function processOffer(
   // Cupons e imports manuais bypassam filtro de desconto mínimo
   const isCoupon = source === 'coupon'
   const isManual = source === 'manual'
-  if (!isCoupon && !isManual && raw.discountPct < MIN_DISCOUNT) {
+  // 'telegram' = oferta já garimpada por outro canal (preço revalidado); a IA decide
+  if (!isCoupon && !isManual && source !== 'telegram' && raw.discountPct < MIN_DISCOUNT) {
     console.log(`${tag} Filtrado: desconto ${raw.discountPct}% abaixo do mínimo (${MIN_DISCOUNT}%)`)
     return
   }
