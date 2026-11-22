@@ -1,7 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express'
 import QRCode from 'qrcode'
 import { runPostingJob, runRepostJob } from '../../jobs/offers.job'
-import { connectWhatsApp, getWhatsAppStatus, isWhatsAppEnabled, listWhatsAppGroups } from '../../channels/whatsapp'
+import { connectWhatsApp, getWhatsAppStatus, isWhatsAppEnabled, listWhatsAppGroups, sendWhatsAppToSelf } from '../../channels/whatsapp'
 
 const router = Router()
 
@@ -52,6 +52,17 @@ router.post('/whatsapp/connect', (_req, res) => {
 router.get('/whatsapp/groups', async (_req, res) => {
   try {
     res.json({ groups: await listWhatsAppGroups() })
+  } catch (err: any) {
+    res.status(503).json({ error: err?.message || 'WhatsApp não conectado' })
+  }
+})
+
+// POST /api/admin/whatsapp/notify-self — { text } para o próprio número pareado
+router.post('/whatsapp/notify-self', async (req, res) => {
+  const text = String(req.body?.text || '').trim()
+  if (!text) return res.status(400).json({ error: 'text obrigatório' })
+  try {
+    res.json({ sent: await sendWhatsAppToSelf(text) })
   } catch (err: any) {
     res.status(503).json({ error: err?.message || 'WhatsApp não conectado' })
   }
