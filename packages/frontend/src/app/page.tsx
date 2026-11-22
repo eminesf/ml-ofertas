@@ -2,12 +2,11 @@ import Link from 'next/link'
 import { Bot, X } from 'lucide-react'
 import { getOffers } from '@/lib/api'
 import { EmptyState, OfferGrid, Pagination, SortTabs, parseSort } from '@/components/Feed'
-import { STORES, cn } from '@/lib/utils'
 
 export const metadata = {
   title: 'Fox Ofertas — Promoções e cupons selecionados por IA',
   description:
-    'As melhores promoções do Mercado Livre, Amazon, Shopee, KaBuM!, AliExpress e mais — selecionadas por IA.',
+    'As melhores promoções e cupons da internet — selecionados por IA.',
 }
 
 const PAGE_SIZE = 24
@@ -43,13 +42,6 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
             <p className="hidden text-sm text-white/70 sm:block sm:text-base">
               Garimpamos ofertas o dia todo e a IA descarta preço inflado antes de chegar aqui.
             </p>
-          </div>
-          <div className="relative mt-5 hidden flex-wrap gap-1.5 sm:flex">
-            {Object.entries(STORES).map(([key, s]) => (
-              <span key={key} className={cn('rounded-md px-2 py-1 text-[11px] font-bold', s.className)}>
-                {s.label}
-              </span>
-            ))}
           </div>
         </section>
       )}
