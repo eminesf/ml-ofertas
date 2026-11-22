@@ -1,5 +1,7 @@
 # ML Afiliados Bot — Contexto do Projeto
 
+> **Marca: Fox Promoções** (desde 22/11/2026; antes "Fox Ofertas", trocado porque já existe a loja foxofertas.com com reclamações). Domínio `foxpromocoes.com.br` (em registro) — ao ativar, definir `NEXT_PUBLIC_SITE_URL` na Vercel e `SITE_URL` no `.env` do backend (links curtos /r/). Nome central em `packages/frontend/src/lib/site.ts`. Logo original em `logo_png.png` foi editado (faixa "PROMOÇÕES"). Foco principal: grupo do WhatsApp.
+
 ## O que é
 Bot automatizado de ofertas para afiliados **multi-plataforma**: Mercado Livre, Amazon, Shopee e Awin (KaBuM!, AliExpress, Stanley). Scrapa/importa ofertas, avalia com IA, gera copy chamativo e posta em canal público do Telegram. Site Next.js exibe as ofertas como feed estilo pelando.com.br e serve como plataforma cadastrada nos programas de afiliados.
 

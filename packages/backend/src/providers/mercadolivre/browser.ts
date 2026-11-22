@@ -53,7 +53,7 @@ export async function reportMlBlocked(where: string): Promise<void> {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${secret}` },
       body: JSON.stringify({
-        text: `🦊 Fox Ofertas: o Mercado Livre pediu verificação (${where}).\n\nQuando estiver no PC, rode:\nnpm run ml:login\n\nResolva o captcha/login na janela do Chromium. Até lá, scrape e import do ML ficam parados (Amazon, Shopee, KaBuM e canais do Telegram seguem normais).`,
+        text: `🦊 Fox Promoções: o Mercado Livre pediu verificação (${where}).\n\nQuando estiver no PC, rode:\nnpm run ml:login\n\nResolva o captcha/login na janela do Chromium. Até lá, scrape e import do ML ficam parados (Amazon, Shopee, KaBuM e canais do Telegram seguem normais).`,
       }),
       signal: AbortSignal.timeout(10000),
     })

@@ -18,7 +18,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   if (!offer) return {}
 
   const discountStr = offer.discountPct > 0 ? ` (-${offer.discountPct}% OFF)` : ''
-  const description = `${brl(offer.salePrice)}${discountStr} em ${storeName(offer.provider)}. Encontre as melhores promoções no Fox Ofertas.`
+  const description = `${brl(offer.salePrice)}${discountStr} em ${storeName(offer.provider)}. Encontre as melhores promoções no Fox Promoções.`
 
   return {
     title: offer.title.length > 70 ? offer.title.slice(0, 67) + '…' : offer.title,
