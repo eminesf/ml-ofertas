@@ -12,7 +12,7 @@ Bot automatizado de ofertas para afiliados **multi-plataforma**: Mercado Livre, 
 - **IA**: OpenRouter (`deepseek/deepseek-chat`) via fetch direto (formato OpenAI-compatible) — migrado da Claude API por custo; `OPENROUTER_MODEL` env var permite trocar de modelo sem código
 - **Canal**: Telegram Bot API (REST)
 - **Banco atual**: PostgreSQL 16 em Docker no PC (`docker-compose.yml`, porta `5433`) — `DATABASE_URL=postgresql://mlofertas:mlofertas@localhost:5433/mlofertas`
-- **Hospedagem atual (desde 2026-10-31)**: tudo roda 24h no PC via pm2 (`ecosystem.config.js`: `ml-ofertas-backend` + `ml-ofertas-frontend` em :3002). Railway **desativado** (não pago) — URL antiga comentada no `.env`; Vercel (`foxpromocoes.vercel.app`) usa a API do PC via Cloudflare Tunnel: `NEXT_PUBLIC_API_URL=https://api-ofertas.emiliano.dev.br`
+- **Hospedagem atual (desde 2026-10-31)**: o backend roda 24h no PC via pm2 (`ecosystem.config.js`: só `ml-ofertas-backend`; o frontend local :3002 foi desligado em 23/11/2026 — o site público é só a Vercel). Railway **desativado** (não pago) — URL antiga comentada no `.env`; Vercel (`foxpromocoes.vercel.app`) usa a API do PC via Cloudflare Tunnel: `NEXT_PUBLIC_API_URL=https://api-ofertas.emiliano.dev.br`
 - `dev.db` (SQLite) é legado de junho/2026 — não é mais usado
 
 ## Estrutura de pastas
@@ -478,7 +478,7 @@ a cada 20min → posting — POST_MAX (1) oferta, a MESMA no Telegram e no Whats
 9h30 e 15h30 → scrape ML /ofertas + Amazon /deals (Playwright em processo filho; PULA se o bot-leilao tiver leilão ativo ou agendado nos próximos 90 min — lê C:/dev/bot-leilao/data/leilao.db só leitura via utils/leilao-guard.ts)
 ```
 
-Início automático no PC: tarefa `ml-ofertas-pm2-resurrect` roda `scripts/start-local.ps1` no login **e a cada 10 min**. Se a API (3001) e o site (3002) respondem, sai sem fazer nada; senão sobe Docker → Postgres → `pm2 resurrect` + `pm2 start ecosystem.config.js`. Log em `~/.pm2/start-local.log`. (Em 11/11/2026 um reinício do Windows Update + falha da execução no login deixou tudo fora do ar por 8 dias — por isso a repetição.)
+Início automático no PC: tarefa `ml-ofertas-pm2-resurrect` roda `scripts/start-local.ps1` no login **e a cada 10 min**. Se a API (3001) responde, sai sem fazer nada; senão sobe Docker → Postgres → `pm2 resurrect` + `pm2 start ecosystem.config.js`. Log em `~/.pm2/start-local.log`. (Em 11/11/2026 um reinício do Windows Update + falha da execução no login deixou tudo fora do ar por 8 dias — por isso a repetição.)
 
 **⚠️ Scraping NÃO roda mais no Railway.** Os crons de 6h/7h foram removidos — scraping no Railway pesava o container e sofria CAPTCHA/bloqueios de IP de datacenter, além de bugs de sessão no hub ML. Todo scraping é 100% local e manual via `scrape-cli.ts` (grava direto no Postgres do Railway pela `DATABASE_URL`, então o posting agendado do Railway posta os produtos normalmente). Os endpoints admin `job/offers` e `job/hub` foram removidos pelo mesmo motivo (restam `job/post` e `job/repost`).
 
