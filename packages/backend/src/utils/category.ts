@@ -1,5 +1,11 @@
 const RULES: Array<{ category: string; keywords: string[] }> = [
   {
+    category: 'pokemon',
+    keywords: [
+      'pokémon', 'pokemon', 'pikachu', 'charizard', 'eevee', 'elite trainer box', 'treinador avançado',
+    ],
+  },
+  {
     category: 'eletronicos',
     keywords: [
       'celular', 'smartphone', 'iphone', 'notebook', 'macbook',

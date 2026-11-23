@@ -303,8 +303,10 @@ export async function runHubJob(providers: AffiliateProvider[]) {
 // Posting único: a MESMA oferta vai para Telegram e WhatsApp (link curto do site).
 // Só ofertas com imagem e recentes; fila ordenada por nota da IA + bônus de ticket baixo.
 export async function runPostingJob(maxPosts = 1, force = false) {
-  if (!force && !canPostNow()) return
-  console.log(`[Job] Iniciando job de posting (máx ${maxPosts} posts)`)
+  // Fora do horário (POST_HOURS) só saem ofertas dos canais do Telegram: se eles
+  // postam de madrugada, a gente acompanha.
+  const offHours = !force && !canPostNow()
+  if (!offHours) console.log(`[Job] Iniciando job de posting (máx ${maxPosts} posts)`)
 
   const maxAgeHours = parseInt(process.env.POST_MAX_AGE_HOURS || '72', 10)
   const candidates = await prisma.offer.findMany({
@@ -314,9 +316,11 @@ export async function runPostingJob(maxPosts = 1, force = false) {
       aiScore: { gte: MIN_AI_SCORE },
       createdAt: { gte: new Date(Date.now() - maxAgeHours * 3600000) },
       posts: { none: {} },
+      ...(offHours ? { source: 'telegram' } : {}),
     },
     take: 300,
   })
+  if (offHours && candidates.length === 0) return
   // Variedade: penaliza categoria/loja/tipo que saíram nos últimos posts (evita 7 livros seguidos)
   const recent = await prisma.post.findMany({ where: { channel: 'telegram' }, orderBy: { sentAt: 'desc' }, take: 4, include: { offer: { select: { category: true, provider: true, title: true } } } })
   const kind = (t: string) => (t.match(/^\S+/)?.[0] || '').toLowerCase()

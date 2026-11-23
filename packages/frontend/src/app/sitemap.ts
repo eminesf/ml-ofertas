@@ -2,7 +2,7 @@ import { MetadataRoute } from 'next'
 import { SITE_URL as BASE_URL } from '@/lib/site'
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
 
-const CATEGORIES = ['eletronicos', 'esporte', 'moda', 'casa', 'beleza', 'automotivo', 'ferramentas']
+const CATEGORIES = ['pokemon', 'eletronicos', 'esporte', 'moda', 'casa', 'beleza', 'automotivo', 'ferramentas']
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const now = new Date()
