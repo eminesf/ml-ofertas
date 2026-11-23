@@ -195,6 +195,10 @@ model Post {
 - `/story/<id>` gera a arte 1080x1920 (next/og, fonte Nunito via Google Fonts TTF; imagem webp do ML trocada por jpg); `?d=1` baixa. Rodapé livre para a figurinha de link.
 - `/admin/stories`: as 8 melhores ofertas das últimas 24h (nota IA + desconto + votos) com botão "Baixar arte" e link curto. Postagem é manual (1–2 por dia).
 
+## Madrugada e Pokémon
+- Fora de `POST_HOURS` (8–23h) o posting só libera ofertas com source `telegram` (o que os canais garimpados postam de madrugada, a gente posta também). Os canais são lidos 24h.
+- Categoria `pokemon` (aba "Pokémon TCG" no site) é a PRIMEIRA regra de `classifyCategory` (pokémon, pikachu, charizard, eevee, elite trainer box).
+
 ## Classificação automática de categorias
 
 O ML não expõe categoria por produto no listing. A classificação é feita por palavras-chave no título, em `src/utils/category.ts`, função `classifyCategory(title: string): string`.
@@ -202,6 +206,7 @@ O ML não expõe categoria por produto no listing. A classificação é feita po
 ### Categorias disponíveis
 | Slug | Label no frontend |
 |---|---|
+| `pokemon` | Pokémon TCG |
 | `eletronicos` | Eletrônicos |
 | `esporte` | Esporte e Suplementos |
 | `moda` | Moda e Acessórios |
@@ -474,7 +479,7 @@ a cada 20min → posting — POST_MAX (1) oferta, a MESMA no Telegram e no Whats
 12h e 20h    → repost  — até REPOST_MAX (3) ofertas postadas HOJE, nos dois canais (máx 2x/dia por oferta, intervalo mín. 4h)
 6h15, 12h15 e 18h15 → feeds Awin (Kabum + Stanley), requer AWIN_FEED_API_KEY
 7h40 e 21h40 → feed Shopee, requer SHOPEE_FEED_URLS
-10/30/50 de 8h–22h → canais públicos do Telegram (`TELEGRAM_SOURCES` no `.env`: `wolf_ofertas,pcdofafapromo`) via `jobs/telegram-source.ts`: lê `t.me/s/<canal>`, resolve o link curto até o produto (ML social → polycard com o mesmo título do og:title), descarta o afiliado deles, revalida o preço (pula se a loja estiver >10% acima do post) e passa pelo `processOffer` (source `telegram`, sem filtro de desconto mínimo; IA decide). Último post lido em `.telegram-sources.json`. Posts de cupom e lojas não suportadas (Magalu) são pulados. `Cupom: CODIGO` do post (cupom público da loja) vai como `couponCode` no nosso copy, e a tolerância de preço sobe para 25% quando o post tem cupom/Pix. `npm run scrape:telegram`
+10/30/50 de toda hora (24h) → canais públicos do Telegram (`TELEGRAM_SOURCES` no `.env`: `wolf_ofertas,pcdofafapromo`) via `jobs/telegram-source.ts`: lê `t.me/s/<canal>`, resolve o link curto até o produto (ML social → polycard com o mesmo título do og:title), descarta o afiliado deles, revalida o preço (pula se a loja estiver >10% acima do post) e passa pelo `processOffer` (source `telegram`, sem filtro de desconto mínimo; IA decide). Último post lido em `.telegram-sources.json`. Posts de cupom e lojas não suportadas (Magalu) são pulados. `Cupom: CODIGO` do post (cupom público da loja) vai como `couponCode` no nosso copy, e a tolerância de preço sobe para 25% quando o post tem cupom/Pix. `npm run scrape:telegram`
 9h30 e 15h30 → scrape ML /ofertas + Amazon /deals (Playwright em processo filho; PULA se o bot-leilao tiver leilão ativo ou agendado nos próximos 90 min — lê C:/dev/bot-leilao/data/leilao.db só leitura via utils/leilao-guard.ts)
 ```
 
