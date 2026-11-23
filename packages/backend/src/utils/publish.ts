@@ -3,6 +3,7 @@ import { Offer } from '@prisma/client'
 import { prisma } from './prisma'
 import { sendPhoto, sendMessage } from '../channels/telegram'
 import { isWhatsAppEnabled, isWhatsAppConnected, sendWhatsAppPost } from '../channels/whatsapp'
+import { queueIndexNow } from './indexnow'
 
 // Publicação única para Telegram + WhatsApp: os dois canais recebem a MESMA oferta,
 // com o link curto do site (/r/{code}) no lugar do link de afiliado cheio.
@@ -120,6 +121,7 @@ export async function publishOffer(
     }
   }
 
+  if (!opts.repost && (telegram || whatsapp)) queueIndexNow(`/oferta/${offer.id}`)
   console.log(`[Publish] "${offer.title.slice(0, 60)}" R$${offer.salePrice} — telegram:${telegram} whatsapp:${whatsapp}`)
   return { telegram, whatsapp }
 }

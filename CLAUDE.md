@@ -1,6 +1,6 @@
 # ML Afiliados Bot — Contexto do Projeto
 
-> **Marca: Fox Promoções** (desde 22/11/2026; antes "Fox Ofertas", trocado porque já existe a loja foxofertas.com com reclamações). Domínio `foxpromocoes.com.br` (em registro) — ao ativar, definir `NEXT_PUBLIC_SITE_URL` na Vercel e `SITE_URL` no `.env` do backend (links curtos /r/). Nome central em `packages/frontend/src/lib/site.ts`. Logo original em `logo_png.png` foi editado (faixa "PROMOÇÕES"). Foco principal: grupo do WhatsApp.
+> **Marca: Fox Promoções** (desde 22/11/2026; antes "Fox Ofertas", trocado porque já existe a loja foxofertas.com com reclamações). Domínio **`www.foxpromocoes.com.br`** ativo desde 22/11/2026 (Registro.br, DNS modo avançado: A `@`→76.76.21.21, CNAME `www`→cname.vercel-dns.com; sem www redireciona 308). `NEXT_PUBLIC_SITE_URL` na Vercel e `SITE_URL` no `.env` apontam para ele — links curtos /r/ novos saem no domínio; os antigos `foxpromocoes.vercel.app/r/…` continuam funcionando. IndexNow (`utils/indexnow.ts`, chave `INDEXNOW_KEY` = `public/<chave>.txt`) avisa Bing/Yandex a cada oferta publicada. Nome central em `packages/frontend/src/lib/site.ts`. Logo original em `logo_png.png` foi editado (faixa "PROMOÇÕES"). Foco principal: grupo do WhatsApp.
 
 ## O que é
 Bot automatizado de ofertas para afiliados **multi-plataforma**: Mercado Livre, Amazon, Shopee e Awin (KaBuM!, AliExpress, Stanley). Scrapa/importa ofertas, avalia com IA, gera copy chamativo e posta em canal público do Telegram. Site Next.js exibe as ofertas como feed estilo pelando.com.br e serve como plataforma cadastrada nos programas de afiliados.
@@ -633,7 +633,7 @@ const effectivePrice = canApplyAlone
 Isso corrige o bug de `R$19.90 - R$20 = R$0` para produtos abaixo do mínimo (ex: coqueteleira R$19,90 com cupom de R$20 OFF e mínimo R$120).
 
 ## Links de afiliado
-**Nos posts vai o link curto do site**: `https://foxpromocoes.vercel.app/r/{Offer.shortCode}` → rota `app/r/[code]/route.ts` chama `GET /api/offers/go/:code` (conta `Offer.clicks`, exceto robôs de prévia) e redireciona 302 para o `affiliateUrl`. `SITE_URL` no backend troca o domínio. Copies antigos com link cheio são trocados na hora do envio (`withShortLink`).
+**Nos posts vai o link curto do site**: `https://www.foxpromocoes.com.br/r/{Offer.shortCode}` → rota `app/r/[code]/route.ts` chama `GET /api/offers/go/:code` (conta `Offer.clicks`, exceto robôs de prévia) e redireciona 302 para o `affiliateUrl`. `SITE_URL` no backend troca o domínio. Copies antigos com link cheio são trocados na hora do envio (`withShortLink`).
 
 Formato: `URL_PRODUTO?matt_tool=28042140&matt_word=fuchsecommerce`
 Exemplo: `https://www.mercadolivre.com.br/p/MLB64311324?matt_tool=28042140&matt_word=fuchsecommerce`
@@ -871,4 +871,4 @@ Quando o hub/coupon scraper começar a falhar (sessão expirada, semanas depois)
 - [x] **Frontend redesenhado com shadcn/ui + Tailwind v4** — grade responsiva, CTA fixo no mobile, header com busca e chips de categoria ✅
 - [x] **Contexto de tendências da IA** — Black Friday/Natal/13º/verão (nov–dez 2026); revisar `TRENDS_CONTEXT` em `ai/index.ts` a cada estação ✅
 - [ ] Analytics: Google Analytics 4 ou Plausible — medir cliques nos links de afiliado (conversão)
-- [ ] Domínio próprio — apontar para Vercel + atualizar `NEXT_PUBLIC_SITE_URL` para sitemap correto
+- [x] Domínio próprio `www.foxpromocoes.com.br` + IndexNow ✅
