@@ -55,6 +55,7 @@ Contexto de tendências atuais (novembro/dezembro 2026):
 - Verão chegando no Brasil: ventilador, ar-condicionado, garrafa térmica, moda praia, protetor solar
 - Pokémon TCG: cartas e boosters em alta constante no Brasil
 - Games em alta: GTA 6 (lançamento de nov/2026), PS5 / PS5 Pro, Nintendo Switch 2, Xbox Series, controle DualSense — muito buscados, qualquer desconto real chama atenção
+- Console PS5 (Slim/Pro): só é "barato" ABAIXO de R$4.000 — aí trate como preço excelente/imperdível. Acima de R$4.000 a oferta continua válida (não reprove por isso), mas destaque só o desconto em %, sem chamar de barato, "preço baixo" ou "menor preço"
 - PC gamer / upgrade: placa de vídeo (RTX, Radeon), processador Ryzen/Intel, SSD NVMe, memória DDR5 — público entusiasta compara preço e compra quando cai
 - Eletrônicos: sempre em alta, especialmente com desconto > 25%
 - Nike e Adidas com descontos reais são excelentes conversores
