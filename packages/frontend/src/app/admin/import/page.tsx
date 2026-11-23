@@ -1,7 +1,6 @@
 "use client";
 import { useState } from "react";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
 interface ImportResult {
 	offer: {
@@ -94,7 +93,7 @@ export default function AdminImportPage() {
 				if (manualImageUrl.trim()) body.manualImageUrl = manualImageUrl.trim();
 			}
 
-			const res = await fetch(`${API_URL}/api/offers/import`, {
+			const res = await fetch(`/api/admin/import`, {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify(body),

@@ -1,4 +1,5 @@
 import { Router } from 'express'
+import { requireAdminSecret } from './admin'
 import { prisma } from '../../utils/prisma'
 import { resolveProviderByUrl, PROVIDER_LABELS } from '../../providers/registry'
 import { processOffer } from '../../jobs/offers.job'
@@ -52,7 +53,8 @@ router.get('/', async (req, res) => {
   res.json({ offers: offersWithMin, total, page: Number(page), limit: take })
 })
 
-router.post('/import', async (req, res) => {
+// Import posta direto nos canais: só com o ADMIN_SECRET (via proxy /api/admin/import do site)
+router.post('/import', requireAdminSecret, async (req, res) => {
   const {
     url,
     affiliateShortLink,

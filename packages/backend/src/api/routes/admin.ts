@@ -1,15 +1,20 @@
 import { Router, Request, Response, NextFunction } from 'express'
+import { timingSafeEqual } from 'crypto'
 import QRCode from 'qrcode'
 import { runPostingJob, runRepostJob } from '../../jobs/offers.job'
 import { connectWhatsApp, getWhatsAppStatus, isWhatsAppEnabled, listWhatsAppGroups, sendWhatsAppToSelf } from '../../channels/whatsapp'
 
 const router = Router()
 
-function requireAdminSecret(req: Request, res: Response, next: NextFunction) {
+export function requireAdminSecret(req: Request, res: Response, next: NextFunction) {
   const secret = process.env.ADMIN_SECRET
   if (!secret) return res.status(503).json({ error: 'ADMIN_SECRET não configurado no servidor' })
-  const auth = req.headers['authorization']
-  if (auth !== `Bearer ${secret}`) return res.status(401).json({ error: 'Não autorizado' })
+  const auth = Buffer.from(String(req.headers['authorization'] || ''))
+  const expected = Buffer.from(`Bearer ${secret}`)
+  // comparação em tempo constante (não vaza o segredo caractere a caractere)
+  if (auth.length !== expected.length || !timingSafeEqual(auth, expected)) {
+    return res.status(401).json({ error: 'Não autorizado' })
+  }
   next()
 }
 
