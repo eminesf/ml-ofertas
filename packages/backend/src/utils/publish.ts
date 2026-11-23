@@ -42,7 +42,10 @@ export async function ensureShortCode(externalId: string): Promise<string> {
 export function withShortLink(message: string, offer: Pick<Offer, 'affiliateUrl'>, code: string): string {
   const short = shortLink(code)
   const raw = offer.affiliateUrl
-  return message.split(raw.replace(/&/g, '&amp;')).join(short).split(raw).join(short)
+  return message
+    .split(raw.replace(/&/g, '&amp;')).join(short).split(raw).join(short)
+    // copy gerado antes da troca de domínio: atualiza o link curto para o SITE_URL atual
+    .replace(new RegExp(`https?://[^\\s"'<>]+/r/${code}\\b`, 'g'), short)
 }
 
 // Amazon devolve miniatura 226px no /deals; pede a versão grande
