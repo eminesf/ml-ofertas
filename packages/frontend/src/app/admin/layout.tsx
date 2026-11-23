@@ -5,6 +5,7 @@ import Link from 'next/link'
 const NAV_LINKS = [
   { href: '/admin', label: 'Dashboard' },
   { href: '/admin/import', label: 'Importar oferta' },
+  { href: '/admin/stories', label: 'Stories' },
 ]
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
