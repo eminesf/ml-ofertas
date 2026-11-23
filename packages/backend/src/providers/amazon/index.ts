@@ -1,5 +1,6 @@
 import { chromium } from 'playwright'
 import { AffiliateProvider, RawOffer } from '../base.provider'
+import { HYPE_SEARCH_TERMS, isHype } from '../../utils/hype'
 
 // Tag de associado do painel associados.amazon.com.br
 const DEFAULT_TAG = 'foxofertas04-20'
@@ -13,7 +14,8 @@ export class AmazonProvider implements AffiliateProvider {
   name = 'amazon'
   private tag: string
 
-  constructor() {
+  // 'deals' = /deals (padrão) | 'hype' = busca pelos termos de HYPE_SEARCH_TERMS
+  constructor(private mode: 'deals' | 'hype' = 'deals') {
     this.tag = process.env.AMAZON_ASSOCIATE_TAG || DEFAULT_TAG
   }
 
@@ -35,6 +37,7 @@ export class AmazonProvider implements AffiliateProvider {
   // Scrape das Ofertas do Dia (https://www.amazon.com.br/deals).
   // Roda apenas LOCAL (IP residencial) — em datacenter a Amazon serve robot-check.
   async scrapeOffers(): Promise<RawOffer[]> {
+    if (this.mode === 'hype') return this.scrapeHypeSearch()
     console.log('[Amazon] Iniciando scraping de ofertas do dia...')
     const browser = await chromium.launch({
       headless: process.env.SCRAPE_HEADLESS !== 'false',
@@ -169,6 +172,86 @@ export class AmazonProvider implements AffiliateProvider {
       await browser.close()
     }
 
+    return offers
+  }
+
+  // Busca na Amazon por produtos hype (PS5, GTA 6, placa de vídeo…): resultados com
+  // preço "De:" riscado viram oferta. Só itens que batem com isHype (evita capinha).
+  async scrapeHypeSearch(): Promise<RawOffer[]> {
+    console.log(`[Amazon:hype] Buscando ${HYPE_SEARCH_TERMS.length} termos...`)
+    const browser = await chromium.launch({
+      headless: process.env.SCRAPE_HEADLESS !== 'false',
+      args: ['--disable-blink-features=AutomationControlled', '--no-sandbox', '--disable-dev-shm-usage'],
+    })
+    const byAsin = new Map<string, RawOffer>()
+    try {
+      const context = await browser.newContext({
+        userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+        viewport: { width: 1366, height: 900 },
+        locale: 'pt-BR',
+      })
+      await context.addInitScript('Object.defineProperty(navigator, "webdriver", { get: function() { return false } })')
+      const page = await context.newPage()
+      // String inline (não função nomeada) para evitar bug __name do tsx/esbuild
+      const scriptStr = `
+        (function() {
+          function brl(t) { var m = (t || '').match(/([\\d.]+,\\d{2})/); return m ? parseFloat(m[1].replace(/\\./g, '').replace(',', '.')) : 0 }
+          var out = [];
+          var cards = document.querySelectorAll('div[data-component-type="s-search-result"][data-asin]');
+          for (var i = 0; i < cards.length; i++) {
+            var c = cards[i];
+            var asin = c.getAttribute('data-asin');
+            if (!asin) continue;
+            if (c.querySelector('.puis-sponsored-label-text')) continue;
+            var titleEl = c.querySelector('h2 span') || c.querySelector('h2');
+            var sale = brl((c.querySelector('.a-price:not(.a-text-price) .a-offscreen') || {}).textContent);
+            var orig = brl((c.querySelector('.a-text-price .a-offscreen') || {}).textContent);
+            var img = c.querySelector('img.s-image');
+            var ratingM = ((c.querySelector('.a-icon-alt') || {}).textContent || '').match(/([\\d,]+) de 5/);
+            if (!titleEl || !sale) continue;
+            out.push({ asin: asin, title: titleEl.textContent.trim(), salePrice: sale, originalPrice: orig, imageUrl: img ? img.src : '', rating: ratingM ? parseFloat(ratingM[1].replace(',', '.')) : null });
+          }
+          return out;
+        })()
+      `
+      for (const term of HYPE_SEARCH_TERMS) {
+        try {
+          await page.goto(`https://www.amazon.com.br/s?k=${encodeURIComponent(term)}`, { waitUntil: 'domcontentloaded', timeout: 45000 })
+          await page.waitForSelector('div[data-component-type="s-search-result"]', { timeout: 15000 }).catch(() => {})
+          await page.waitForTimeout(1500)
+          if ((await page.title()).toLowerCase().includes('robot') || (await page.$('form[action*="validateCaptcha"]'))) {
+            console.warn('[Amazon:hype] Robot-check — parando')
+            break
+          }
+          const items = (await page.evaluate(scriptStr)) as Array<{ asin: string; title: string; salePrice: number; originalPrice: number; imageUrl: string; rating: number | null }>
+          let kept = 0
+          for (const it of items) {
+            if (!isHype(it.title) || !it.originalPrice || it.originalPrice <= it.salePrice) continue
+            const discountPct = Math.round((1 - it.salePrice / it.originalPrice) * 100)
+            if (discountPct < 5 || discountPct > 70) continue
+            byAsin.set(it.asin, {
+              externalId: `AMZN-${it.asin}`,
+              title: it.title.slice(0, 250),
+              originalPrice: it.originalPrice,
+              salePrice: it.salePrice,
+              discountPct,
+              imageUrl: it.imageUrl || undefined,
+              rating: it.rating ?? undefined,
+              productUrl: `https://www.amazon.com.br/dp/${it.asin}`,
+            })
+            kept++
+          }
+          console.log(`[Amazon:hype] "${term}": ${items.length} resultados, ${kept} hype com desconto`)
+          await page.waitForTimeout(1500 + Math.random() * 2000)
+        } catch (err) {
+          console.warn(`[Amazon:hype] "${term}" falhou:`, (err as Error).message)
+        }
+      }
+    } finally {
+      await browser.close()
+    }
+    const offers = [...byAsin.values()].sort((a, b) => b.discountPct - a.discountPct).slice(0, parseInt(process.env.HYPE_MAX || '15', 10))
+    console.log(`[Amazon:hype] ${offers.length} ofertas hype coletadas`)
     return offers
   }
 }

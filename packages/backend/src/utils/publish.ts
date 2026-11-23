@@ -4,6 +4,7 @@ import { prisma } from './prisma'
 import { sendPhoto, sendMessage } from '../channels/telegram'
 import { isWhatsAppEnabled, isWhatsAppConnected, sendWhatsAppPost } from '../channels/whatsapp'
 import { queueIndexNow } from './indexnow'
+import { isHype, HYPE_PRIORITY_BONUS } from './hype'
 
 // Publicação única para Telegram + WhatsApp: os dois canais recebem a MESMA oferta,
 // com o link curto do site (/r/{code}) no lugar do link de afiliado cheio.
@@ -72,12 +73,14 @@ export function cleanTitle(title: string): string {
 export const TELEGRAM_SOURCE_BONUS = 6
 export const TELEGRAM_SOURCE_MAX_AGE_HOURS = 6
 
-export function postPriority(o: Pick<Offer, 'aiScore' | 'salePrice' | 'discountPct'> & { source?: string }): number {
+// Produtos hype (console, GTA, peça de PC) ganham +3: compensam o ticket alto
+export function postPriority(o: Pick<Offer, 'aiScore' | 'salePrice' | 'discountPct'> & { source?: string; title?: string }): number {
   const p = o.salePrice
   const priceBonus = p <= 50 ? 3 : p <= 100 ? 2.5 : p <= 200 ? 2 : p <= 400 ? 1 : p <= 1000 ? 0 : p <= 2000 ? -2 : -4
   const discountBonus = o.discountPct >= 40 ? 0.5 : 0
   const sourceBonus = o.source === 'telegram' ? TELEGRAM_SOURCE_BONUS : 0
-  return (o.aiScore ?? 0) + priceBonus + discountBonus + sourceBonus
+  const hypeBonus = o.title && isHype(o.title) ? HYPE_PRIORITY_BONUS : 0
+  return (o.aiScore ?? 0) + priceBonus + discountBonus + sourceBonus + hypeBonus
 }
 
 function inPostingHours(): boolean {

@@ -1,5 +1,6 @@
 import { prisma } from '../utils/prisma'
 import { classifyCategory, isBook } from '../utils/category'
+import { isHype, HYPE_MIN_DISCOUNT } from '../utils/hype'
 import { AffiliateProvider } from '../providers/base.provider'
 import { evaluateOffer, generatePostMessage, analyzeMarketValue, evaluateCouponOffer, generateCouponPostMessage, CouponContext, GeneratedPost } from '../ai'
 import { publishOffer, postPriority, canPostNow, TELEGRAM_SOURCE_MAX_AGE_HOURS, ensureShortCode, shortLink, cleanTitle } from '../utils/publish'
@@ -127,8 +128,10 @@ export async function processOffer(
   const isCoupon = source === 'coupon'
   const isManual = source === 'manual'
   // 'telegram' = oferta já garimpada por outro canal (preço revalidado); a IA decide
-  if (!isCoupon && !isManual && source !== 'telegram' && raw.discountPct < MIN_DISCOUNT) {
-    console.log(`${tag} Filtrado: desconto ${raw.discountPct}% abaixo do mínimo (${MIN_DISCOUNT}%)`)
+  // Hype (PS5, GTA, peça de PC) raramente cai 20%: aceita a partir de 8%
+  const minDiscount = isHype(raw.title) ? HYPE_MIN_DISCOUNT : MIN_DISCOUNT
+  if (!isCoupon && !isManual && source !== 'telegram' && raw.discountPct < minDiscount) {
+    console.log(`${tag} Filtrado: desconto ${raw.discountPct}% abaixo do mínimo (${minDiscount}%)`)
     return
   }
 

@@ -13,6 +13,7 @@
     "scrape:ml": "npm run scrape:ml -w @ml-afiliados/backend",
     "scrape:hub": "npm run scrape:hub -w @ml-afiliados/backend",
     "scrape:amazon": "npm run scrape:amazon -w @ml-afiliados/backend",
+    "scrape:hype": "npm run scrape:hype -w @ml-afiliados/backend",
     "scrape:awin": "npm run scrape:awin -w @ml-afiliados/backend",
     "scrape:shopee": "npm run scrape:shopee -w @ml-afiliados/backend",
     "scrape:telegram": "npm run scrape:telegram -w @ml-afiliados/backend",

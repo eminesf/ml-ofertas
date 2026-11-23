@@ -14,6 +14,7 @@ import { runTelegramSourceJob } from './telegram-source'
 //   ml      → ofertas públicas do Mercado Livre (/ofertas)
 //   hub     → hub de afiliados ML + cupons (requer sessão ML)
 //   amazon  → ofertas do dia da Amazon (/deals)
+//   hype    → busca na Amazon por PS5, GTA 6, placa de vídeo… (HYPE_SEARCH_TERMS)
 //   awin    → product feeds Awin (Kabum, AliExpress, Stanley) — requer AWIN_FEED_API_KEY
 //   shopee  → feed de produto diário da Shopee — requer SHOPEE_FEED_URLS
 //   telegram → ofertas de canais públicos do Telegram (TELEGRAM_SOURCES), com o nosso link
@@ -21,7 +22,7 @@ import { runTelegramSourceJob } from './telegram-source'
 //   --show  → abre o browser visível (SCRAPE_HEADLESS=false) para acompanhar o scraping
 //
 
-const TARGETS = ['ml', 'hub', 'amazon', 'awin', 'shopee', 'telegram', 'all'] as const
+const TARGETS = ['ml', 'hub', 'amazon', 'hype', 'awin', 'shopee', 'telegram', 'all'] as const
 type Target = (typeof TARGETS)[number]
 
 async function main() {
@@ -41,6 +42,10 @@ async function main() {
 
   if (target === 'amazon' || target === 'all') {
     await runOffersJob(new AmazonProvider()).catch(err => console.error('[ScrapeCLI] amazon falhou:', err))
+  }
+
+  if (target === 'hype' || target === 'all') {
+    await runOffersJob(new AmazonProvider('hype')).catch(err => console.error('[ScrapeCLI] hype falhou:', err))
   }
 
   if (target === 'awin' || target === 'all') {
