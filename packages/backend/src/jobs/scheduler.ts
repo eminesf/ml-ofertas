@@ -114,6 +114,13 @@ export function startScheduler() {
 
     // Canais públicos do Telegram (TELEGRAM_SOURCES): a cada 20 min, 24h — o que eles postam
     // de madrugada a gente também posta (posting libera source 'telegram' fora do horário)
+    // Hub de afiliados ML (Mais vendidos + cupons #FUCHS) com a sessão salva do ml:login.
+    // Sessão expirada → pula e avisa no WhatsApp (não abre janela de login)
+    cron.schedule('45 10,16 * * *', async () => {
+      await runScrapeCli('hub')
+    })
+    console.log('[Scheduler] Hub ML (afiliados + cupons): 10h45 e 16h45')
+
     cron.schedule('10,30,50 * * * *', async () => {
       await runScrapeCli('telegram')
     })
@@ -125,7 +132,7 @@ export function startScheduler() {
     console.log('[Scheduler] WhatsApp: recebe as mesmas ofertas do Telegram no posting')
   }
 
-  console.log(`[Scheduler] Jobs: posting (a cada 20min, máx ${maxPostsPerRun}), repost (12h/20h). Hub ML é manual (npm run scrape:hub).`)
+  console.log(`[Scheduler] Jobs: posting (a cada 20min, máx ${maxPostsPerRun}), repost (12h/20h). Hub ML agendado 10h45/16h45.`)
 }
 
 // Rodar posting/repost manualmente: npx tsx src/jobs/scheduler.ts --now [--post|--repost]

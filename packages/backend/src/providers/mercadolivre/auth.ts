@@ -1,12 +1,14 @@
 import { chromium, BrowserContext } from 'playwright'
 import * as fs from 'fs'
 import * as path from 'path'
+import { reportMlBlocked } from './browser'
 
 const SESSION_PATH = path.resolve(__dirname, '../../../../.ml-session.json')
 
 async function createBrowserBase() {
   return chromium.launch({
-    headless: process.env.NODE_ENV === 'production',
+    // agendado (scheduler define SCRAPE_HEADLESS=true) roda sem janela
+    headless: process.env.NODE_ENV === 'production' || process.env.SCRAPE_HEADLESS === 'true',
     args: [
       '--disable-blink-features=AutomationControlled',
       '--no-sandbox',
@@ -113,6 +115,13 @@ export async function getAuthenticatedContext(): Promise<BrowserContext> {
     await context.close()
   } else {
     console.log('[Auth] Nenhuma sessão salva, fazendo login')
+  }
+
+  // Execução agendada não tem ninguém para digitar o login: avisa e desiste
+  if (process.env.SCRAPE_HEADLESS === 'true') {
+    await browser.close()
+    await reportMlBlocked('hub de afiliados (sessão expirada)')
+    throw new Error('Sessão do ML expirada — rode npm run ml:login (ou npm run scrape:hub) para logar de novo')
   }
 
   const context = await browser.newContext(contextOptions)
