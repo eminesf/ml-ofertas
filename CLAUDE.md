@@ -484,6 +484,7 @@ a cada 20min → posting — POST_MAX (1) oferta, a MESMA no Telegram e no Whats
 6h15, 12h15 e 18h15 → feeds Awin (Kabum + Stanley), requer AWIN_FEED_API_KEY
 7h40 e 21h40 → feed Shopee, requer SHOPEE_FEED_URLS
 10/30/50 de toda hora (24h) → canais públicos do Telegram (`TELEGRAM_SOURCES` no `.env`: `wolf_ofertas,pcdofafapromo`) via `jobs/telegram-source.ts`: lê `t.me/s/<canal>`, resolve o link curto até o produto (ML social → polycard com o mesmo título do og:title), descarta o afiliado deles, revalida o preço (pula se a loja estiver >10% acima do post) e passa pelo `processOffer` (source `telegram`, sem filtro de desconto mínimo; IA decide). Último post lido em `.telegram-sources.json`. Posts de cupom e lojas não suportadas (Magalu) são pulados. `Cupom: CODIGO` do post (cupom público da loja) vai como `couponCode` no nosso copy, e a tolerância de preço sobe para 25% quando o post tem cupom/Pix. `npm run scrape:telegram`
+10h45 e 16h45 → hub de afiliados ML (Mais vendidos + cupons #FUCHS) com a sessão do `ml:login`; agendado roda headless e, se a sessão expirou, NÃO abre login: pula e avisa no WhatsApp (máx 1x/12h)
 9h30 e 15h30 → scrape ML /ofertas + Amazon /deals (Playwright em processo filho; PULA se o bot-leilao tiver leilão ativo ou agendado nos próximos 90 min — lê C:/dev/bot-leilao/data/leilao.db só leitura via utils/leilao-guard.ts)
 ```
 
