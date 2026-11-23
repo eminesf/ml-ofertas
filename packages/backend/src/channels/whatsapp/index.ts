@@ -160,10 +160,33 @@ export async function sendWhatsAppPost(text: string, imageUrl?: string | null): 
 }
 
 // Mensagem para o próprio número pareado ("Você" no WhatsApp) — avisos para o dono do bot
+// Avisos de status (bloqueio do ML, deploy etc.). Vão para o celular do dono
+// (WHATSAPP_OWNER_NUMBER, ex.: 5551999999999); sem ele, para o próprio número do bot.
+// O WhatsApp às vezes registra números BR sem o 9 — onWhatsApp resolve o JID certo.
+let ownerJidCache: string | null = null
+async function ownerJid(): Promise<string | null> {
+  const raw = (process.env.WHATSAPP_OWNER_NUMBER || '').replace(/\D/g, '')
+  if (!raw) return null
+  if (ownerJidCache) return ownerJidCache
+  const candidates = [raw]
+  // BR celular: 55 + DDD + 9XXXXXXXX → também tenta sem o 9
+  if (/^55\d{2}9\d{8}$/.test(raw)) candidates.push(raw.slice(0, 4) + raw.slice(5))
+  for (const n of candidates) {
+    try {
+      const [hit] = (await sock?.onWhatsApp(n)) || []
+      if (hit?.exists) return (ownerJidCache = hit.jid)
+    } catch {
+      // tenta o próximo
+    }
+  }
+  console.warn('[WhatsApp] WHATSAPP_OWNER_NUMBER não encontrado no WhatsApp — usando o número do bot')
+  return null
+}
+
 export async function sendWhatsAppToSelf(text: string): Promise<boolean> {
   const self = sock?.user?.id
   if (!sock || !self) return false
-  const jid = self.split(':')[0].split('@')[0] + '@s.whatsapp.net'
+  const jid = (await ownerJid()) || self.split(':')[0].split('@')[0] + '@s.whatsapp.net'
   await sock.sendMessage(jid, { text })
   return true
 }
