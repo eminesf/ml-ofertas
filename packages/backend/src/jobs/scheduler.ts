@@ -8,6 +8,7 @@ import { spawn } from 'child_process'
 import path from 'path'
 import { leilaoEmAndamentoOuProximo } from '../utils/leilao-guard'
 import { runCleanupJob } from './cleanup.job'
+import { runSiteInviteJob } from './site-invite.job'
 
 let scrapeRodando = false
 
@@ -67,6 +68,11 @@ export function startScheduler() {
   })
 
   // Repost de ofertas válidas — às 12h e 20h
+  // Convite para o site 1x/dia (texto rotativo) — SITE_INVITE_CRON, padrão 12h50
+  cron.schedule(process.env.SITE_INVITE_CRON || '50 12 * * *', async () => {
+    await runSiteInviteJob().catch(err => console.error('[SiteInvite] falhou:', err))
+  })
+
   // Limpeza diária do banco (ofertas velhas + histórico de preço) — 4h10, fora de leilão
   cron.schedule('10 4 * * *', async () => {
     await runCleanupJob().catch(err => console.error('[Cleanup] falhou:', err))

@@ -195,6 +195,9 @@ model Post {
 - `/story/<id>` gera a arte 1080x1920 (next/og, fonte Nunito via Google Fonts TTF; imagem webp do ML trocada por jpg); `?d=1` baixa. Rodapé livre para a figurinha de link.
 - `/admin/stories`: as 8 melhores ofertas das últimas 24h (nota IA + desconto + votos) com botão "Baixar arte" e link curto. Postagem é manual (1–2 por dia).
 
+## Convite para o site
+- `jobs/site-invite.job.ts`: 1x/dia (`SITE_INVITE_CRON`, padrão `50 12 * * *`) manda nos dois canais um convite para o site com a imagem de compartilhamento (`/opengraph-image`) e o nº de ofertas das últimas 24h; 4 textos que se revezam por dia.
+
 ## Madrugada e Pokémon
 - Grupos PRIVADOS do Telegram (`TELEGRAM_PRIVATE_SOURCES=+HASH,...`, ex.: "Promoções Pokémon") são lidos pela conta do dono via MTProto (`telegram`/gram.js, `channels/telegram/user-client.ts`): só leitura. Credenciais `TELEGRAM_API_ID`/`TELEGRAM_API_HASH` (my.telegram.org) e sessão em `packages/.telegram-user-session` (gitignored) criada com `npm run telegram:login` (o dono digita telefone e código). Mesmo pipeline dos canais públicos (`handleSourcePost`).
 - Fora de `POST_HOURS` (8–23h) o posting só libera ofertas com source `telegram` (o que os canais garimpados postam de madrugada, a gente posta também). Os canais são lidos 24h.
