@@ -1,8 +1,6 @@
-import { BrowserContext } from 'playwright'
+import { BrowserContext, Locator, Page } from 'playwright'
 import { RawOffer } from '../base.provider'
 import { getAuthenticatedContext } from './auth'
-
-const MAX_PRODUCTS = parseInt(process.env.ML_HUB_MAX_PRODUCTS || '50', 10)
 
 const HUB_SCRIPT = `
 (function() {
@@ -48,86 +46,91 @@ const HUB_SCRIPT = `
 })()
 `
 
+// Abas do hub coletadas (um pouco de cada, não o hub inteiro):
+//   "Mais vendidos"  → HUB_BEST_SELLER_MAX (20)
+//   "Ganhos extras"  → HUB_EXTRA_MAX (10) — comissão extra para o afiliado
+const TABS: Array<{ label: string; locate: (page: Page) => Locator; max: number }> = [
+  { label: 'Mais vendidos', locate: page => page.locator('#best_seller'), max: parseInt(process.env.HUB_BEST_SELLER_MAX || '20', 10) },
+  {
+    label: 'Ganhos extras',
+    locate: page => page.locator('button, [role="tab"], [role="button"], a, label').filter({ hasText: /ganhos?\s+extras?/i }).first(),
+    max: parseInt(process.env.HUB_EXTRA_MAX || '10', 10),
+  },
+]
+
+type HubItem = {
+  title: string; productUrl: string; imageUrl: string
+  originalPrice: number; salePrice: number; discountPct: number
+  rating: number | null; externalId: string
+}
+
+// Hub usa virtual scrolling — coleta incrementalmente a cada scroll para não perder cards
+async function collectVisible(page: Page, max: number, label: string): Promise<RawOffer[]> {
+  const seen = new Map<string, RawOffer>()
+  let noNewRounds = 0
+  while (noNewRounds < 4 && seen.size < max) {
+    const items = (await page.evaluate(HUB_SCRIPT)) as HubItem[]
+    let newThisRound = 0
+    for (const item of items) {
+      if (!item.title || !item.productUrl) continue
+      const cleanUrl = item.productUrl.split('?')[0]
+      if (!cleanUrl.includes('mercadolivre') && !cleanUrl.includes('mercadopago')) continue
+      const key = item.externalId || cleanUrl
+      if (seen.has(key) || seen.size >= max) continue
+      seen.set(key, {
+        externalId: key,
+        title: item.title,
+        originalPrice: item.originalPrice || item.salePrice,
+        salePrice: item.salePrice,
+        discountPct: item.discountPct,
+        imageUrl: item.imageUrl || undefined,
+        productUrl: cleanUrl,
+        rating: item.rating ?? undefined,
+      })
+      newThisRound++
+    }
+    console.log(`[HubScraper][${label}] ${seen.size}/${max} produtos (+${newThisRound})`)
+    noNewRounds = newThisRound === 0 ? noNewRounds + 1 : 0
+    if (seen.size >= max) break
+    await page.evaluate('window.scrollBy(0, 800)')
+    await page.waitForTimeout(1500)
+  }
+  return [...seen.values()]
+}
+
 export async function scrapeHubProducts(
   contextOrNull?: BrowserContext,
   affiliateIdFn?: (url: string) => string
 ): Promise<RawOffer[]> {
   const ctx = contextOrNull ?? await getAuthenticatedContext()
   const page = await ctx.newPage()
-  const offers: RawOffer[] = []
+  const all = new Map<string, RawOffer>()
 
   try {
-    await page.goto('https://www.mercadolivre.com.br/afiliados/hub?is_affiliate=true', {
-      waitUntil: 'networkidle',
-      timeout: 60000
-    })
-
-    // Clica em "Mais vendidos" se ainda não estiver selecionado
-    try {
-      const btn = page.locator('#best_seller')
-      const isSelected = await btn.getAttribute('aria-pressed')
-      if (isSelected !== 'true') {
-        await btn.click()
-        // Aguarda os produtos do filtro carregarem completamente
-        await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {})
-        await page.waitForTimeout(2000)
-      }
-      console.log('[HubScraper] Filtro "Mais vendidos" ativo')
-    } catch {
-      console.log('[HubScraper] Botão "Mais vendidos" não encontrado, continuando sem filtro')
-    }
-
-    // Hub usa virtual scrolling — coleta incrementalmente a cada scroll para não perder cards
-    const seen = new Map<string, RawOffer>()
-    let noNewRounds = 0
-
-    while (noNewRounds < 4 && seen.size < MAX_PRODUCTS) {
-      const items = await page.evaluate(HUB_SCRIPT) as Array<{
-        title: string; productUrl: string; imageUrl: string
-        originalPrice: number; salePrice: number; discountPct: number
-        rating: number | null; externalId: string
-      }>
-
-      let newThisRound = 0
-      for (const item of items) {
-        if (!item.title || !item.productUrl) continue
-        const cleanUrl = item.productUrl.split('?')[0]
-        if (!cleanUrl.includes('mercadolivre') && !cleanUrl.includes('mercadopago')) continue
-        const key = item.externalId || cleanUrl
-        if (!seen.has(key)) {
-          seen.set(key, {
-            externalId: key,
-            title: item.title,
-            originalPrice: item.originalPrice || item.salePrice,
-            salePrice: item.salePrice,
-            discountPct: item.discountPct,
-            imageUrl: item.imageUrl || undefined,
-            productUrl: cleanUrl,
-            rating: item.rating ?? undefined,
-          })
-          newThisRound++
+    for (const tab of TABS) {
+      if (tab.max <= 0) continue
+      await page.goto('https://www.mercadolivre.com.br/afiliados/hub?is_affiliate=true', { waitUntil: 'networkidle', timeout: 60000 })
+      try {
+        const btn = tab.locate(page)
+        await btn.waitFor({ state: 'visible', timeout: 10000 })
+        if ((await btn.getAttribute('aria-pressed')) !== 'true') {
+          await btn.click()
+          await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {})
+          await page.waitForTimeout(2000)
         }
+        console.log(`[HubScraper] Aba "${tab.label}" ativa`)
+      } catch {
+        console.log(`[HubScraper] Aba "${tab.label}" não encontrada — pulando`)
+        continue
       }
-
-      console.log(`[HubScraper] Scroll ${seen.size} produtos únicos (+${newThisRound} novos)`)
-      if (newThisRound === 0) {
-        noNewRounds++
-      } else {
-        noNewRounds = 0
-      }
-
-      if (seen.size >= MAX_PRODUCTS) break
-      await page.evaluate('window.scrollBy(0, 800)')
-      await page.waitForTimeout(1500)
+      for (const o of await collectVisible(page, tab.max, tab.label)) if (!all.has(o.externalId)) all.set(o.externalId, o)
     }
-
-    offers.push(...seen.values())
-    console.log(`[HubScraper] ${offers.length} produtos coletados do hub`)
+    console.log(`[HubScraper] ${all.size} produtos coletados do hub`)
   } catch (error) {
     console.error('[HubScraper] Erro:', error)
   } finally {
     await page.close()
   }
 
-  return offers
+  return [...all.values()]
 }
