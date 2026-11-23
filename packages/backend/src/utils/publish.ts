@@ -80,7 +80,9 @@ export function postPriority(o: Pick<Offer, 'aiScore' | 'salePrice' | 'discountP
   const discountBonus = o.discountPct >= 40 ? 0.5 : 0
   const sourceBonus = o.source === 'telegram' ? TELEGRAM_SOURCE_BONUS : 0
   const hypeBonus = o.title && isHype(o.title) ? HYPE_PRIORITY_BONUS : 0
-  return (o.aiScore ?? 0) + priceBonus + discountBonus + sourceBonus + hypeBonus
+  // PS5 (console) abaixo de R$4.000 é preço realmente bom: fura a fila
+  const ps5Bonus = o.title && /(ps5|playstation\s*5)/i.test(o.title) && /console|slim|pro|digital|disco|disk|1tb|2tb/i.test(o.title) && !/controle|jogo|game|volante|headset|fone/i.test(o.title) && p < 4000 ? 3 : 0
+  return (o.aiScore ?? 0) + priceBonus + discountBonus + sourceBonus + hypeBonus + ps5Bonus
 }
 
 function inPostingHours(): boolean {
