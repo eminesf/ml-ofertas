@@ -1,6 +1,6 @@
 # Sobe e mantém o ambiente local: Docker -> Postgres -> pm2 (backend + site).
 # Executado pela tarefa agendada ml-ofertas-pm2-resurrect no login E a cada
-# 10 min. Se a API (3001) e o site (3002) já respondem, sai na hora sem fazer
+# 10 min. Se a API (3001) já responde, sai na hora sem fazer
 # nada — então é seguro rodar quantas vezes quiser. Assim, se a execução do
 # login falhar (como em 11/11/2026, depois de um reinício do Windows Update)
 # ou o pm2 morrer, tudo volta sozinho em até 10 min.
@@ -25,7 +25,7 @@ function Test-Url($url) {
 }
 
 function Test-Tudo {
-  (Test-Url 'http://127.0.0.1:3001/api/offers?limit=1') -and (Test-Url 'http://127.0.0.1:3002/')
+  (Test-Url 'http://127.0.0.1:3001/api/offers?limit=1')
 }
 
 function Wait-Until($seconds, [scriptblock]$check) {
@@ -71,7 +71,7 @@ try {
     exit 1
   }
 
-  # resurrect traz o que estava salvo; o start pelo ecosystem garante os dois
+  # resurrect traz o que estava salvo; o start pelo ecosystem garante o backend
   # apps mesmo se o dump estiver vazio/velho (não reinicia o que já roda).
   & $pm2 resurrect *> $null
   Write-Log "pm2 resurrect exit $LASTEXITCODE"
