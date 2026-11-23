@@ -191,6 +191,10 @@ model Post {
 - `npm run scrape:hype` → busca na Amazon por `HYPE_SEARCH_TERMS` (preço "De:" riscado = desconto); roda junto com ML/Amazon às 9h30/15h30.
 - `jobs/cleanup.job.ts` (4h10): apaga oferta nunca postada > 30 dias (`CLEANUP_UNPOSTED_DAYS`), postada com último post > 90 dias (`CLEANUP_POSTED_DAYS`, com os posts) e `FeedPrice` parado > 90 dias. A página some e vira o 404 próprio (`app/not-found.tsx`, mostra ofertas quentes, noindex).
 
+## Instagram (@fox_promocoes_) — stories manuais
+- `/story/<id>` gera a arte 1080x1920 (next/og, fonte Nunito via Google Fonts TTF; imagem webp do ML trocada por jpg); `?d=1` baixa. Rodapé livre para a figurinha de link.
+- `/admin/stories`: as 8 melhores ofertas das últimas 24h (nota IA + desconto + votos) com botão "Baixar arte" e link curto. Postagem é manual (1–2 por dia).
+
 ## Classificação automática de categorias
 
 O ML não expõe categoria por produto no listing. A classificação é feita por palavras-chave no título, em `src/utils/category.ts`, função `classifyCategory(title: string): string`.
