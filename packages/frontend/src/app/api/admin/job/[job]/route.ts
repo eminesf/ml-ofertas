@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
+import { ADMIN_COOKIE, isValidAdminCookie } from '@/lib/admin-auth'
 
 const VALID_JOBS = ['offers', 'hub', 'post', 'repost']
 
@@ -13,10 +14,9 @@ export async function POST(
   }
 
   const cookieStore = await cookies()
-  const token = cookieStore.get('admin_token')?.value
   const secret = process.env.ADMIN_SECRET
 
-  if (!secret || !token || token !== secret) {
+  if (!secret || !(await isValidAdminCookie(cookieStore.get(ADMIN_COOKIE)?.value))) {
     return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
   }
 
