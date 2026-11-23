@@ -102,7 +102,8 @@ Oferta:
 - Desconto: ${offer.discountPct}%
 - Categoria: ${offer.category || 'não informada'}
 - Avaliação: ${offer.rating || 'sem avaliação'}
-
+${offer.sourceNote ? `- Post de um canal de promoções que garimpou essa oferta (o preço citado ali normalmente já é o FINAL com cupom/Pix, menor que o da loja — considere esse preço final como o desconto real):
+"""${offer.sourceNote}"""` : ''}
 Critérios de pontuação:
 - Desconto ≥ 25% = +2 pontos
 - Produto com avaliação ≥ 4 = +2 pontos
@@ -297,6 +298,8 @@ ${offer.discountPct > 0 ? `Desconto: ${offer.discountPct}% OFF` : 'Produto sem d
 ${couponCode ? `Cupom extra: ${couponCode}` : ''}
 ${suggestedHighlight ? `Destaque sugerido: ${suggestedHighlight}` : ''}
 ${offer.rating ? `Avaliação: ${offer.rating} ⭐` : ''}
+${offer.sourceNote ? `Informações do post original (OBRIGATÓRIO incluir no texto o que for útil ao comprador: cupom e o preço final com cupom, condição de uso do cupom, "produto em inglês", loja; nunca cite o canal de origem):
+"""${offer.sourceNote}"""` : ''}
 Link: ${affiliateUrl}
 
 Estilo desta mensagem: ${style}
@@ -309,6 +312,7 @@ Telegram (use HTML: <b>, <i>, <s>, <code>, <a href="">):
 
 ${priceBlock}
 ${couponCode ? `   🎟️ Cupom: <code>${couponCode}</code>` : ''}
+${offer.sourceNote ? `   ✅ COM CUPOM/CONDIÇÃO: 1 linha com o preço final citado no post original e a condição (ex.: "R$ 140 usando o cupom", "resgate o cupom antes", "produto em inglês")` : ''}
 ${offer.rating ? `   ⭐ ${offer.rating}/5.0` : ''}
 
    👉 <a href="${affiliateUrl}">Comprar agora</a>
@@ -319,6 +323,7 @@ WhatsApp (apenas texto + emojis, sem HTML, máximo 6 linhas):
 🔥 *NOME DO PRODUTO* (resumido, até 70 caracteres)
 ${wpPriceLine}
 ${couponCode ? `🎟️ Cupom: ${couponCode}` : ''}
+${offer.sourceNote ? `✅ 1 linha com o preço final usando o cupom citado no post original e a condição, se houver` : ''}
 👉 ${affiliateUrl}
 
 Responda APENAS com JSON válido, sem markdown:

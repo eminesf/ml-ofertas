@@ -50,7 +50,7 @@ function calcCouponDiscount(salePrice: number, discountText: string, maxDiscount
 }
 
 export async function processOffer(
-  raw: { externalId: string; title: string; originalPrice: number; salePrice: number; discountPct: number; imageUrl?: string; productUrl: string; rating?: number; couponAmount?: string; category?: string },
+  raw: { externalId: string; title: string; originalPrice: number; salePrice: number; discountPct: number; imageUrl?: string; productUrl: string; rating?: number; couponAmount?: string; category?: string; sourceNote?: string },
   provider: AffiliateProvider,
   couponCode?: string,
   source: string = 'offers-page',

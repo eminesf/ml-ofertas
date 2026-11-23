@@ -43,6 +43,17 @@ function parsePrice(text: string): number | null {
   return Number.isFinite(n) && n > 0 ? n : null
 }
 
+// Grupos que escrevem o preço sem "R$" ("159 com o cupom X", "3 blisters por 116",
+// "355 pela Gigatoys"): número no começo da linha ou depois de "por", seguido de com/pela/pelo/no/na
+export function parseLoosePrice(text: string): number | null {
+  const strict = parsePrice(text)
+  if (strict) return strict
+  const m = text.match(/(?:\bpor\s+|^\s*)(\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?|\d{2,5}(?:,\d{1,2})?)\s+(?:com|pela|pelo|no|na|reais)\b/im)
+  if (!m) return null
+  const n = parseFloat(m[1].replace(/\./g, '').replace(',', '.'))
+  return Number.isFinite(n) && n >= 5 ? n : null
+}
+
 export async function fetchChannelPosts(channel: string): Promise<ChannelPost[]> {
   const res = await fetch(`https://t.me/s/${channel}`, { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(20000) })
   if (!res.ok) throw new Error(`t.me/s/${channel} → ${res.status}`)
@@ -179,7 +190,7 @@ export async function runTelegramSourceJob() {
         state[key] = Math.max(state[key] ?? 0, p.id)
         saveState(state)
         const coupon = p.text.match(/cupom:?\s*([A-Z0-9]{5,20})\b/i)?.[1]?.toUpperCase() || null
-        await handleSourcePost(group.title, { id: p.id, text: p.text, links: p.links, price: parsePrice(p.text), coupon })
+        await handleSourcePost(group.title, { id: p.id, text: p.text, links: p.links, price: parseLoosePrice(p.text), coupon })
       }
     }
   }
@@ -215,7 +226,7 @@ async function handleSourcePost(channel: string, post: ChannelPost) {
     }
     // Preço já subiu desde o post de origem → promoção acabou. Post com cupom/Pix
     // mostra o preço final (cupom aplicado), então a tolerância é maior.
-    const tolerance = post.coupon || /pix/i.test(post.text) ? 1.25 : 1.1
+    const tolerance = post.coupon || /pix/i.test(post.text) ? 1.35 : 1.1
     if (raw.salePrice > postPrice * tolerance) {
       console.log(`${tag} preço subiu (canal R$${post.price} → loja R$${raw.salePrice}), pulando`)
       return
@@ -223,7 +234,9 @@ async function handleSourcePost(channel: string, post: ChannelPost) {
 
     // Cupom público da loja citado no post (ex.: SITETODO2211 do ML) vai junto no nosso copy
     if (post.coupon) console.log(`${tag} cupom no post: ${post.coupon}`)
-    await processOffer({ ...raw, externalId: resolved.externalId }, resolved.provider, post.coupon || undefined, 'telegram')
+    // Texto do post (sem links) vai para o copy: cupom, preço com cupom, condições
+    const sourceNote = post.text.replace(/https?:\/\/\S+/g, '').replace(/\n{3,}/g, '\n\n').trim().slice(0, 400)
+    await processOffer({ ...raw, externalId: resolved.externalId, sourceNote }, resolved.provider, post.coupon || undefined, 'telegram')
   } catch (err: any) {
     console.error(`${tag} erro:`, err?.message || err)
   }
