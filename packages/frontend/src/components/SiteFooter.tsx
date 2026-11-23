@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation'
 import { CATEGORIES } from '@/lib/utils'
 import TelegramIcon, { TELEGRAM_URL } from './TelegramIcon'
 import WhatsAppIcon from './WhatsAppIcon'
+import InstagramIcon, { INSTAGRAM_URL } from './InstagramIcon'
 
 export default function SiteFooter({ whatsappUrl }: { whatsappUrl?: string | null }) {
   const pathname = usePathname()
@@ -56,6 +57,14 @@ export default function SiteFooter({ whatsappUrl }: { whatsappUrl?: string | nul
             className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
           >
             <TelegramIcon className="size-4 text-[#229ED9]" /> @e_foxofertas
+          </a>
+          <a
+            href={INSTAGRAM_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-2 flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
+          >
+            <InstagramIcon className="size-4 text-[#E1306C]" /> @fox_promocoes_
           </a>
         </div>
       </div>

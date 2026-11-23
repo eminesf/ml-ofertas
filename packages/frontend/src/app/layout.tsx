@@ -30,7 +30,7 @@ export const metadata: Metadata = {
 const siteJsonLd = {
   '@context': 'https://schema.org',
   '@graph': [
-    { '@type': 'Organization', '@id': `${SITE_URL}/#org`, name: SITE_NAME, url: SITE_URL, logo: `${SITE_URL}/logo_png.png`, sameAs: ['https://t.me/e_foxofertas'] },
+    { '@type': 'Organization', '@id': `${SITE_URL}/#org`, name: SITE_NAME, url: SITE_URL, logo: `${SITE_URL}/logo_png.png`, sameAs: ['https://t.me/e_foxofertas', 'https://www.instagram.com/fox_promocoes_/'] },
     {
       '@type': 'WebSite', '@id': `${SITE_URL}/#site`, name: SITE_NAME, url: SITE_URL, inLanguage: 'pt-BR', publisher: { '@id': `${SITE_URL}/#org` },
       potentialAction: { '@type': 'SearchAction', target: `${SITE_URL}/?q={search_term_string}`, 'query-input': 'required name=search_term_string' },
