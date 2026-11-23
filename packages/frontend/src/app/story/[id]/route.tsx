@@ -26,22 +26,36 @@ async function loadImage(url?: string): Promise<string | null> {
   return null
 }
 
+// Nunito (fonte do site) em TTF — o gerador não lê woff2. Cache em memória.
+let fontsCache: Promise<{ name: string; data: ArrayBuffer; weight: 700 | 900; style: 'normal' }[]> | null = null
+function loadFonts() {
+  fontsCache ??= (async () => {
+    const css = await (await fetch('https://fonts.googleapis.com/css2?family=Nunito:wght@700;900')).text()
+    const out: { name: string; data: ArrayBuffer; weight: 700 | 900; style: 'normal' }[] = []
+    for (const m of css.matchAll(/font-weight: (\d+);[\s\S]*?url\(([^)]+\.ttf)\)/g)) {
+      out.push({ name: 'Nunito', weight: Number(m[1]) as 700 | 900, style: 'normal', data: await (await fetch(m[2])).arrayBuffer() })
+    }
+    return out
+  })().catch(() => { fontsCache = null; return [] })
+  return fontsCache
+}
+
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const offer = await getOffer(id)
   if (!offer) return new Response('Oferta não encontrada', { status: 404 })
 
-  const img = await loadImage(offer.imageUrl)
+  const [img, fonts] = await Promise.all([loadImage(offer.imageUrl), loadFonts()])
   const hasDiscount = offer.discountPct > 0 && offer.originalPrice > offer.salePrice
   const title = offer.title.length > 90 ? offer.title.slice(0, 87).trimEnd() + '…' : offer.title
   const coupon = offer.couponCode?.replace(/^#/, '')
 
   const image = new ImageResponse(
     (
-      <div style={{ width: W, height: H, display: 'flex', flexDirection: 'column', background: '#18181b', fontFamily: 'sans-serif', color: 'white' }}>
+      <div style={{ width: W, height: H, display: 'flex', flexDirection: 'column', background: '#18181b', fontFamily: fonts.length ? 'Nunito' : 'sans-serif', color: 'white' }}>
         {/* topo */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '150px 70px 40px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', fontSize: 46, fontWeight: 800 }}>
+          <div style={{ display: 'flex', alignItems: 'center', fontSize: 46, fontWeight: 900 }}>
             <div style={{ width: 18, height: 60, borderRadius: 6, background: '#ffe600', marginRight: 20 }} />
             Fox Promoções
           </div>
@@ -66,13 +80,13 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', padding: '36px 50px 50px', background: '#fafafa' }}>
             <div style={{ display: 'flex', fontSize: 30, fontWeight: 700, color: '#71717a' }}>{storeName(offer.provider)}</div>
-            <div style={{ display: 'flex', fontSize: 44, fontWeight: 800, lineHeight: 1.2, marginTop: 10 }}>{title}</div>
+            <div style={{ display: 'flex', fontSize: 44, fontWeight: 700, lineHeight: 1.2, marginTop: 10 }}>{title}</div>
             {hasDiscount && (
               <div style={{ display: 'flex', fontSize: 40, color: '#71717a', textDecoration: 'line-through', marginTop: 24 }}>{brl(offer.originalPrice)}</div>
             )}
             <div style={{ display: 'flex', fontSize: 110, fontWeight: 900, lineHeight: 1, marginTop: 6, color: '#16a34a' }}>{brl(offer.salePrice)}</div>
             {coupon && (
-              <div style={{ display: 'flex', marginTop: 24, fontSize: 38, fontWeight: 800, border: '4px dashed #f59e0b', color: '#b45309', padding: '10px 24px', borderRadius: 18, alignSelf: 'flex-start' }}>
+              <div style={{ display: 'flex', marginTop: 24, fontSize: 38, fontWeight: 900, border: '4px dashed #f59e0b', color: '#b45309', padding: '10px 24px', borderRadius: 18, alignSelf: 'flex-start' }}>
                 CUPOM: {coupon}
               </div>
             )}
@@ -86,7 +100,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
         </div>
       </div>
     ),
-    { width: W, height: H }
+    { width: W, height: H, ...(fonts.length ? { fonts } : {}) }
   )
 
   if (new URL(req.url).searchParams.get('d')) {
