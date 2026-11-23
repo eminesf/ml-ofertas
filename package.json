@@ -18,6 +18,7 @@
     "scrape:shopee": "npm run scrape:shopee -w @ml-afiliados/backend",
     "scrape:telegram": "npm run scrape:telegram -w @ml-afiliados/backend",
     "ml:login": "npm run ml:login -w @ml-afiliados/backend",
+    "telegram:login": "npm run telegram:login -w @ml-afiliados/backend",
     "whatsapp:login": "npm run whatsapp:login -w @ml-afiliados/backend"
   },
   "devDependencies": {

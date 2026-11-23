@@ -196,6 +196,7 @@ model Post {
 - `/admin/stories`: as 8 melhores ofertas das últimas 24h (nota IA + desconto + votos) com botão "Baixar arte" e link curto. Postagem é manual (1–2 por dia).
 
 ## Madrugada e Pokémon
+- Grupos PRIVADOS do Telegram (`TELEGRAM_PRIVATE_SOURCES=+HASH,...`, ex.: "Promoções Pokémon") são lidos pela conta do dono via MTProto (`telegram`/gram.js, `channels/telegram/user-client.ts`): só leitura. Credenciais `TELEGRAM_API_ID`/`TELEGRAM_API_HASH` (my.telegram.org) e sessão em `packages/.telegram-user-session` (gitignored) criada com `npm run telegram:login` (o dono digita telefone e código). Mesmo pipeline dos canais públicos (`handleSourcePost`).
 - Fora de `POST_HOURS` (8–23h) o posting só libera ofertas com source `telegram` (o que os canais garimpados postam de madrugada, a gente posta também). Os canais são lidos 24h.
 - Categoria `pokemon` (aba "Pokémon TCG" no site) é a PRIMEIRA regra de `classifyCategory` (pokémon, pikachu, charizard, eevee, elite trainer box).
 

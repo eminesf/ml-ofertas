@@ -1,4 +1,5 @@
 import fs from 'fs'
+import { fetchPrivatePosts, userClientConfigured, PrivatePost } from '../channels/telegram/user-client'
 import path from 'path'
 import { prisma } from '../utils/prisma'
 import { resolveProviderByUrl } from '../providers/registry'
@@ -153,46 +154,77 @@ export async function runTelegramSourceJob() {
     for (const post of fresh) {
       state[channel] = Math.max(state[channel] ?? 0, post.id)
       saveState(state)
+      await handleSourcePost(channel, post)
+    }
+  }
 
-      const tag = `[TgSource][${channel}/${post.id}]`
-      // Posts de cupom/lista não têm um produto único — por ora ficam de fora
-      if (!post.price || !post.links.length || /^\W*cupo(m|ns)\b/i.test(post.text.split('\n')[0])) {
-        console.log(`${tag} pulado (sem produto/preço): ${post.text.split('\n')[0].slice(0, 60)}`)
+  // Grupos PRIVADOS (t.me/+HASH): lidos pela conta do dono via MTProto (npm run telegram:login)
+  const privateSources = (process.env.TELEGRAM_PRIVATE_SOURCES || '').split(',').map(c => c.trim().replace(/^https?:\/\/t\.me\//, '').replace(/^\+/, '')).filter(Boolean)
+  if (privateSources.length && !userClientConfigured()) {
+    console.warn('[TgSource] TELEGRAM_PRIVATE_SOURCES definido, mas falta login: rode npm run telegram:login')
+  } else {
+    for (const hash of privateSources) {
+      const key = `private:${hash}`
+      let group: { title: string; posts: PrivatePost[] }
+      try {
+        group = await fetchPrivatePosts(hash)
+      } catch (err: any) {
+        console.error(`[TgSource] grupo privado ${hash}: falha ao ler — ${err?.message}`)
         continue
       }
-
-      try {
-        const product = await resolveProduct(post.links[0])
-        const resolved = product ? resolveProviderByUrl(product.url) : null
-        if (!product || !resolved) {
-          console.log(`${tag} loja não suportada ou link sem produto: ${product?.url || post.links[0]}`)
-          continue
-        }
-
-        if (await prisma.offer.findUnique({ where: { externalId: resolved.externalId }, select: { id: true } })) {
-          console.log(`${tag} ${resolved.externalId} já está no banco`)
-          continue
-        }
-
-        const raw = product.raw ?? await resolved.scrapeProduct(product.url)
-        if (!raw?.salePrice) {
-          console.log(`${tag} não foi possível ler o produto: ${product.url}`)
-          continue
-        }
-        // Preço já subiu desde o post de origem → promoção acabou. Post com cupom/Pix
-        // mostra o preço final (cupom aplicado), então a tolerância é maior.
-        const tolerance = post.coupon || /pix/i.test(post.text) ? 1.25 : 1.1
-        if (raw.salePrice > post.price * tolerance) {
-          console.log(`${tag} preço subiu (canal R$${post.price} → loja R$${raw.salePrice}), pulando`)
-          continue
-        }
-
-        // Cupom público da loja citado no post (ex.: SITETODO2211 do ML) vai junto no nosso copy
-        if (post.coupon) console.log(`${tag} cupom no post: ${post.coupon}`)
-        await processOffer({ ...raw, externalId: resolved.externalId }, resolved.provider, post.coupon || undefined, 'telegram')
-      } catch (err: any) {
-        console.error(`${tag} erro:`, err?.message || err)
+      const lastSeen = state[key] ?? 0
+      const fresh = group.posts.filter(p => p.id > lastSeen).slice(-maxPerChannel)
+      console.log(`[TgSource] ${group.title} (privado): ${group.posts.length} mensagens lidas, ${fresh.length} novas`)
+      for (const p of fresh) {
+        state[key] = Math.max(state[key] ?? 0, p.id)
+        saveState(state)
+        const coupon = p.text.match(/cupom:?\s*([A-Z0-9]{5,20})\b/i)?.[1]?.toUpperCase() || null
+        await handleSourcePost(group.title, { id: p.id, text: p.text, links: p.links, price: parsePrice(p.text), coupon })
       }
     }
+  }
+}
+
+// Um post de canal/grupo → oferta nossa (link resolvido, preço revalidado, IA)
+async function handleSourcePost(channel: string, post: ChannelPost) {
+  const postPrice = post.price ?? 0
+  const tag = `[TgSource][${channel}/${post.id}]`
+  // Posts de cupom/lista não têm um produto único — por ora ficam de fora
+  if (!post.price || !post.links.length || /^\W*cupo(m|ns)\b/i.test(post.text.split('\n')[0])) {
+    console.log(`${tag} pulado (sem produto/preço): ${post.text.split('\n')[0].slice(0, 60)}`)
+    return
+  }
+
+  try {
+    const product = await resolveProduct(post.links[0])
+    const resolved = product ? resolveProviderByUrl(product.url) : null
+    if (!product || !resolved) {
+      console.log(`${tag} loja não suportada ou link sem produto: ${product?.url || post.links[0]}`)
+      return
+    }
+
+    if (await prisma.offer.findUnique({ where: { externalId: resolved.externalId }, select: { id: true } })) {
+      console.log(`${tag} ${resolved.externalId} já está no banco`)
+      return
+    }
+
+    const raw = product.raw ?? await resolved.scrapeProduct(product.url)
+    if (!raw?.salePrice) {
+      console.log(`${tag} não foi possível ler o produto: ${product.url}`)
+      return
+    }
+    // Preço já subiu desde o post de origem → promoção acabou. Post com cupom/Pix
+    // mostra o preço final (cupom aplicado), então a tolerância é maior.
+    const tolerance = post.coupon || /pix/i.test(post.text) ? 1.25 : 1.1
+    if (raw.salePrice > postPrice * tolerance) {
+      console.log(`${tag} preço subiu (canal R$${post.price} → loja R$${raw.salePrice}), pulando`)
+      return
+    }
+
+    // Cupom público da loja citado no post (ex.: SITETODO2211 do ML) vai junto no nosso copy
+    if (post.coupon) console.log(`${tag} cupom no post: ${post.coupon}`)
+    await processOffer({ ...raw, externalId: resolved.externalId }, resolved.provider, post.coupon || undefined, 'telegram')
+  } catch (err: any) {
+    console.error(`${tag} erro:`, err?.message || err)
   }
 }

@@ -10,3 +10,4 @@ dist
 *.tsbuildinfo
 .telegram-sources.json
 packages/livros-removidos-*.json
+.telegram-user-session

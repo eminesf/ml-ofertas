@@ -28,6 +28,7 @@
     "scrape:shopee": "tsx src/jobs/scrape-cli.ts shopee",
     "scrape:telegram": "tsx src/jobs/scrape-cli.ts telegram",
     "ml:login": "tsx src/jobs/ml-login.ts",
+    "telegram:login": "tsx src/jobs/telegram-login.ts",
     "// --- jobs de posting (manuais) ---": "",
     "job:post": "tsx src/jobs/scheduler.ts --now --post",
     "job:repost": "tsx src/jobs/scheduler.ts --now --repost",
@@ -43,7 +44,8 @@
     "node-cron": "^3.0.3",
     "playwright": "^1.48.2",
     "qrcode": "1.5.4",
-    "qrcode-terminal": "0.12.0"
+    "qrcode-terminal": "0.12.0",
+    "telegram": "^2.26.22"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",
