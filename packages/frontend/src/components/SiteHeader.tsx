@@ -70,7 +70,8 @@ export default function SiteHeader({ whatsappUrl }: { whatsappUrl?: string | nul
             <Flame className="size-3.5" /> Todas
           </NavChip>
           {CATEGORIES.map(c => (
-            <NavChip key={c.slug} href={`/categoria/${c.slug}`} active={pathname === `/categoria/${c.slug}`}>
+            <NavChip key={c.slug} href={`/categoria/${c.slug}`} active={pathname === `/categoria/${c.slug}`} pokemon={c.slug === 'pokemon'}>
+              {c.slug === 'pokemon' && <PokeballIcon />}
               {c.short}
             </NavChip>
           ))}
@@ -85,18 +86,34 @@ function SearchFallback() {
   return <div className="h-10 w-full rounded-full border bg-muted/50" />
 }
 
-function NavChip({ href, active, children }: { href: string; active: boolean; children: React.ReactNode }) {
+function NavChip({ href, active, pokemon, children }: { href: string; active: boolean; pokemon?: boolean; children: React.ReactNode }) {
   return (
     <Link
       href={href}
       className={cn(
         'inline-flex h-8 shrink-0 items-center gap-1 rounded-full border px-3.5 text-[13px] font-medium transition-colors',
-        active
-          ? 'border-transparent bg-foreground text-background'
-          : 'bg-card text-muted-foreground hover:bg-accent hover:text-foreground',
+        pokemon
+          ? // Pokémon: amarelo e azul clássicos
+            active
+            ? 'border-[#2a75bb] bg-[#2a75bb] font-bold text-[#ffcb05]'
+            : 'border-[#2a75bb] bg-[#ffcb05] font-bold text-[#1d3d7a] hover:bg-[#ffd633]'
+          : active
+            ? 'border-transparent bg-foreground text-background'
+            : 'bg-card text-muted-foreground hover:bg-accent hover:text-foreground',
       )}
     >
       {children}
     </Link>
+  )
+}
+
+// Pokébola minimalista para o chip da categoria Pokémon
+function PokeballIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="size-3.5" aria-hidden="true">
+      <circle cx="12" cy="12" r="10.5" fill="#fff" stroke="#1d1d1f" strokeWidth="2" />
+      <path d="M1.5 12a10.5 10.5 0 0 1 21 0z" fill="#e3350d" stroke="#1d1d1f" strokeWidth="2" />
+      <circle cx="12" cy="12" r="3.2" fill="#fff" stroke="#1d1d1f" strokeWidth="2" />
+    </svg>
   )
 }

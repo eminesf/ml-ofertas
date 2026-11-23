@@ -32,7 +32,6 @@ export function storeName(provider: string): string {
 }
 
 export const CATEGORIES = [
-  { slug: 'pokemon', label: 'Pokémon TCG', short: 'Pokémon' },
   { slug: 'eletronicos', label: 'Eletrônicos', short: 'Eletrônicos' },
   { slug: 'casa', label: 'Casa e Eletrodomésticos', short: 'Casa' },
   { slug: 'moda', label: 'Moda e Acessórios', short: 'Moda' },
@@ -40,4 +39,5 @@ export const CATEGORIES = [
   { slug: 'esporte', label: 'Esporte e Suplementos', short: 'Esporte' },
   { slug: 'automotivo', label: 'Automotivo', short: 'Automotivo' },
   { slug: 'ferramentas', label: 'Ferramentas', short: 'Ferramentas' },
+  { slug: 'pokemon', label: 'Pokémon TCG', short: 'Pokémon' },
 ] as const
