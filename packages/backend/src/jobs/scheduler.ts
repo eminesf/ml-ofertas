@@ -7,6 +7,7 @@ import { ShopeeProvider } from '../providers/shopee'
 import { spawn } from 'child_process'
 import path from 'path'
 import { leilaoEmAndamentoOuProximo } from '../utils/leilao-guard'
+import { runCleanupJob } from './cleanup.job'
 
 let scrapeRodando = false
 
@@ -66,6 +67,11 @@ export function startScheduler() {
   })
 
   // Repost de ofertas válidas — às 12h e 20h
+  // Limpeza diária do banco (ofertas velhas + histórico de preço) — 4h10, fora de leilão
+  cron.schedule('10 4 * * *', async () => {
+    await runCleanupJob().catch(err => console.error('[Cleanup] falhou:', err))
+  })
+
   cron.schedule('0 12,20 * * *', async () => {
     console.log('[Scheduler] Repost de ofertas...')
     await runRepostJob().catch(console.error)
@@ -96,6 +102,7 @@ export function startScheduler() {
     cron.schedule('30 9,15 * * *', async () => {
       await runScrapeCli('ml')
       await runScrapeCli('amazon')
+      await runScrapeCli('hype')
     })
     console.log('[Scheduler] Scrape ML + Amazon: 9h30 e 15h30 (pula durante leilão)')
 

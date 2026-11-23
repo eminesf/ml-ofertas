@@ -1,6 +1,6 @@
 # ML Afiliados Bot — Contexto do Projeto
 
-> **Marca: Fox Promoções** (desde 22/11/2026; antes "Fox Ofertas", trocado porque já existe a loja foxofertas.com com reclamações). Domínio **`www.foxpromocoes.com.br`** ativo desde 22/11/2026 (Registro.br, DNS modo avançado: A `@`→76.76.21.21, CNAME `www`→cname.vercel-dns.com; sem www redireciona 308). `NEXT_PUBLIC_SITE_URL` na Vercel e `SITE_URL` no `.env` apontam para ele — links curtos /r/ novos saem no domínio; os antigos `foxpromocoes.vercel.app/r/…` continuam funcionando. IndexNow (`utils/indexnow.ts`, chave `INDEXNOW_KEY` = `public/<chave>.txt`) avisa Bing/Yandex a cada oferta publicada. Google Search Console: propriedade de domínio verificada por TXT `google-site-verification=…` na zona do Registro.br (não apagar), sitemap enviado em 22/11/2026 (507 URLs). Nome central em `packages/frontend/src/lib/site.ts`. Logo original em `logo_png.png` foi editado (faixa "PROMOÇÕES"). Foco principal: grupo do WhatsApp.
+> **Marca: Fox Promoções** (desde 22/11/2026; antes "Fox Ofertas", trocado porque já existe a loja foxofertas.com com reclamações). Domínio **`www.foxpromocoes.com.br`** ativo desde 22/11/2026 (Registro.br, DNS modo avançado com os valores recomendados pela Vercel para o projeto: A `@`→216.198.79.1, CNAME `www`→c8d5f285d73e2385.vercel-dns-017.com; sem www redireciona 308. O Registro.br não aceita trocar um CNAME no mesmo salvamento: remover, salvar, adicionar, salvar). `NEXT_PUBLIC_SITE_URL` na Vercel e `SITE_URL` no `.env` apontam para ele — links curtos /r/ novos saem no domínio; os antigos `foxpromocoes.vercel.app/r/…` continuam funcionando. IndexNow (`utils/indexnow.ts`, chave `INDEXNOW_KEY` = `public/<chave>.txt`) avisa Bing/Yandex a cada oferta publicada. Google Search Console: propriedade de domínio verificada por TXT `google-site-verification=…` na zona do Registro.br (não apagar), sitemap enviado em 22/11/2026 (507 URLs). Nome central em `packages/frontend/src/lib/site.ts`. Logo original em `logo_png.png` foi editado (faixa "PROMOÇÕES"). Foco principal: grupo do WhatsApp.
 
 ## O que é
 Bot automatizado de ofertas para afiliados **multi-plataforma**: Mercado Livre, Amazon, Shopee e Awin (KaBuM!, AliExpress, Stanley). Scrapa/importa ofertas, avalia com IA, gera copy chamativo e posta em canal público do Telegram. Site Next.js exibe as ofertas como feed estilo pelando.com.br e serve como plataforma cadastrada nos programas de afiliados.
@@ -185,6 +185,11 @@ model Post {
   success         Boolean   @default(true)
 }
 ```
+
+## Produtos hype e limpeza do banco
+- `utils/hype.ts` → `isHype(title)`: console (PS5, Switch 2, Xbox), GTA 6, DualSense, peça de PC (placa de vídeo, processador, SSD NVMe, DDR5, placa-mãe). Notebook/PC montado e capinha "para PS5" ficam de fora. Hype aceita desconto ≥ 8% (normal 20%), ganha +3 na fila (`postPriority`), não perde ponto na IA pelo preço alto e vem primeiro no feed KaBuM.
+- `npm run scrape:hype` → busca na Amazon por `HYPE_SEARCH_TERMS` (preço "De:" riscado = desconto); roda junto com ML/Amazon às 9h30/15h30.
+- `jobs/cleanup.job.ts` (4h10): apaga oferta nunca postada > 30 dias (`CLEANUP_UNPOSTED_DAYS`), postada com último post > 90 dias (`CLEANUP_POSTED_DAYS`, com os posts) e `FeedPrice` parado > 90 dias. A página some e vira o 404 próprio (`app/not-found.tsx`, mostra ofertas quentes, noindex).
 
 ## Classificação automática de categorias
 

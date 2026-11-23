@@ -54,6 +54,8 @@ Contexto de tendências atuais (novembro/dezembro 2026):
 - 13º salário caindo: compras maiores (celular, notebook, TV, eletrodomésticos)
 - Verão chegando no Brasil: ventilador, ar-condicionado, garrafa térmica, moda praia, protetor solar
 - Pokémon TCG: cartas e boosters em alta constante no Brasil
+- Games em alta: GTA 6 (lançamento de nov/2026), PS5 / PS5 Pro, Nintendo Switch 2, Xbox Series, controle DualSense — muito buscados, qualquer desconto real chama atenção
+- PC gamer / upgrade: placa de vídeo (RTX, Radeon), processador Ryzen/Intel, SSD NVMe, memória DDR5 — público entusiasta compara preço e compra quando cai
 - Eletrônicos: sempre em alta, especialmente com desconto > 25%
 - Nike e Adidas com descontos reais são excelentes conversores
 Só cite uma tendência no texto se o produto tiver relação DIRETA com ela — nunca force (ex.: não associe capa de celular à Black Friday sem motivo).
@@ -106,7 +108,8 @@ Critérios de pontuação:
 - Produto com relação direta a uma tendência atual (ver contexto acima) = +2 pontos
 - Preço final ≤ R$100 (compra por impulso, converte muito) = +2 pontos
 - Preço final entre R$100 e R$250 = +1 ponto
-- Preço final acima de R$1.500 (compra planejada, converte pouco em canal de ofertas) = -2 pontos
+- Preço final acima de R$1.500 (compra planejada, converte pouco em canal de ofertas) = -2 pontos — EXCETO console, jogo lançamento ou peça de PC (produto hype): esses não perdem ponto pelo preço
+- Produto hype (console, GTA 6, placa de vídeo, processador, SSD, DDR5) com qualquer desconto real ≥ 8% = +2 pontos
 - Categoria popular (eletrônicos, moda, esporte, casa, beleza) = +1 ponto
 - Item de uso diário e fácil de entender sem pesquisar (acessório, utilidade, cuidado pessoal, consumível) = +1 ponto
 

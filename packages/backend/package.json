@@ -23,6 +23,7 @@
     "scrape:ml": "tsx src/jobs/scrape-cli.ts ml",
     "scrape:hub": "tsx src/jobs/scrape-cli.ts hub",
     "scrape:amazon": "tsx src/jobs/scrape-cli.ts amazon",
+    "scrape:hype": "tsx src/jobs/scrape-cli.ts hype",
     "scrape:awin": "tsx src/jobs/scrape-cli.ts awin",
     "scrape:shopee": "tsx src/jobs/scrape-cli.ts shopee",
     "scrape:telegram": "tsx src/jobs/scrape-cli.ts telegram",
