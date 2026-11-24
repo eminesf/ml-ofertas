@@ -1,4 +1,6 @@
 import { gunzipSync } from 'zlib'
+import fs from 'fs'
+import path from 'path'
 import { isHype, HYPE_MIN_DISCOUNT } from '../../utils/hype'
 import { RawOffer } from '../base.provider'
 import { AwinAdvertiser, awinExternalId } from './index'
@@ -192,4 +194,32 @@ export async function scrapeAwinFeed(advertiser: AwinAdvertiser): Promise<RawOff
 
   console.log(`[Awin:${advertiser.name}] ${rows.length} linhas → ${offers.length} válidas → ${best.length} com desconto ≥ ${MIN_FEED_DISCOUNT}% (máx ${max})`)
   return best
+}
+
+// Produto único pelo feed (links vindos de grupos/canais): a página da Nike responde 403
+// para leitura direta, mas o feed tem preço, preço antigo e foto. O feed baixado fica em
+// disco por FEED_CACHE_HOURS (3h) — o job das fontes roda em processo novo a cada 5 min.
+const FEED_CACHE_HOURS = 3
+const FEED_CACHE_DIR = path.join(__dirname, '..', '..', '..', '..', '.awin-feed-cache')
+
+export async function findInFeed(advertiser: AwinAdvertiser, externalId: string): Promise<RawOffer | null> {
+  const apiKey = process.env.AWIN_FEED_API_KEY
+  if (!apiKey || !advertiser.feedIds?.length) return null
+  const file = path.join(FEED_CACHE_DIR, `${advertiser.name}.json`)
+  let offers: RawOffer[] | null = null
+  try {
+    const stat = fs.statSync(file)
+    if (Date.now() - stat.mtimeMs < FEED_CACHE_HOURS * 3600_000) offers = JSON.parse(fs.readFileSync(file, 'utf8'))
+  } catch {
+    // sem cache
+  }
+  if (!offers) {
+    const rows = await downloadFeed(apiKey, advertiser.feedIds)
+    offers = rows.map(r => rowToRawOffer(r, advertiser)).filter((o): o is RawOffer => !!o)
+    fs.mkdirSync(FEED_CACHE_DIR, { recursive: true })
+    fs.writeFileSync(file, JSON.stringify(offers))
+  }
+  // Várias cores com o mesmo ID: a de maior desconto
+  const hits = offers.filter(o => o.externalId === externalId)
+  return hits.sort((a, b) => b.discountPct - a.discountPct)[0] || null
 }

@@ -212,6 +212,11 @@ model Post {
 - Posting: Tech em 0/20/40, Achadinhos em 10/30/50 (`ACHADINHOS_POST_CRON`), `runPostingJob(max, force, group)`. Todos os envios do número passam por uma fila única com 20–40s entre mensagens (`inWhatsAppLine` em publish.ts). Sem `WHATSAPP_GROUP_ACHADINHOS_JID` volta a fila única.
 - Convite do site vai para os dois grupos. `/admin/fila` tem uma aba por grupo.
 
+## Grupos do WhatsApp como fonte (ex.: avisos da Nike)
+- O número do bot entra no grupo (`POST /api/admin/whatsapp/join {invite}`, `joinWhatsAppGroup`) e o id vai em `WHATSAPP_SOURCE_GROUPS` no .env. Só leitura.
+- O backend (dono do socket) escuta `messages.upsert` desses grupos e grava em `packages/.whatsapp-sources-queue.json` (`jobs/whatsapp-source.ts`); o job das fontes (telegram-source, 5 em 5 min, processo filho) consome a fila com o mesmo `handleSourcePost` (source `telegram` → prioridade, envio imediato, madrugada). Mensagem sem preço usa o preço da loja (`allowNoPrice`).
+- Nike bloqueia leitura direta da página (403): `scrapeAwinProduct` busca o produto no feed Awin (`findInFeed`, cache em disco `packages/.awin-feed-cache/` por 3h). externalId Nike = `NIKE-{código}` (sem cor) para bater link × feed.
+
 ## Madrugada e Pokémon
 - Grupos PRIVADOS do Telegram (`TELEGRAM_PRIVATE_SOURCES=+HASH,...`, ex.: "Promoções Pokémon") são lidos pela conta do dono via MTProto (`telegram`/gram.js, `channels/telegram/user-client.ts`): só leitura. Credenciais `TELEGRAM_API_ID`/`TELEGRAM_API_HASH` (my.telegram.org) e sessão em `packages/.telegram-user-session` (gitignored) criada com `npm run telegram:login` (o dono digita telefone e código). Mesmo pipeline dos canais públicos (`handleSourcePost`).
 - Fora de `POST_HOURS` (8–23h) o posting só libera ofertas com source `telegram` (o que os canais garimpados postam de madrugada, a gente posta também). Os canais são lidos 24h.

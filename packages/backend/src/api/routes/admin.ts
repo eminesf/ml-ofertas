@@ -5,7 +5,7 @@ import { runPostingJob, runRepostJob } from '../../jobs/offers.job'
 import { prisma } from '../../utils/prisma'
 import { publishOffer, postPriority } from '../../utils/publish'
 import { GROUPS, offerGroup } from '../../utils/groups'
-import { connectWhatsApp, getWhatsAppStatus, isWhatsAppEnabled, listWhatsAppGroups, sendWhatsAppToSelf } from '../../channels/whatsapp'
+import { connectWhatsApp, getWhatsAppStatus, isWhatsAppEnabled, listWhatsAppGroups, sendWhatsAppToSelf, joinWhatsAppGroup } from '../../channels/whatsapp'
 
 const router = Router()
 
@@ -106,6 +106,22 @@ router.get('/whatsapp/groups', async (_req, res) => {
     res.json({ groups: await listWhatsAppGroups() })
   } catch (err: any) {
     res.status(503).json({ error: err?.message || 'WhatsApp não conectado' })
+  }
+})
+
+// POST /api/admin/whatsapp/join — { invite } entra num grupo pelo link de convite e passa
+// a ler as ofertas dele como fonte (vale até reiniciar; para ficar, WHATSAPP_SOURCE_GROUPS no .env)
+router.post('/whatsapp/join', async (req, res) => {
+  const invite = String(req.body?.invite || '').trim()
+  if (!invite) return res.status(400).json({ error: 'invite obrigatório' })
+  try {
+    const group = await joinWhatsAppGroup(invite)
+    const sources = new Set((process.env.WHATSAPP_SOURCE_GROUPS || '').split(',').map(s => s.trim()).filter(Boolean))
+    sources.add(group.id)
+    process.env.WHATSAPP_SOURCE_GROUPS = [...sources].join(',')
+    res.json({ joined: true, ...group, sources: process.env.WHATSAPP_SOURCE_GROUPS })
+  } catch (err: any) {
+    res.status(400).json({ error: err?.message || 'Falha ao entrar no grupo' })
   }
 })
 

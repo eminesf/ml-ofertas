@@ -11,3 +11,5 @@ dist
 .telegram-sources.json
 packages/livros-removidos-*.json
 .telegram-user-session
+.awin-feed-cache/
+.whatsapp-sources-queue.json
