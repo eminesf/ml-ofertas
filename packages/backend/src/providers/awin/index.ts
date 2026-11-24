@@ -22,6 +22,9 @@ export const AWIN_ADVERTISERS: AwinAdvertiser[] = [
   // Sem feedIds de propósito: feeds BR & LATAM (47201..47257) vêm em CNY/USD e em inglês — só import por URL
   { name: 'aliexpress', label: 'AliExpress', mid: 18879, domains: ['aliexpress.com', 'pt.aliexpress.com', 'aliexpress.us'] },
   { name: 'stanley', label: 'Stanley', mid: 30599, domains: ['stanley1913.com', 'stanley1913.com.br', 'stanley.com.br'], feedIds: ['72033'] },
+  // Nike BR (afiliação aprovada em 24/11/2026). Feed 44669 traz product_price_old (preço "de");
+  // o 93360 ("Nike Product Feed - 2024") não tem preço antigo. Vai para o grupo Achadinhos.
+  { name: 'nike', label: 'Nike', mid: 17652, domains: ['nike.com.br'], feedIds: ['44669'] },
 ]
 
 export function findAwinAdvertiser(url: string): AwinAdvertiser | null {
@@ -51,6 +54,11 @@ export function awinExternalId(advertiser: AwinAdvertiser, url: string): string 
       // shopify: /products/{handle}
       const m = u.pathname.match(/\/products\/([a-z0-9-]+)/i)
       if (m) return `STANLEY-${m[1].slice(0, 60)}`
+    }
+    if (advertiser.name === 'nike') {
+      // nike.com.br/{slug}-{codigo}.html?cor=XX — cada cor é um produto
+      const m = u.pathname.match(/-(\d{5,})\.html$/)
+      if (m) return `NIKE-${m[1]}${u.searchParams.get('cor') ? `-${u.searchParams.get('cor')}` : ''}`
     }
     // fallback: pathname sanitizado
     const slug = u.pathname.replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 60)
