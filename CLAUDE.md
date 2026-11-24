@@ -198,6 +198,12 @@ model Post {
 ## Convite para o site
 - `jobs/site-invite.job.ts`: 1x/dia (`SITE_INVITE_CRON`, padrão `50 12 * * *`) manda nos dois canais um convite para o site com a imagem de compartilhamento (`/opengraph-image`) e o nº de ofertas das últimas 24h; 4 textos que se revezam por dia.
 
+## Envio imediato, fila no admin e boas-vindas
+- Fontes do Telegram são lidas a cada 5 min (`TELEGRAM_SOURCE_CRON`), com trava própria (não esperam o scrape ML/Amazon/hub). Oferta aprovada vinda delas é postada NA HORA: o processo filho chama `POST /api/admin/offer/:id/send` do backend (que tem o socket do WhatsApp). Máx `TELEGRAM_INSTANT_MAX` (3) por rodada; o resto vai para a fila com +6 e vale `TELEGRAM_SOURCE_MAX_AGE_HOURS` (3h). Motivo: em 23/11/2026 um box Pokémon postado às 15h29 na fonte saiu 18h20 aqui (cupom já tinha acabado).
+- `publishOffer` tem trava contra post duplo (Set em memória + checa `Post`), porque o envio imediato e o posting de 20 em 20 min podem pegar a mesma oferta.
+- `/admin/fila`: ofertas aprovadas sem post (6–72h), na ordem de `postPriority`, com botão **Enviar** (proxy `/api/admin/send/[id]`, fila via `/api/admin/queue`).
+- `jobs/welcome.job.ts`: quem entra no grupo do WhatsApp (`group-participants.update`) recebe, NO GRUPO e com @menção, as ofertas que já saíram hoje + link do site. Agrupa entradas (3 min) e no máx 1 a cada `WHATSAPP_WELCOME_COOLDOWN_MIN` (60); de madrugada espera o horário. DM para cada membro foi descartado (risco de ban). `WHATSAPP_WELCOME_DISABLED=true` desliga.
+
 ## Madrugada e Pokémon
 - Grupos PRIVADOS do Telegram (`TELEGRAM_PRIVATE_SOURCES=+HASH,...`, ex.: "Promoções Pokémon") são lidos pela conta do dono via MTProto (`telegram`/gram.js, `channels/telegram/user-client.ts`): só leitura. Credenciais `TELEGRAM_API_ID`/`TELEGRAM_API_HASH` (my.telegram.org) e sessão em `packages/.telegram-user-session` (gitignored) criada com `npm run telegram:login` (o dono digita telefone e código). Mesmo pipeline dos canais públicos (`handleSourcePost`).
 - Fora de `POST_HOURS` (8–23h) o posting só libera ofertas com source `telegram` (o que os canais garimpados postam de madrugada, a gente posta também). Os canais são lidos 24h.

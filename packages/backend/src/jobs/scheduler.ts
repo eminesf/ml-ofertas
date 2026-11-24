@@ -9,8 +9,11 @@ import path from 'path'
 import { leilaoEmAndamentoOuProximo } from '../utils/leilao-guard'
 import { runCleanupJob } from './cleanup.job'
 import { runSiteInviteJob } from './site-invite.job'
+import { startWelcomeJob } from './welcome.job'
 
-let scrapeRodando = false
+// Trava por grupo: a leitura das fontes do Telegram é leve e tem pressa (oferta
+// relâmpago) — não espera o scrape ML/Amazon/hub terminar
+const rodando = new Set<string>()
 
 // Scrapes com Playwright rodam em processo filho (scrape-cli) para um vazamento
 // ou crash do Chromium não derrubar a API. Pula se o bot-leilao estiver em leilão.
@@ -20,11 +23,12 @@ function runScrapeCli(target: string): Promise<void> {
     console.log(`[Scheduler] Scrape ${target} pulado: ${bloqueio}`)
     return Promise.resolve()
   }
-  if (scrapeRodando) {
+  const lock = target === 'telegram' ? 'telegram' : 'browser'
+  if (rodando.has(lock)) {
     console.log(`[Scheduler] Scrape ${target} pulado: outro scrape ainda rodando`)
     return Promise.resolve()
   }
-  scrapeRodando = true
+  rodando.add(lock)
   const script = path.join(__dirname, 'scrape-cli' + path.extname(__filename))
   console.log(`[Scheduler] Scrape ${target} iniciado...`)
   return new Promise(resolve => {
@@ -38,13 +42,13 @@ function runScrapeCli(target: string): Promise<void> {
     const timer = setTimeout(() => { console.warn(`[Scheduler] Scrape ${target} passou de 30 min — encerrando`); child.kill() }, 30 * 60_000)
     child.on('exit', code => {
       clearTimeout(timer)
-      scrapeRodando = false
+      rodando.delete(lock)
       console.log(`[Scheduler] Scrape ${target} terminou (exit ${code})`)
       resolve()
     })
     child.on('error', err => {
       clearTimeout(timer)
-      scrapeRodando = false
+      rodando.delete(lock)
       console.error(`[Scheduler] Scrape ${target} falhou ao iniciar:`, err)
       resolve()
     })
@@ -121,14 +125,15 @@ export function startScheduler() {
     })
     console.log('[Scheduler] Hub ML (afiliados + cupons): 10h45 e 16h45')
 
-    cron.schedule('10,30,50 * * * *', async () => {
+    cron.schedule(process.env.TELEGRAM_SOURCE_CRON || '*/5 * * * *', async () => {
       await runScrapeCli('telegram')
     })
-    console.log('[Scheduler] Fontes Telegram: a cada 20 min, 24h (de madrugada posta só o que vem delas)')
+    console.log('[Scheduler] Fontes Telegram: a cada 5 min, 24h, com envio imediato (de madrugada posta só o que vem delas)')
   }
 
   if (isWhatsAppEnabled()) {
     connectWhatsApp().catch(err => console.error('[WhatsApp] Falha ao conectar:', err))
+    startWelcomeJob()
     console.log('[Scheduler] WhatsApp: recebe as mesmas ofertas do Telegram no posting')
   }
 

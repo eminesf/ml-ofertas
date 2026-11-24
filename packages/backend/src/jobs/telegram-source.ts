@@ -196,6 +196,33 @@ export async function runTelegramSourceJob() {
   }
 }
 
+// Envio imediato: oferta de canal/grupo é relâmpago (cupom acaba, estoque esgota) —
+// esperar a fila de 20 em 20 min atrasava horas. Este job roda em processo filho,
+// sem o socket do WhatsApp, então pede o envio para a API do backend.
+// TELEGRAM_INSTANT_MAX (padrão 3) por rodada; o excedente vai para a fila com prioridade.
+let instantSent = 0
+async function sendNow(externalId: string, tag: string) {
+  const max = parseInt(process.env.TELEGRAM_INSTANT_MAX || '3', 10)
+  if (instantSent >= max || !process.env.ADMIN_SECRET) return
+  const offer = await prisma.offer.findUnique({
+    where: { externalId },
+    select: { id: true, telegramMessage: true, imageUrl: true, posts: { select: { id: true }, take: 1 } },
+  })
+  if (!offer?.telegramMessage || !offer.imageUrl || offer.posts.length) return
+  try {
+    const res = await fetch(`http://localhost:${process.env.PORT || 3001}/api/admin/offer/${offer.id}/send`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${process.env.ADMIN_SECRET}` },
+      signal: AbortSignal.timeout(120_000),
+    })
+    const body: any = await res.json().catch(() => ({}))
+    if (res.ok) instantSent++
+    console.log(`${tag} envio imediato: ${res.ok ? `telegram:${body.telegram} whatsapp:${body.whatsapp}` : body.error || res.status}`)
+  } catch (err: any) {
+    console.warn(`${tag} envio imediato falhou (fica na fila): ${err?.message}`)
+  }
+}
+
 // Um post de canal/grupo → oferta nossa (link resolvido, preço revalidado, IA)
 async function handleSourcePost(channel: string, post: ChannelPost) {
   const postPrice = post.price ?? 0
@@ -237,6 +264,7 @@ async function handleSourcePost(channel: string, post: ChannelPost) {
     // Texto do post (sem links) vai para o copy: cupom, preço com cupom, condições
     const sourceNote = post.text.replace(/https?:\/\/\S+/g, '').replace(/\n{3,}/g, '\n\n').trim().slice(0, 400)
     await processOffer({ ...raw, externalId: resolved.externalId, sourceNote }, resolved.provider, post.coupon || undefined, 'telegram')
+    await sendNow(resolved.externalId, tag)
   } catch (err: any) {
     console.error(`${tag} erro:`, err?.message || err)
   }
