@@ -3,6 +3,7 @@ import { classifyCategory, isBook } from '../utils/category'
 import { isHype, HYPE_MIN_DISCOUNT } from '../utils/hype'
 import { AffiliateProvider } from '../providers/base.provider'
 import { evaluateOffer, generatePostMessage, analyzeMarketValue, evaluateCouponOffer, generateCouponPostMessage, CouponContext, GeneratedPost } from '../ai'
+import { GroupKey, groupByKey, offerGroup } from '../utils/groups'
 import { publishOffer, postPriority, canPostNow, TELEGRAM_SOURCE_MAX_AGE_HOURS, ensureShortCode, shortLink, cleanTitle } from '../utils/publish'
 import { Offer } from '@prisma/client'
 import { scrapeHubProducts } from '../providers/mercadolivre/scraper-hub'
@@ -302,11 +303,14 @@ export async function runHubJob(providers: AffiliateProvider[]) {
 
 // Posting único: a MESMA oferta vai para Telegram e WhatsApp (link curto do site).
 // Só ofertas com imagem e recentes; fila ordenada por nota da IA + bônus de ticket baixo.
-export async function runPostingJob(maxPosts = 1, force = false) {
+// group: posta só ofertas daquele grupo do WhatsApp (o Telegram recebe as dos dois).
+// Sem group = qualquer oferta (posting manual / um grupo só).
+export async function runPostingJob(maxPosts = 1, force = false, group?: GroupKey) {
   // Fora do horário (POST_HOURS) só saem ofertas dos canais do Telegram: se eles
   // postam de madrugada, a gente acompanha.
   const offHours = !force && !canPostNow()
-  if (!offHours) console.log(`[Job] Iniciando job de posting (máx ${maxPosts} posts)`)
+  const tag = group ? `[${group}] ` : ''
+  if (!offHours) console.log(`[Job] ${tag}Iniciando job de posting (máx ${maxPosts} posts)`)
 
   const maxAgeHours = parseInt(process.env.POST_MAX_AGE_HOURS || '72', 10)
   const candidates = await prisma.offer.findMany({
@@ -318,11 +322,12 @@ export async function runPostingJob(maxPosts = 1, force = false) {
       posts: { none: {} },
       ...(offHours ? { source: 'telegram' } : {}),
     },
-    take: 300,
-  })
+    orderBy: { createdAt: 'desc' },
+    take: 600,
+  }).then(list => (group ? list.filter(o => offerGroup(o) === group) : list))
   if (offHours && candidates.length === 0) return
   // Variedade: penaliza categoria/loja/tipo que saíram nos últimos posts (evita 7 livros seguidos)
-  const recent = await prisma.post.findMany({ where: { channel: 'telegram' }, orderBy: { sentAt: 'desc' }, take: 4, include: { offer: { select: { category: true, provider: true, title: true } } } })
+  const recent = await prisma.post.findMany({ where: { channel: group ? groupByKey(group).channel : 'telegram' }, orderBy: { sentAt: 'desc' }, take: 4, include: { offer: { select: { category: true, provider: true, title: true } } } })
   const kind = (t: string) => (t.match(/^\S+/)?.[0] || '').toLowerCase()
   const pending: typeof candidates = []
   // Oferta dos canais do Telegram com mais de 6h provavelmente já acabou
@@ -340,7 +345,7 @@ export async function runPostingJob(maxPosts = 1, force = false) {
     seen.unshift(next)
   }
 
-  console.log(`[Job] ${candidates.length} ofertas na fila, postando ${pending.length}`)
+  console.log(`[Job] ${tag}${candidates.length} ofertas na fila, postando ${pending.length}`)
 
   for (const offer of pending) {
     try {

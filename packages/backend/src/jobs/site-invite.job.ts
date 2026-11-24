@@ -2,6 +2,7 @@ import { prisma } from '../utils/prisma'
 import { SITE_URL } from '../utils/publish'
 import { sendPhoto, sendMessage } from '../channels/telegram'
 import { isWhatsAppEnabled, isWhatsAppConnected, sendWhatsAppPost } from '../channels/whatsapp'
+import { GROUPS } from '../utils/groups'
 
 // Convite para o site, 1x por dia (SITE_INVITE_CRON): lembra que no site tem MAIS
 // ofertas do que cabe no grupo, com busca e categorias. Texto rotativo para não cansar.
@@ -40,10 +41,15 @@ export async function runSiteInviteJob(): Promise<void> {
   const image = `${SITE_URL}/opengraph-image`
 
   const telegram = (await sendPhoto(image, msg.telegram)) || (await sendMessage(msg.telegram))
-  let whatsapp: boolean | null = null
+  // Convite vai para os dois grupos do WhatsApp
+  const whatsapp: Record<string, boolean> = {}
   if (isWhatsAppEnabled() && isWhatsAppConnected()) {
-    await new Promise(r => setTimeout(r, 20_000)) // espaça do último envio
-    whatsapp = await sendWhatsAppPost(msg.whatsapp, image)
+    for (const g of GROUPS) {
+      const jid = g.jid()
+      if (!jid?.endsWith('@g.us')) continue
+      await new Promise(r => setTimeout(r, 20_000 + Math.random() * 20_000)) // espaça dos outros envios
+      whatsapp[g.key] = await sendWhatsAppPost(msg.whatsapp, image, jid)
+    }
   }
-  console.log(`[SiteInvite] convite enviado (${n} ofertas) — telegram:${telegram} whatsapp:${whatsapp}`)
+  console.log(`[SiteInvite] convite enviado (${n} ofertas) — telegram:${telegram} whatsapp:${JSON.stringify(whatsapp)}`)
 }

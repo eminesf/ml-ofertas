@@ -4,6 +4,7 @@ import QRCode from 'qrcode'
 import { runPostingJob, runRepostJob } from '../../jobs/offers.job'
 import { prisma } from '../../utils/prisma'
 import { publishOffer, postPriority } from '../../utils/publish'
+import { GROUPS, offerGroup } from '../../utils/groups'
 import { connectWhatsApp, getWhatsAppStatus, isWhatsAppEnabled, listWhatsAppGroups, sendWhatsAppToSelf } from '../../channels/whatsapp'
 
 const router = Router()
@@ -56,7 +57,14 @@ router.get('/queue', async (req, res) => {
     take: 300,
   })
   offers.sort((a, b) => postPriority(b) - postPriority(a))
-  res.json({ offers, total: offers.length })
+  const withGroup = offers.map(o => ({ ...o, group: offerGroup(o) }))
+  const groups = GROUPS.map(g => ({
+    key: g.key,
+    label: g.label,
+    configured: !!g.jid()?.endsWith('@g.us'),
+    count: withGroup.filter(o => o.group === g.key).length,
+  }))
+  res.json({ offers: withGroup, total: offers.length, groups })
 })
 
 // POST /api/admin/offer/:id/send — posta já nos grupos (Telegram + WhatsApp), fura a fila e o horário

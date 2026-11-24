@@ -130,16 +130,23 @@ async function openSocket(options: ConnectOptions): Promise<void> {
   })
 }
 
-export async function listWhatsAppGroups(): Promise<{ id: string; subject: string; participants: number }[]> {
+export async function listWhatsAppGroups(): Promise<{ id: string; subject: string; participants: number; botIsAdmin: boolean; onlyAdminsSend: boolean }[]> {
   if (!sock || !isOpen) throw new Error('WhatsApp não conectado')
   const groups = await sock.groupFetchAllParticipating()
-  return Object.values(groups).map(g => ({ id: g.id, subject: g.subject, participants: g.participants.length }))
+  const me = [sock.user?.id, (sock.user as any)?.lid].filter(Boolean).map(j => String(j).split(':')[0].split('@')[0])
+  return Object.values(groups).map(g => ({
+    id: g.id,
+    subject: g.subject,
+    participants: g.participants.length,
+    botIsAdmin: g.participants.some(p => !!p.admin && me.includes(String(p.id).split(':')[0].split('@')[0])),
+    onlyAdminsSend: !!g.announce,
+  }))
 }
 
-
-// Envia foto com legenda; se a imagem falhar, envia só o texto
-export async function sendWhatsAppPost(text: string, imageUrl?: string | null): Promise<boolean> {
-  const jid = process.env.WHATSAPP_GROUP_JID
+// Envia foto com legenda; se a imagem falhar, envia só o texto.
+// groupJid: grupo de destino (padrão: WHATSAPP_GROUP_JID, o Tech & TCG)
+export async function sendWhatsAppPost(text: string, imageUrl?: string | null, groupJid?: string): Promise<boolean> {
+  const jid = groupJid || process.env.WHATSAPP_GROUP_JID
   if (!sock || !isOpen || !jid?.endsWith('@g.us')) return false
 
   if (imageUrl) {

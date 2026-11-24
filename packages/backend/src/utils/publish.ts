@@ -5,6 +5,7 @@ import { sendPhoto, sendMessage } from '../channels/telegram'
 import { isWhatsAppEnabled, isWhatsAppConnected, sendWhatsAppPost } from '../channels/whatsapp'
 import { queueIndexNow } from './indexnow'
 import { isHype, HYPE_PRIORITY_BONUS } from './hype'
+import { groupByKey, offerGroup } from './groups'
 
 // Publicação única para Telegram + WhatsApp: os dois canais recebem a MESMA oferta,
 // com o link curto do site (/r/{code}) no lugar do link de afiliado cheio.
@@ -95,7 +96,23 @@ export function canPostNow(): boolean {
   return inPostingHours()
 }
 
+// Baileys é não oficial: TODOS os envios do número (os dois grupos) passam por uma
+// fila única, com 20–40s entre mensagens, para não parecer spam
 let lastWhatsAppAt = 0
+let waLine: Promise<unknown> = Promise.resolve()
+function inWhatsAppLine<T>(send: () => Promise<T>): Promise<T> {
+  const run = waLine.then(async () => {
+    const gap = 20000 + Math.random() * 20000 - (Date.now() - lastWhatsAppAt)
+    if (gap > 0) await new Promise(r => setTimeout(r, gap))
+    try {
+      return await send()
+    } finally {
+      lastWhatsAppAt = Date.now()
+    }
+  })
+  waLine = run.catch(() => {})
+  return run
+}
 
 // Posta a oferta nos dois canais (WhatsApp só se habilitado e conectado).
 // telegramText/whatsappText permitem repost com copy novo; default = copy salvo.
@@ -137,21 +154,20 @@ async function doPublish(
     await prisma.post.create({ data: { offerId: offer.id, channel: 'telegram', message: tgText, whatsappMessage: waText || null, success: telegram, repostedAt } })
   }
 
+  // WhatsApp: cada oferta vai para UM grupo (Tech & TCG ou Achadinhos — utils/groups.ts)
+  const group = groupByKey(offerGroup(offer))
+  const groupJid = group.jid()
   let whatsapp: boolean | null = null
-  if (waText && isWhatsAppEnabled()) {
+  if (waText && isWhatsAppEnabled() && groupJid?.endsWith('@g.us')) {
     if (!isWhatsAppConnected()) {
       console.warn('[Publish] WhatsApp desconectado — oferta só no Telegram')
     } else {
-      // Baileys é não oficial: espaça os envios (20–40s) para não parecer spam
-      const gap = 20000 + Math.random() * 20000 - (Date.now() - lastWhatsAppAt)
-      if (gap > 0) await new Promise(r => setTimeout(r, gap))
-      whatsapp = await sendWhatsAppPost(waText, image)
-      lastWhatsAppAt = Date.now()
-      await prisma.post.create({ data: { offerId: offer.id, channel: 'whatsapp', message: waText, whatsappMessage: waText, success: whatsapp, repostedAt } })
+      whatsapp = await inWhatsAppLine(() => sendWhatsAppPost(waText, image, groupJid))
+      await prisma.post.create({ data: { offerId: offer.id, channel: group.channel, message: waText, whatsappMessage: waText, success: whatsapp, repostedAt } })
     }
   }
 
   if (!opts.repost && (telegram || whatsapp)) queueIndexNow(`/oferta/${offer.id}`)
-  console.log(`[Publish] "${offer.title.slice(0, 60)}" R$${offer.salePrice} — telegram:${telegram} whatsapp:${whatsapp}`)
+  console.log(`[Publish] "${offer.title.slice(0, 60)}" R$${offer.salePrice} — telegram:${telegram} whatsapp[${group.key}]:${whatsapp}`)
   return { telegram, whatsapp }
 }
