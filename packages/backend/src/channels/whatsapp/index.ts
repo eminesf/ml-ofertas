@@ -148,15 +148,14 @@ export function onGroupJoin(handler: (jids: string[]) => void) {
   joinHandler = handler
 }
 
-// Texto no grupo marcando pessoas (@menção)
-export async function sendWhatsAppGroupText(text: string, mentions: string[] = []): Promise<boolean> {
-  const jid = process.env.WHATSAPP_GROUP_JID
-  if (!sock || !isOpen || !jid?.endsWith('@g.us')) return false
+// Mensagem no privado de uma pessoa (histórico para novo membro do grupo)
+export async function sendWhatsAppDirect(jid: string, text: string): Promise<boolean> {
+  if (!sock || !isOpen) return false
   try {
-    await sock.sendMessage(jid, { text, mentions })
+    await sock.sendMessage(jid, { text })
     return true
   } catch (err: any) {
-    console.error('[WhatsApp] Erro ao enviar texto:', err?.message)
+    console.error('[WhatsApp] Erro ao enviar no privado:', err?.message)
     return false
   }
 }
