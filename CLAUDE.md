@@ -204,6 +204,14 @@ model Post {
 - `/admin/fila`: ofertas aprovadas sem post (6–72h), na ordem de `postPriority`, com botão **Enviar** (proxy `/api/admin/send/[id]`, fila via `/api/admin/queue`).
 - O bot NÃO manda mensagem para quem entra no grupo (nem no grupo, nem no privado) — o dono não quer. O histórico para novos membros é o recurso nativo do WhatsApp ("compartilhar histórico do grupo"), ligado pelo dono no app.
 
+## Dois grupos de WhatsApp (desde 24/11/2026)
+- Mesmo número do bot, cada oferta vai para UM grupo (`utils/groups.ts` → `offerGroup`):
+  - **Tech & TCG** (`WHATSAPP_GROUP_JID`, Post.channel `whatsapp`): categoria eletronicos/pokemon, `isHype`, games, Lego/Funko/TCG, TV, caixa de som. Eletrodoméstico que cai em "eletronicos" (aspirador, air fryer, ventilador…) vai para Achadinhos.
+  - **Achadinhos** (`WHATSAPP_GROUP_ACHADINHOS_JID`, Post.channel `whatsapp-achadinhos`): o resto.
+- O canal do Telegram continua recebendo tudo.
+- Posting: Tech em 0/20/40, Achadinhos em 10/30/50 (`ACHADINHOS_POST_CRON`), `runPostingJob(max, force, group)`. Todos os envios do número passam por uma fila única com 20–40s entre mensagens (`inWhatsAppLine` em publish.ts). Sem `WHATSAPP_GROUP_ACHADINHOS_JID` volta a fila única.
+- Convite do site vai para os dois grupos. `/admin/fila` tem uma aba por grupo.
+
 ## Madrugada e Pokémon
 - Grupos PRIVADOS do Telegram (`TELEGRAM_PRIVATE_SOURCES=+HASH,...`, ex.: "Promoções Pokémon") são lidos pela conta do dono via MTProto (`telegram`/gram.js, `channels/telegram/user-client.ts`): só leitura. Credenciais `TELEGRAM_API_ID`/`TELEGRAM_API_HASH` (my.telegram.org) e sessão em `packages/.telegram-user-session` (gitignored) criada com `npm run telegram:login` (o dono digita telefone e código). Mesmo pipeline dos canais públicos (`handleSourcePost`).
 - Fora de `POST_HOURS` (8–23h) o posting só libera ofertas com source `telegram` (o que os canais garimpados postam de madrugada, a gente posta também). Os canais são lidos 24h.

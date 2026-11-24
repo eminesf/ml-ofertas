@@ -17,6 +17,14 @@ interface QueueOffer {
   aiScore: number | null
   couponCode: string | null
   createdAt: string
+  group: string
+}
+
+interface GroupTab {
+  key: string
+  label: string
+  configured: boolean
+  count: number
 }
 
 type SendState = 'sending' | 'sent' | { error: string }
@@ -39,6 +47,8 @@ function ago(iso: string) {
 export default function FilaPage() {
   const [hours, setHours] = useState(24)
   const [offers, setOffers] = useState<QueueOffer[] | null>(null)
+  const [groups, setGroups] = useState<GroupTab[]>([])
+  const [tab, setTab] = useState('tech')
   const [error, setError] = useState('')
   const [state, setState] = useState<Record<string, SendState>>({})
 
@@ -49,6 +59,7 @@ export default function FilaPage() {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || `Erro ${res.status}`)
       setOffers(data.offers)
+      setGroups(data.groups || [])
     } catch (err: any) {
       setError(err.message)
       setOffers([])
@@ -84,15 +95,34 @@ export default function FilaPage() {
         </button>
       </div>
       <p style={{ color: '#666', fontSize: 13, marginTop: 0, marginBottom: 18 }}>
-        Aprovadas pela IA, na ordem em que o bot postaria. <b>Enviar</b> posta agora no Telegram e no WhatsApp.
+        Aprovadas pela IA, na ordem em que o bot postaria. <b>Enviar</b> posta agora no Telegram e no grupo do WhatsApp da aba.
       </p>
+
+      <div style={{ display: 'flex', gap: 6, borderBottom: '2px solid #e5e5e5', marginBottom: 16 }}>
+        {groups.map(g => (
+          <button
+            key={g.key}
+            onClick={() => setTab(g.key)}
+            style={{
+              background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+              padding: '8px 14px', marginBottom: -2, fontSize: 14,
+              fontWeight: tab === g.key ? 800 : 500,
+              color: tab === g.key ? '#111' : '#777',
+              borderBottom: tab === g.key ? '3px solid #FFE600' : '3px solid transparent',
+            }}
+          >
+            {g.label} <span style={{ background: '#eee', borderRadius: 10, padding: '1px 7px', fontSize: 12, marginLeft: 4 }}>{g.count}</span>
+            {!g.configured && <span style={{ color: '#c00', fontSize: 11, marginLeft: 6 }}>(grupo não configurado)</span>}
+          </button>
+        ))}
+      </div>
 
       {error && <p style={{ color: '#c00' }}>{error}</p>}
       {offers === null && <p>Carregando…</p>}
-      {offers?.length === 0 && !error && <p>Nada na fila. Tudo que foi aprovado já foi postado.</p>}
+      {offers && !error && !offers.some(o => !groups.length || o.group === tab) && <p>Nada na fila deste grupo. Tudo que foi aprovado já foi postado.</p>}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {offers?.map(o => {
+        {offers?.filter(o => !groups.length || o.group === tab).map(o => {
           const st = state[o.id]
           return (
             <div key={o.id} style={{ display: 'flex', gap: 12, alignItems: 'center', background: '#fff', borderRadius: 10, padding: 10, border: '1px solid #e5e5e5', opacity: st === 'sent' ? 0.5 : 1 }}>

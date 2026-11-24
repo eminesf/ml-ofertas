@@ -66,9 +66,22 @@ export function startScheduler() {
   // (mesma oferta nos dois; só dentro de POST_HOURS, padrão 8-23). Volume baixo de
   // propósito: WhatsApp via Baileys arrisca banimento com muitas mensagens.
   const maxPostsPerRun = parseInt(process.env.POST_MAX || '1', 10)
-  cron.schedule('*/20 * * * *', async () => {
-    await runPostingJob(maxPostsPerRun).catch(console.error)
-  })
+  // Dois grupos (utils/groups.ts): cada um com sua fila e seu ritmo, em minutos
+  // alternados (Tech & TCG em 0/20/40, Achadinhos em 10/30/50) — o número do bot
+  // nunca manda duas ofertas seguidas. Sem o 2º grupo configurado, fila única.
+  if (process.env.WHATSAPP_GROUP_ACHADINHOS_JID) {
+    cron.schedule('*/20 * * * *', async () => {
+      await runPostingJob(maxPostsPerRun, false, 'tech').catch(console.error)
+    })
+    cron.schedule(process.env.ACHADINHOS_POST_CRON || '10,30,50 * * * *', async () => {
+      await runPostingJob(maxPostsPerRun, false, 'achadinhos').catch(console.error)
+    })
+    console.log('[Scheduler] Posting: Tech & TCG em 0/20/40, Achadinhos em 10/30/50')
+  } else {
+    cron.schedule('*/20 * * * *', async () => {
+      await runPostingJob(maxPostsPerRun).catch(console.error)
+    })
+  }
 
   // Repost de ofertas válidas — às 12h e 20h
   // Convite para o site 1x/dia (texto rotativo) — SITE_INVITE_CRON, padrão 12h50
