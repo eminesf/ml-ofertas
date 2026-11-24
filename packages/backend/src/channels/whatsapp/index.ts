@@ -82,13 +82,6 @@ async function openSocket(options: ConnectOptions): Promise<void> {
 
   socket.ev.on('creds.update', saveCreds)
 
-  // Entrada de membro no grupo de ofertas → handler registrado (boas-vindas com o histórico)
-  socket.ev.on('group-participants.update', ({ id, participants, action }) => {
-    if (action !== 'add' || id !== process.env.WHATSAPP_GROUP_JID || !joinHandler) return
-    const jids = (participants as any[]).map(p => (typeof p === 'string' ? p : p?.id)).filter(Boolean)
-    if (jids.length) joinHandler(jids)
-  })
-
   socket.ev.on('connection.update', ({ connection, lastDisconnect, qr }) => {
     if (qr) {
       latestQr = qr
@@ -143,22 +136,6 @@ export async function listWhatsAppGroups(): Promise<{ id: string; subject: strin
   return Object.values(groups).map(g => ({ id: g.id, subject: g.subject, participants: g.participants.length }))
 }
 
-let joinHandler: ((jids: string[]) => void) | null = null
-export function onGroupJoin(handler: (jids: string[]) => void) {
-  joinHandler = handler
-}
-
-// Mensagem no privado de uma pessoa (histórico para novo membro do grupo)
-export async function sendWhatsAppDirect(jid: string, text: string): Promise<boolean> {
-  if (!sock || !isOpen) return false
-  try {
-    await sock.sendMessage(jid, { text })
-    return true
-  } catch (err: any) {
-    console.error('[WhatsApp] Erro ao enviar no privado:', err?.message)
-    return false
-  }
-}
 
 // Envia foto com legenda; se a imagem falhar, envia só o texto
 export async function sendWhatsAppPost(text: string, imageUrl?: string | null): Promise<boolean> {
