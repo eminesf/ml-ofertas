@@ -71,7 +71,7 @@ export function cleanTitle(title: string): string {
 // Ofertas vindas dos canais do Telegram (source 'telegram') furam a fila: já foram
 // garimpadas por gente e expiram rápido.
 export const TELEGRAM_SOURCE_BONUS = 6
-export const TELEGRAM_SOURCE_MAX_AGE_HOURS = 6
+export const TELEGRAM_SOURCE_MAX_AGE_HOURS = parseInt(process.env.TELEGRAM_SOURCE_MAX_AGE_HOURS || '3', 10)
 
 // Produtos hype (console, GTA, peça de PC) ganham +3: compensam o ticket alto
 export function postPriority(o: Pick<Offer, 'aiScore' | 'salePrice' | 'discountPct'> & { source?: string; title?: string }): number {
@@ -102,6 +102,28 @@ let lastWhatsAppAt = 0
 export async function publishOffer(
   offer: Offer,
   opts: { telegramText?: string; whatsappText?: string; repost?: boolean } = {}
+): Promise<{ telegram: boolean; whatsapp: boolean | null }> {
+  // Trava contra post duplo: envio imediato (fonte Telegram / botão do admin) e o
+  // posting de 20 em 20 min podem pegar a mesma oferta ao mesmo tempo
+  if (!opts.repost) {
+    if (publishing.has(offer.id) || (await prisma.post.count({ where: { offerId: offer.id } })) > 0) {
+      console.log(`[Publish] ${offer.id} já postada/em envio — pulando`)
+      return { telegram: false, whatsapp: null }
+    }
+    publishing.add(offer.id)
+  }
+  try {
+    return await doPublish(offer, opts)
+  } finally {
+    if (!opts.repost) publishing.delete(offer.id)
+  }
+}
+
+const publishing = new Set<string>()
+
+async function doPublish(
+  offer: Offer,
+  opts: { telegramText?: string; whatsappText?: string; repost?: boolean }
 ): Promise<{ telegram: boolean; whatsapp: boolean | null }> {
   const code = await ensureShortCode(offer.externalId)
   const image = bestImage(offer.imageUrl)

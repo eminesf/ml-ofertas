@@ -82,6 +82,13 @@ async function openSocket(options: ConnectOptions): Promise<void> {
 
   socket.ev.on('creds.update', saveCreds)
 
+  // Entrada de membro no grupo de ofertas → handler registrado (boas-vindas com o histórico)
+  socket.ev.on('group-participants.update', ({ id, participants, action }) => {
+    if (action !== 'add' || id !== process.env.WHATSAPP_GROUP_JID || !joinHandler) return
+    const jids = (participants as any[]).map(p => (typeof p === 'string' ? p : p?.id)).filter(Boolean)
+    if (jids.length) joinHandler(jids)
+  })
+
   socket.ev.on('connection.update', ({ connection, lastDisconnect, qr }) => {
     if (qr) {
       latestQr = qr
@@ -134,6 +141,24 @@ export async function listWhatsAppGroups(): Promise<{ id: string; subject: strin
   if (!sock || !isOpen) throw new Error('WhatsApp não conectado')
   const groups = await sock.groupFetchAllParticipating()
   return Object.values(groups).map(g => ({ id: g.id, subject: g.subject, participants: g.participants.length }))
+}
+
+let joinHandler: ((jids: string[]) => void) | null = null
+export function onGroupJoin(handler: (jids: string[]) => void) {
+  joinHandler = handler
+}
+
+// Texto no grupo marcando pessoas (@menção)
+export async function sendWhatsAppGroupText(text: string, mentions: string[] = []): Promise<boolean> {
+  const jid = process.env.WHATSAPP_GROUP_JID
+  if (!sock || !isOpen || !jid?.endsWith('@g.us')) return false
+  try {
+    await sock.sendMessage(jid, { text, mentions })
+    return true
+  } catch (err: any) {
+    console.error('[WhatsApp] Erro ao enviar texto:', err?.message)
+    return false
+  }
 }
 
 // Envia foto com legenda; se a imagem falhar, envia só o texto

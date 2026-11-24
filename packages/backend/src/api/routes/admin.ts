@@ -2,6 +2,8 @@ import { Router, Request, Response, NextFunction } from 'express'
 import { timingSafeEqual } from 'crypto'
 import QRCode from 'qrcode'
 import { runPostingJob, runRepostJob } from '../../jobs/offers.job'
+import { prisma } from '../../utils/prisma'
+import { publishOffer, postPriority } from '../../utils/publish'
 import { connectWhatsApp, getWhatsAppStatus, isWhatsAppEnabled, listWhatsAppGroups, sendWhatsAppToSelf } from '../../channels/whatsapp'
 
 const router = Router()
@@ -34,6 +36,43 @@ router.post('/job/post', (req, res) => {
 router.post('/job/repost', (req, res) => {
   runRepostJob().catch(console.error)
   res.json({ started: true, job: 'repost' })
+})
+
+// GET /api/admin/queue?hours=48 — ofertas aprovadas que ainda não foram para os grupos
+router.get('/queue', async (req, res) => {
+  const hours = Math.min(parseInt(String(req.query.hours || '48'), 10) || 48, 168)
+  const offers = await prisma.offer.findMany({
+    where: {
+      telegramMessage: { not: null },
+      aiScore: { gte: 6 },
+      createdAt: { gte: new Date(Date.now() - hours * 3600_000) },
+      posts: { none: {} },
+    },
+    select: {
+      id: true, title: true, provider: true, source: true, category: true, imageUrl: true,
+      salePrice: true, originalPrice: true, discountPct: true, aiScore: true, couponCode: true,
+      createdAt: true, shortCode: true,
+    },
+    take: 300,
+  })
+  offers.sort((a, b) => postPriority(b) - postPriority(a))
+  res.json({ offers, total: offers.length })
+})
+
+// POST /api/admin/offer/:id/send — posta já nos grupos (Telegram + WhatsApp), fura a fila e o horário
+router.post('/offer/:id/send', async (req, res) => {
+  const offer = await prisma.offer.findUnique({ where: { id: req.params.id } })
+  if (!offer) return res.status(404).json({ error: 'Oferta não encontrada' })
+  if (!offer.telegramMessage) return res.status(409).json({ error: 'Oferta sem texto gerado (reprovada pela IA)' })
+  try {
+    const result = await publishOffer(offer)
+    if (!result.telegram && result.whatsapp === null) {
+      return res.status(409).json({ error: 'Já foi postada (ou está sendo enviada agora)', ...result })
+    }
+    res.json({ sent: true, ...result })
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message || 'Falha ao enviar' })
+  }
 })
 
 // GET /api/admin/whatsapp/status — estado da conexão e QR pendente (data URL)
