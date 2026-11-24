@@ -5,6 +5,7 @@ import { prisma } from '../utils/prisma'
 import { resolveProviderByUrl } from '../providers/registry'
 import { processOffer } from './offers.job'
 import { RawOffer } from '../providers/base.provider'
+import { takeWhatsAppSourceMessages } from './whatsapp-source'
 
 // Importa ofertas de canais PÚBLICOS do Telegram (página t.me/s/<canal>, sem login).
 // Aproveita só o LINK do produto: resolve o link curto até a loja, descarta o
@@ -194,6 +195,16 @@ export async function runTelegramSourceJob() {
       }
     }
   }
+
+  // Grupos do WhatsApp usados como fonte (jobs/whatsapp-source.ts): o backend guardou as
+  // mensagens novas; aqui elas passam pelo mesmo pipeline. Avisos de loja (Nike) muitas vezes
+  // não trazem preço — vale o preço lido da loja/feed.
+  for (const m of takeWhatsAppSourceMessages().slice(-maxPerChannel)) {
+    const links = [...new Set([...m.links, ...(m.text.match(/https?:\/\/[^\s*_~]+/g) || [])])]
+      .filter(u => !/chat\.whatsapp\.com|wa\.me\//.test(u))
+    const coupon = m.text.match(/cupom:?\s*\*?([A-Z0-9]{4,20})\b/i)?.[1]?.toUpperCase() || null
+    await handleSourcePost('whatsapp', { id: 0, text: m.text, links, price: parseLoosePrice(m.text), coupon }, { allowNoPrice: true })
+  }
 }
 
 // Envio imediato: oferta de canal/grupo é relâmpago (cupom acaba, estoque esgota) —
@@ -224,11 +235,11 @@ async function sendNow(externalId: string, tag: string) {
 }
 
 // Um post de canal/grupo → oferta nossa (link resolvido, preço revalidado, IA)
-async function handleSourcePost(channel: string, post: ChannelPost) {
+async function handleSourcePost(channel: string, post: ChannelPost, opts: { allowNoPrice?: boolean } = {}) {
   const postPrice = post.price ?? 0
   const tag = `[TgSource][${channel}/${post.id}]`
   // Posts de cupom/lista não têm um produto único — por ora ficam de fora
-  if (!post.price || !post.links.length || /^\W*cupo(m|ns)\b/i.test(post.text.split('\n')[0])) {
+  if ((!post.price && !opts.allowNoPrice) || !post.links.length || /^\W*cupo(m|ns)\b/i.test(post.text.split('\n')[0])) {
     console.log(`${tag} pulado (sem produto/preço): ${post.text.split('\n')[0].slice(0, 60)}`)
     return
   }
@@ -254,7 +265,7 @@ async function handleSourcePost(channel: string, post: ChannelPost) {
     // Preço já subiu desde o post de origem → promoção acabou. Post com cupom/Pix
     // mostra o preço final (cupom aplicado), então a tolerância é maior.
     const tolerance = post.coupon || /pix/i.test(post.text) ? 1.35 : 1.1
-    if (raw.salePrice > postPrice * tolerance) {
+    if (postPrice && raw.salePrice > postPrice * tolerance) {
       console.log(`${tag} preço subiu (canal R$${post.price} → loja R$${raw.salePrice}), pulando`)
       return
     }

@@ -1,6 +1,6 @@
 import { AffiliateProvider, RawOffer } from '../base.provider'
 import { fetchGenericProduct } from '../html-product'
-import { scrapeAwinFeed } from './feed'
+import { scrapeAwinFeed, findInFeed } from './feed'
 
 // Publisher ID do painel ui.awin.com (PF - Fox Ofertas e Promoções)
 const DEFAULT_AFFILIATE_ID = '2953175'
@@ -56,9 +56,10 @@ export function awinExternalId(advertiser: AwinAdvertiser, url: string): string 
       if (m) return `STANLEY-${m[1].slice(0, 60)}`
     }
     if (advertiser.name === 'nike') {
-      // nike.com.br/{slug}-{codigo}.html?cor=XX — cada cor é um produto
+      // nike.com.br/{slug}-{codigo}.html?cor=XX — cores do mesmo modelo contam como um produto
+      // (o link dos grupos às vezes vem sem ?cor; o ID tem de bater com o do feed)
       const m = u.pathname.match(/-(\d{5,})\.html$/)
-      if (m) return `NIKE-${m[1]}${u.searchParams.get('cor') ? `-${u.searchParams.get('cor')}` : ''}`
+      if (m) return `NIKE-${m[1]}`
     }
     // fallback: pathname sanitizado
     const slug = u.pathname.replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 60)
@@ -98,6 +99,11 @@ export async function scrapeAwinProduct(url: string): Promise<RawOffer | null> {
   }
 
   const cleanUrl = url.split('#')[0].split('?')[0]
+  // Loja com feed (Nike bloqueia leitura direta da página com 403): dados do feed Awin
+  if (advertiser.feedIds?.length) {
+    const fromFeed = await findInFeed(advertiser, awinExternalId(advertiser, cleanUrl)).catch(() => null)
+    if (fromFeed) return fromFeed
+  }
   const data = await fetchGenericProduct(cleanUrl)
   if (!data) return null
 

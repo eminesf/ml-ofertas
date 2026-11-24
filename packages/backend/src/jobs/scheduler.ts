@@ -9,6 +9,7 @@ import path from 'path'
 import { leilaoEmAndamentoOuProximo } from '../utils/leilao-guard'
 import { runCleanupJob } from './cleanup.job'
 import { runSiteInviteJob } from './site-invite.job'
+import { startWhatsAppSourceListener } from './whatsapp-source'
 
 // Trava por grupo: a leitura das fontes do Telegram é leve e tem pressa (oferta
 // relâmpago) — não espera o scrape ML/Amazon/hub terminar
@@ -145,6 +146,7 @@ export function startScheduler() {
 
   if (isWhatsAppEnabled()) {
     connectWhatsApp().catch(err => console.error('[WhatsApp] Falha ao conectar:', err))
+    startWhatsAppSourceListener()
     console.log('[Scheduler] WhatsApp: recebe as mesmas ofertas do Telegram no posting')
   }
 

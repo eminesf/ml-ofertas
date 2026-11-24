@@ -82,6 +82,21 @@ async function openSocket(options: ConnectOptions): Promise<void> {
 
   socket.ev.on('creds.update', saveCreds)
 
+  // Mensagens novas de grupos-fonte (WHATSAPP_SOURCE_GROUPS) → handler (jobs/whatsapp-source.ts)
+  socket.ev.on('messages.upsert', ({ messages, type }) => {
+    if (type !== 'notify' || !sourceHandler) return
+    const sources = (process.env.WHATSAPP_SOURCE_GROUPS || '').split(',').map(s => s.trim()).filter(Boolean)
+    for (const m of messages) {
+      const jid = m.key.remoteJid
+      if (!jid || !sources.includes(jid) || m.key.fromMe) continue
+      const msg: any = m.message || {}
+      const text: string = msg.conversation || msg.extendedTextMessage?.text || msg.imageMessage?.caption || msg.videoMessage?.caption || ''
+      if (!text.trim()) continue
+      const links = [msg.extendedTextMessage?.matchedText, msg.extendedTextMessage?.canonicalUrl].filter(Boolean) as string[]
+      sourceHandler({ group: jid, id: m.key.id || String(Date.now()), text, links, at: Number(m.messageTimestamp || 0) * 1000 || Date.now() })
+    }
+  })
+
   socket.ev.on('connection.update', ({ connection, lastDisconnect, qr }) => {
     if (qr) {
       latestQr = qr
@@ -141,6 +156,23 @@ export async function listWhatsAppGroups(): Promise<{ id: string; subject: strin
     botIsAdmin: g.participants.some(p => !!p.admin && me.includes(String(p.id).split(':')[0].split('@')[0])),
     onlyAdminsSend: !!g.announce,
   }))
+}
+
+export interface SourceMessage { group: string; id: string; text: string; links: string[]; at: number }
+let sourceHandler: ((m: SourceMessage) => void) | null = null
+export function onSourceMessage(handler: (m: SourceMessage) => void) {
+  sourceHandler = handler
+}
+
+// Entra num grupo pelo link de convite (chat.whatsapp.com/CODIGO) — devolve id e nome
+export async function joinWhatsAppGroup(invite: string): Promise<{ id: string; subject: string }> {
+  if (!sock || !isOpen) throw new Error('WhatsApp não conectado')
+  const code = invite.trim().replace(/^https?:\/\/chat\.whatsapp\.com\/(invite\/)?/i, '').split(/[?#/]/)[0]
+  if (!/^[A-Za-z0-9]{10,40}$/.test(code)) throw new Error('Link de convite inválido')
+  const info = await sock.groupGetInviteInfo(code).catch(() => null)
+  const id = (await sock.groupAcceptInvite(code)) || info?.id
+  if (!id) throw new Error('O WhatsApp não confirmou a entrada no grupo')
+  return { id, subject: info?.subject || '' }
 }
 
 // Envia foto com legenda; se a imagem falhar, envia só o texto.
