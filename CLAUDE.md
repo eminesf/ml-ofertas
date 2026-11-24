@@ -529,6 +529,7 @@ AliExpress não tem scraping de listagem — produtos entram via import por URL 
 - Download: `productdata.awin.com/datafeed/download/apikey/{AWIN_FEED_API_KEY}/fid/{ids}/columns/.../format/csv/compression/gzip/` — chave = segmento de 32 hex da URL "Download da Lista de Feed" (Ferramentas → Crie um Feed). CORS bloqueia o download pelo browser; só via Node.
 - Pré-filtro antes da IA: em estoque, moeda BRL, desconto ≥ 20%, ordenado por desconto, máx `AWIN_FEED_MAX` (padrão 30) por loja.
 - **Stanley** (feed 72033): preço "de" em `base_price` ("220.00 BRL") ✅
+- **Nike** (mid 17652, feed 44669, desde 24/11/2026): preço "de" em `product_price_old`, ~2.800 de 5.700 com ≥20% off; o feed 93360 não tem preço antigo. externalId `NIKE-{código}-{cor}`; variações com o mesmo título viram uma só (a de maior desconto). Nike e Stanley vão sempre para o grupo Achadinhos (`ACHADINHOS_PROVIDERS` em utils/groups.ts).
 - **Kabum** (feed 46967, ~5k produtos): feed **não tem preço "de"** (`custom_3` é o preço parcelado ~5% acima — não usar). `discountSource: 'priceDrop'` → tabela `FeedPrice` guarda último preço; queda ≥ 20% entre scrapes vira oferta com o preço anterior como `originalPrice`. Primeiro scrape só forma a base.
 - **AliExpress**: 20 feeds BR & LATAM (47201..47257) vêm em **CNY/USD** e inglês → sem `feedIds` de propósito.
 - `externalId` via `awinExternalId(url)` — mesmo formato do import por URL (sem duplicar).
@@ -547,6 +548,7 @@ AliExpress não tem scraping de listagem — produtos entram via import por URL 
 | `amazon` | `?tag=foxofertas04-20` | ✅ HTTP (productTitle/a-offscreen) → genérico | ✅ /deals (local) |
 | `kabum` | Awin deeplink mid=17729 | ✅ JSON-LD via html-product.ts | ✅ feed Awin (queda de preço) |
 | `aliexpress` | Awin deeplink mid=18879 | ⚠️ best-effort (JS-heavy, fallback Playwright) | ❌ |
+| `nike` | Awin deeplink mid=17652 | ✅ fallback genérico | ✅ feed Awin 44669 |
 | `stanley` | Awin deeplink mid=30599 | ✅ JSON-LD (Shopify) | ✅ feed Awin |
 | `shopee` | `shope.ee/an_redir?origin_link=…&affiliate_id=SHOPEE_AFFILIATE_ID&sub_id=foxofertas` | ⚠️ best-effort (bot-protection forte; usar dados manuais) | ✅ feed de produto diário |
 

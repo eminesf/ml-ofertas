@@ -76,4 +76,5 @@ export const PROVIDER_LABELS: Record<string, string> = {
   kabum: 'KaBuM!',
   aliexpress: 'AliExpress',
   stanley: 'Stanley',
+  nike: 'Nike',
 }

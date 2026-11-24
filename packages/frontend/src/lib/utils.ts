@@ -25,6 +25,7 @@ export const STORES: Record<string, { label: string; className: string }> = {
   kabum: { label: 'KaBuM!', className: 'bg-[#0f2b92] text-[#ff6500]' },
   aliexpress: { label: 'AliExpress', className: 'bg-[#e62e04] text-white' },
   stanley: { label: 'Stanley', className: 'bg-[#1a3c34] text-white' },
+  nike: { label: 'Nike', className: 'bg-black text-white' },
 }
 
 export function storeName(provider: string): string {

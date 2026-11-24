@@ -172,6 +172,14 @@ export async function scrapeAwinFeed(advertiser: AwinAdvertiser): Promise<RawOff
   let offers = rows
     .map(r => rowToRawOffer(r, advertiser))
     .filter((o): o is NonNullable<typeof o> => !!o && !seen.has(o.externalId) && !!seen.add(o.externalId))
+  // Mesmo produto em várias cores/tamanhos (Nike): fica só a variação com maior desconto
+  const byTitle = new Map<string, RawOffer>()
+  for (const o of offers) {
+    const key = o.title.toLowerCase().replace(/\s+/g, ' ').trim()
+    const prev = byTitle.get(key)
+    if (!prev || o.discountPct > prev.discountPct) byTitle.set(key, o)
+  }
+  offers = [...byTitle.values()]
 
   if (advertiser.discountSource === 'priceDrop') offers = await applyPriceDrops(offers, advertiser)
 
