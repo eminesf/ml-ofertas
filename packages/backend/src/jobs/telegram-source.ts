@@ -1,3 +1,4 @@
+import { extractShopeeIds } from '../providers/shopee'
 import fs from 'fs'
 import { fetchPrivatePosts, userClientConfigured, PrivatePost } from '../channels/telegram/user-client'
 import path from 'path'
@@ -18,7 +19,7 @@ import { takeWhatsAppSourceMessages } from './whatsapp-source'
 const STATE_FILE = path.join(__dirname, '..', '..', '..', '.telegram-sources.json')
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36'
 
-interface ChannelPost { id: number; text: string; links: string[]; price: number | null; coupon: string | null }
+interface ChannelPost { id: number; text: string; links: string[]; price: number | null; coupon: string | null; image?: string | null }
 
 function loadState(): Record<string, number> {
   try { return JSON.parse(fs.readFileSync(STATE_FILE, 'utf8')) } catch { return {} }
@@ -68,7 +69,9 @@ export async function fetchChannelPosts(channel: string): Promise<ChannelPost[]>
       .map(m => m[1].replace(/&amp;/g, '&'))
       .filter(u => !/t\.me\/|telegram\.(org|me)/.test(u))
     const coupon = text.match(/cupom:?\s*([A-Z0-9]{5,20})\b/i)?.[1]?.toUpperCase() || null
-    return { id, text, links, price: parsePrice(text), coupon }
+    // Foto do post (usada quando a loja não deixa ler a página, ex.: Shopee)
+    const image = part.match(/tgme_widget_message_photo_wrap[^>]*background-image:url\('([^']+)'/)?.[1] || null
+    return { id, text, links, price: parsePrice(text), coupon, image }
   }).filter(p => Number.isFinite(p.id))
 }
 
@@ -136,9 +139,11 @@ export async function resolveProduct(shortUrl: string): Promise<{ url: string; r
     return id ? { url: `https://pt.aliexpress.com/item/${id}.html` } : null
   }
 
-  // Shopee: só serve se cair na página do produto (alguns links vão para o carrinho)
+  // Shopee: só serve se cair num produto (-i.loja.item, /product/ ou /opaanlp/ dos links
+  // de afiliado); /m/cupom-de-desconto, /m/espaco-tecnologia e carteira de cupons ficam de fora
   if (/shopee\.com\.br/.test(final)) {
-    return /-i\.\d+\.\d+|\/product\/\d+\/\d+/.test(final) ? { url: final.split('?')[0] } : null
+    const ids = extractShopeeIds(final)
+    return ids ? { url: `https://shopee.com.br/product/${ids.shopId}/${ids.itemId}` } : null
   }
 
   return { url: final.split('#')[0] }
@@ -245,8 +250,16 @@ async function handleSourcePost(channel: string, post: ChannelPost, opts: { allo
   }
 
   try {
-    const product = await resolveProduct(post.links[0])
-    const resolved = product ? resolveProviderByUrl(product.url) : null
+    // O primeiro link nem sempre é o produto (Shopee: "Resgate o cupom" vem antes do
+    // "Produto:"); usa o primeiro link que leva a um produto de loja suportada.
+    let product: Awaited<ReturnType<typeof resolveProduct>> = null
+    let resolved: ReturnType<typeof resolveProviderByUrl> = null
+    for (const link of post.links.slice(0, 4)) {
+      const p = await resolveProduct(link).catch(() => null)
+      const r = p ? resolveProviderByUrl(p.url) : null
+      if (p && r) { product = p; resolved = r; break }
+      product = product ?? p
+    }
     if (!product || !resolved) {
       console.log(`${tag} loja não suportada ou link sem produto: ${product?.url || post.links[0]}`)
       return
@@ -257,7 +270,19 @@ async function handleSourcePost(channel: string, post: ChannelPost, opts: { allo
       return
     }
 
-    const raw = product.raw ?? await resolved.scrapeProduct(product.url)
+    let raw = product.raw ?? await resolved.scrapeProduct(product.url).catch(() => null)
+    // Shopee bloqueia leitura da página e da API: monta o produto com o post de origem
+    // (nome na 1ª linha, preço do post, foto do post). Sem preço "de" → a IA decide.
+    if (!raw?.salePrice && resolved.provider.name === 'shopee' && post.price && post.image) {
+      const title = post.text.split('\n')[0].replace(/^[^\p{L}\p{N}]+/u, '').replace(/\s*[-–]\s*R\$.*$/, '').trim()
+      if (title.length >= 8) {
+        raw = {
+          externalId: resolved.externalId, title, salePrice: post.price, originalPrice: post.price,
+          discountPct: 0, imageUrl: post.image, productUrl: product.url,
+        } as RawOffer
+        console.log(`${tag} Shopee lida pelo post: "${title.slice(0, 60)}" R$${post.price}`)
+      }
+    }
     if (!raw?.salePrice) {
       console.log(`${tag} não foi possível ler o produto: ${product.url}`)
       return
