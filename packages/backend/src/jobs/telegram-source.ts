@@ -51,7 +51,10 @@ export function parseLoosePrice(text: string): number | null {
   const strict = parsePrice(text)
   if (strict) return strict
   const m = text.match(/(?:\bpor\s+|^\s*)(\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?|\d{2,5}(?:,\d{1,2})?)\s+(?:com|pela|pelo|no|na|reais)\b/im)
-  if (!m) return null
+    // Linha só com o número (ex.: "115,99", "308", "🔥 287,99" — grupo Promoções Pokémon)
+    || text.match(/^[^\p{L}\p{N}\n]*(\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?|\d{2,5}(?:,\d{1,2})?)[ \t]*$/mu)
+  // Ano solto ("2026") não é preço
+  if (!m || /^(19|20)\d{2}$/.test(m[1])) return null
   const n = parseFloat(m[1].replace(/\./g, '').replace(',', '.'))
   return Number.isFinite(n) && n >= 5 ? n : null
 }
@@ -217,16 +220,16 @@ export async function runTelegramSourceJob() {
 // sem o socket do WhatsApp, então pede o envio para a API do backend.
 // TELEGRAM_INSTANT_MAX (padrão 3) por rodada; o excedente vai para a fila com prioridade.
 let instantSent = 0
-async function sendNow(externalId: string, tag: string) {
+async function sendNow(externalId: string, tag: string, repost = false) {
   const max = parseInt(process.env.TELEGRAM_INSTANT_MAX || '3', 10)
   if (instantSent >= max || !process.env.ADMIN_SECRET) return
   const offer = await prisma.offer.findUnique({
     where: { externalId },
     select: { id: true, telegramMessage: true, imageUrl: true, posts: { select: { id: true }, take: 1 } },
   })
-  if (!offer?.telegramMessage || !offer.imageUrl || offer.posts.length) return
+  if (!offer?.telegramMessage || !offer.imageUrl || (offer.posts.length && !repost)) return
   try {
-    const res = await fetch(`http://localhost:${process.env.PORT || 3001}/api/admin/offer/${offer.id}/send`, {
+    const res = await fetch(`http://localhost:${process.env.PORT || 3001}/api/admin/offer/${offer.id}/send${repost ? '?repost=1' : ''}`, {
       method: 'POST',
       headers: { Authorization: `Bearer ${process.env.ADMIN_SECRET}` },
       signal: AbortSignal.timeout(120_000),
@@ -265,9 +268,30 @@ async function handleSourcePost(channel: string, post: ChannelPost, opts: { allo
       return
     }
 
-    if (await prisma.offer.findUnique({ where: { externalId: resolved.externalId }, select: { id: true } })) {
-      console.log(`${tag} ${resolved.externalId} já está no banco`)
-      return
+    // Produto que já passou por aqui: se já foi postado e a fonte divulgou de novo depois
+    // de um tempo (ou com cupom novo), é promoção nova → reposta com preço/cupom/copy atuais.
+    // Ex.: Promoções Pokémon postou o Ditto Copag em 24/11 e de novo em 25/11 com MELIAGORA.
+    const existing = await prisma.offer.findUnique({
+      where: { externalId: resolved.externalId },
+      select: { couponCode: true, posts: { select: { sentAt: true }, orderBy: { sentAt: 'desc' }, take: 1 } },
+    })
+    let repost = false
+    if (existing) {
+      const last = existing.posts[0]?.sentAt
+      if (!last) {
+        console.log(`${tag} ${resolved.externalId} já está no banco (na fila)`)
+        return
+      }
+      const hours = (Date.now() - last.getTime()) / 3_600_000
+      const norm = (c?: string | null) => (c || '').replace(/^#/, '').toUpperCase()
+      const couponChanged = !!post.coupon && norm(post.coupon) !== norm(existing.couponCode)
+      const minHours = parseFloat(process.env.SOURCE_REPOST_HOURS || '12')
+      if (hours < minHours && !(couponChanged && hours >= 3)) {
+        console.log(`${tag} ${resolved.externalId} já postada há ${hours.toFixed(1)}h, pulando`)
+        return
+      }
+      repost = true
+      console.log(`${tag} ${resolved.externalId} divulgada de novo (último post há ${hours.toFixed(1)}h${couponChanged ? `, cupom novo ${post.coupon}` : ''}) → repostando`)
     }
 
     let raw = product.raw ?? await resolved.scrapeProduct(product.url).catch(() => null)
@@ -299,8 +323,9 @@ async function handleSourcePost(channel: string, post: ChannelPost, opts: { allo
     if (post.coupon) console.log(`${tag} cupom no post: ${post.coupon}`)
     // Texto do post (sem links) vai para o copy: cupom, preço com cupom, condições
     const sourceNote = post.text.replace(/https?:\/\/\S+/g, '').replace(/\n{3,}/g, '\n\n').trim().slice(0, 400)
-    await processOffer({ ...raw, externalId: resolved.externalId, sourceNote }, resolved.provider, post.coupon || undefined, 'telegram')
-    await sendNow(resolved.externalId, tag)
+    await processOffer({ ...raw, externalId: resolved.externalId, sourceNote }, resolved.provider, post.coupon || undefined, 'telegram',
+      undefined, undefined, undefined, false, undefined, repost)
+    await sendNow(resolved.externalId, tag, repost)
   } catch (err: any) {
     console.error(`${tag} erro:`, err?.message || err)
   }

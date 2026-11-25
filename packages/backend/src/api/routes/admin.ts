@@ -84,12 +84,13 @@ router.get('/queue', async (req, res) => {
 })
 
 // POST /api/admin/offer/:id/send — posta já nos grupos (Telegram + WhatsApp), fura a fila e o horário
+// ?repost=1: posta de novo uma oferta já postada (fonte divulgou de novo com preço/cupom novo)
 router.post('/offer/:id/send', async (req, res) => {
   const offer = await prisma.offer.findUnique({ where: { id: req.params.id } })
   if (!offer) return res.status(404).json({ error: 'Oferta não encontrada' })
   if (!offer.telegramMessage) return res.status(409).json({ error: 'Oferta sem texto gerado (reprovada pela IA)' })
   try {
-    const result = await publishOffer(offer)
+    const result = await publishOffer(offer, { repost: req.query.repost === '1' })
     if (!result.telegram && result.whatsapp === null) {
       return res.status(409).json({ error: 'Já foi postada (ou está sendo enviada agora)', ...result })
     }

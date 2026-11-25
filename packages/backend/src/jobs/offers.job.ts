@@ -59,7 +59,9 @@ export async function processOffer(
   couponMinValue?: number,
   couponMaxDiscount?: number,
   forcePost: boolean = false,
-  affiliateUrlOverride?: string
+  affiliateUrlOverride?: string,
+  // Fonte divulgou de novo um produto já postado: refaz avaliação e copy mesmo com post/preço igual
+  allowRepost: boolean = false
 ) {
   raw = { ...raw, title: cleanTitle(raw.title) }
   const tag = `[Job][${raw.externalId}][${source}]`
@@ -76,7 +78,7 @@ export async function processOffer(
 
   // Verifica se já existe no banco com o mesmo preço
   const existingRaw = await prisma.offer.findUnique({ where: { externalId: raw.externalId } })
-  if (existingRaw && existingRaw.salePrice === raw.salePrice) {
+  if (existingRaw && existingRaw.salePrice === raw.salePrice && !allowRepost) {
     // Backfill de categoria para ofertas já existentes sem classificação
     if (!existingRaw.category || existingRaw.category === 'geral') {
       await prisma.offer.update({ where: { externalId: raw.externalId }, data: { category } })
@@ -142,7 +144,7 @@ export async function processOffer(
     include: { posts: { orderBy: { sentAt: 'desc' } } }
   })
 
-  if (existing && existing.posts.length > 0) {
+  if (existing && existing.posts.length > 0 && !allowRepost) {
     console.log(`${tag} Filtrado: já tem post registrado`)
     return
   }
