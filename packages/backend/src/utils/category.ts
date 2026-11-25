@@ -26,6 +26,11 @@ const RULES: Array<{ category: string; keywords: string[] }> = [
       'pen drive', 'ventoinha', 'air cooler', 'water cooler', 'placa-mãe', 'placa mãe', 'gabinete', 'fonte atx',
       'mousepad', 'mouse pad', 'deskpad', 'desk mat', 'microfone', 'cabo hdmi', 'cabo displayport', 'mesa controladora',
       'antivírus', 'kaspersky', 'echo dot', 'alexa', 'smart speaker', 'mouse ', 'teclado ',
+      // títulos sem a palavra-chave clássica (iam para Achadinhos como "geral" — 25/11/2026)
+      'tablet,', 'tablet.', 'matepad', 'galaxy tab', 'redmi pad', 'xiaomi pad', 'galaxy book', 'laptop', 'chromebook', 'ultrabook',
+      'odyssey', 'qhd', 'ultrawide', '144hz', '165hz', '180hz', '240hz', 'g-sync', 'freesync', 'ips 27', 'ips 24',
+      '80 plus', 'fonte gamer', 'fonte msi', 'fonte corsair', 'fonte xpg', 'fonte mancer', 'fonte redragon',
+      'gps', 'velocímetro', 'smartband', 'smart band', 'kindle', 'e-reader', 'chromecast', 'fire tv', 'tv box',
     ],
   },
   {
@@ -105,7 +110,11 @@ const RULES: Array<{ category: string; keywords: string[] }> = [
 // (só dígitos/X); produtos comuns começam com "B0".
 export function isBook(title: string, externalId?: string): boolean {
   if (externalId && /^AMZN-\d{9}[\dX]$/i.test(externalId)) return true
-  return /\b(livros?|capa comum|capa dura|mangás?|hist[óo]ria em quadrinhos|box com \d+ livros|edi[çc][ãa]o de luxo|ebook|kindle unlimited)\b/i.test(title)
+  if (/\b(livros?|capa comum|capa dura|mangás?|hist[óo]ria em quadrinhos|box com \d+ livros|edi[çc][ãa]o de luxo|ebook|kindle unlimited|isbn|editora)\b/i.test(title)) return true
+  // Shopee: "TÍTULO - SOBRENOME; SOBRENOME" (autores separados por ;)
+  const authors = title.match(/\s-\s([A-ZÀ-Ú][A-ZÀ-Ú'.-]+(?:,\s?[A-ZÀ-Ú][\wÀ-ú'.]*)?(?:;\s?[A-ZÀ-Ú][A-ZÀ-Ú'.-]+(?:,\s?[A-ZÀ-Ú][\wÀ-ú'.]*)?)+)/)?.[1]
+  // "PRETO; BRANCO", "P; M; G" são variações, não autores
+  return !!authors && !/\b(PRET[OA]|BRANC[OA]|AZUL|VERDE|ROSA|CINZA|BEGE|VERMELH[OA]|AMAREL[OA]|ROX[OA]|MARROM|LILÁS|NUDE|PP|P|M|G|GG|XG|EXG|UNICO|ÚNICO)\b/.test(authors)
 }
 
 export function classifyCategory(title: string): string {
