@@ -274,25 +274,33 @@ async function handleSourcePost(channel: string, post: ChannelPost, opts: { allo
     const existing = await prisma.offer.findUnique({
       where: { externalId: resolved.externalId },
       select: {
-        salePrice: true, sourcePrice: true, couponCode: true,
+        salePrice: true, sourcePrice: true, couponCode: true, telegramMessage: true,
         posts: { select: { sentAt: true, price: true, couponCode: true }, orderBy: { sentAt: 'desc' }, take: 1 },
       },
     })
     const lastPost = existing?.posts[0]
+    const norm = (c?: string | null) => (c || '').replace(/^#/, '').toUpperCase()
     let hours = 0
     let couponChanged = false
-    if (existing) {
-      if (!lastPost) {
-        console.log(`${tag} ${resolved.externalId} já está no banco (na fila)`)
+    // Nunca postado e reprovado pela IA: reavalia se a fonte trouxe preço menor ou cupom novo
+    // (ex.: box Reinado Delta reprovado a R$374,96 em 23/11 e divulgado a R$329 em 25/11)
+    let reevaluate = false
+    if (existing && !lastPost) {
+      const lastPrice = existing.sourcePrice ?? existing.salePrice
+      const changed = (!!post.coupon && norm(post.coupon) !== norm(existing.couponCode)) || (!!post.price && post.price <= lastPrice * 0.97)
+      if (existing.telegramMessage || !changed) {
+        console.log(`${tag} ${resolved.externalId} já está no banco (${existing.telegramMessage ? 'na fila' : 'reprovada, sem preço/cupom novo'})`)
         return
       }
+      reevaluate = true
+      console.log(`${tag} ${resolved.externalId} reprovada antes, voltou mais barata/com cupom (R$${lastPrice} → R$${post.price ?? '?'}${post.coupon ? `, cupom ${post.coupon}` : ''}) → reavaliando`)
+    } else if (existing && lastPost) {
       hours = (Date.now() - lastPost.sentAt.getTime()) / 3_600_000
       // Vários grupos divulgam a mesma promoção quase juntos: nunca repete em menos de 1h
       if (hours < 1) {
         console.log(`${tag} ${resolved.externalId} postada há ${Math.round(hours * 60)}min, pulando`)
         return
       }
-      const norm = (c?: string | null) => (c || '').replace(/^#/, '').toUpperCase()
       couponChanged = !!post.coupon && norm(post.coupon) !== norm(lastPost.couponCode ?? existing.couponCode)
     }
 
@@ -346,7 +354,7 @@ async function handleSourcePost(channel: string, post: ChannelPost, opts: { allo
     // Texto do post (sem links) vai para o copy: cupom, preço com cupom, condições
     const sourceNote = post.text.replace(/https?:\/\/\S+/g, '').replace(/\n{3,}/g, '\n\n').trim().slice(0, 400)
     await processOffer({ ...raw, externalId: resolved.externalId, sourceNote }, resolved.provider, post.coupon || undefined, 'telegram',
-      undefined, undefined, undefined, false, undefined, repost)
+      undefined, undefined, undefined, false, undefined, repost || reevaluate)
     // Preço anunciado pela fonte: vai para o Post (comparação da próxima vez)
     await prisma.offer.update({ where: { externalId: resolved.externalId }, data: { sourcePrice: post.price ?? null } }).catch(() => {})
     await sendNow(resolved.externalId, tag, repost)
