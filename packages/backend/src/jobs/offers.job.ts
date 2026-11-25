@@ -4,7 +4,8 @@ import { isHype, HYPE_MIN_DISCOUNT } from '../utils/hype'
 import { AffiliateProvider } from '../providers/base.provider'
 import { evaluateOffer, generatePostMessage, analyzeMarketValue, evaluateCouponOffer, generateCouponPostMessage, CouponContext, GeneratedPost } from '../ai'
 import { GroupKey, groupByKey, offerGroup, BRAND_PROVIDERS } from '../utils/groups'
-import { publishOffer, postPriority, canPostNow, TELEGRAM_SOURCE_MAX_AGE_HOURS, ensureShortCode, shortLink, cleanTitle } from '../utils/publish'
+import { publishOffer, postPriority, canPostNow, ensureShortCode, shortLink, cleanTitle } from '../utils/publish'
+import { isFresh, checkPriceBeforePost, dropFromQueue } from '../utils/freshness'
 import { Offer } from '@prisma/client'
 import { scrapeHubProducts } from '../providers/mercadolivre/scraper-hub'
 import { scrapeCouponsAndProducts } from '../providers/mercadolivre/scraper-coupons'
@@ -80,10 +81,10 @@ export async function processOffer(
   const existingRaw = await prisma.offer.findUnique({ where: { externalId: raw.externalId } })
   if (existingRaw && existingRaw.salePrice === raw.salePrice && !allowRepost) {
     // Backfill de categoria para ofertas já existentes sem classificação
-    if (!existingRaw.category || existingRaw.category === 'geral') {
-      await prisma.offer.update({ where: { externalId: raw.externalId }, data: { category } })
-      console.log(`${tag} Categoria atualizada: ${category}`)
-    }
+    // Preço confirmado agora: renova a validade na fila (utils/freshness.ts)
+    const fixCategory = !existingRaw.category || existingRaw.category === 'geral'
+    await prisma.offer.update({ where: { externalId: raw.externalId }, data: { priceSeenAt: new Date(), ...(fixCategory ? { category } : {}) } })
+    if (fixCategory) console.log(`${tag} Categoria atualizada: ${category}`)
     console.log(`${tag} Preço inalterado (R$${raw.salePrice}), pulando`)
     return
   }
@@ -106,6 +107,7 @@ export async function processOffer(
       couponAmount: raw.couponAmount,
       couponCode: couponCode || null,
       source,
+      priceSeenAt: new Date(),
     },
     update: {
       salePrice: raw.salePrice,
@@ -118,6 +120,7 @@ export async function processOffer(
       aiScore: null,
       telegramMessage: null,
       whatsappMessage: null,
+      priceSeenAt: new Date(),
     }
   })
 
@@ -321,7 +324,8 @@ export async function runPostingJob(maxPosts = 1, force = false, group?: GroupKe
       telegramMessage: { not: null },
       imageUrl: { not: null },
       aiScore: { gte: MIN_AI_SCORE },
-      createdAt: { gte: new Date(Date.now() - maxAgeHours * 3600000) },
+      // limite externo; a validade real por tipo é o isFresh abaixo
+      OR: [{ createdAt: { gte: new Date(Date.now() - maxAgeHours * 3600000) } }, { priceSeenAt: { gte: new Date(Date.now() - maxAgeHours * 3600000) } }],
       posts: { none: {} },
       ...(offHours ? { source: 'telegram' } : {}),
     },
@@ -333,11 +337,12 @@ export async function runPostingJob(maxPosts = 1, force = false, group?: GroupKe
   const recent = await prisma.post.findMany({ where: { channel: group ? groupByKey(group).channel : 'telegram' }, orderBy: { sentAt: 'desc' }, take: 4, include: { offer: { select: { category: true, provider: true, title: true } } } })
   const kind = (t: string) => (t.match(/^\S+/)?.[0] || '').toLowerCase()
   const pending: typeof candidates = []
-  // Oferta dos canais do Telegram com mais de 6h provavelmente já acabou
-  const tgCutoff = Date.now() - TELEGRAM_SOURCE_MAX_AGE_HOURS * 3600000
-  const pool = candidates.filter(o => o.source !== 'telegram' || o.createdAt.getTime() >= tgCutoff)
+  // Validade por tipo (utils/freshness.ts): fonte do Telegram 3h, queda de preço KaBuM 12h,
+  // ML/Amazon/Shopee 24h, cupom e marcas 48h — contada da última vez que o preço foi visto
+  const pool = candidates.filter(o => isFresh(o))
   const seen = recent.map(p => p.offer)
-  while (pending.length < maxPosts && pool.length) {
+  let checks = 0
+  while (pending.length < maxPosts && pool.length && checks < 8) {
     const score = (o: typeof candidates[number]) => postPriority(o)
       - 1.5 * seen.filter(r => r.category === o.category).length
       - 0.5 * seen.filter(r => r.provider === o.provider).length
@@ -352,11 +357,18 @@ export async function runPostingJob(maxPosts = 1, force = false, group?: GroupKe
       if (!brandRecently) idx = Math.max(0, pool.findIndex(o => BRAND_PROVIDERS.has(o.provider)))
     }
     const next = pool.splice(idx, 1)[0]
+    // Confere o preço antes de postar; subiu > 5% → sai da fila e tenta a próxima
+    checks++
+    const check = await checkPriceBeforePost(next)
+    if (!check.ok) {
+      await dropFromQueue(next, check.reason || 'preço subiu')
+      continue
+    }
     pending.push(next)
     seen.unshift(next)
   }
 
-  console.log(`[Job] ${tag}${candidates.length} ofertas na fila, postando ${pending.length}`)
+  console.log(`[Job] ${tag}${candidates.length} aprovadas (${pool.length + pending.length} dentro da validade), postando ${pending.length}`)
 
   for (const offer of pending) {
     try {

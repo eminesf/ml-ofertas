@@ -1,0 +1,1 @@
+ALTER TABLE "Offer" ADD COLUMN "priceSeenAt" TIMESTAMP(3);

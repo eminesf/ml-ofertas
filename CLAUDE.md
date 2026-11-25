@@ -238,6 +238,12 @@ model Post {
 - Fonte divulga de novo um produto JÁ postado (`handleSourcePost`): reposta (`processOffer(..., allowRepost)` + `/api/admin/offer/:id/send?repost=1`) se tiver cupom diferente do último post, preço ≥3% menor (do post da fonte ou da loja) ou se o último post foi há `SOURCE_REPOST_HOURS` (12h). Menos de 1h desde o último post: sempre pula. Sem novidade: loga "sem novidade" e pula. Nunca postado e reprovado pela IA: reavalia se a fonte trouxer preço ≥3% menor ou cupom novo; aprovado esperando na fila: pula.
 - Preço sem "R$" sozinho na linha ("115,99", "🔥 287,99") vale como preço (`parseLoosePrice`); ano solto ("2026") não.
 
+## Validade da fila e conferência de preço (25/11/2026)
+- Motivo: a fila chegou a ~450 aprovadas para ~90 posts/dia; ofertas venciam sem sair e saíam velhas (jogos PS5 da KaBuM a R$157 quando o feed já dizia R$384).
+- `Offer.priceSeenAt` (migration 20261125180000): última vez que o preço foi visto — `processOffer` grava ao criar/atualizar e também no "Preço inalterado". Ofertas antigas usam `createdAt`.
+- `utils/freshness.ts` → `isFresh` (posting e `/admin/fila`): fonte Telegram 3h, KaBuM (queda no feed) 12h `QUEUE_MAX_AGE_FLASH_HOURS`, cupom/manual 48h `QUEUE_MAX_AGE_COUPON_HOURS`, Nike/Stanley 48h `QUEUE_MAX_AGE_BRAND_HOURS`, resto (ML, Amazon, Shopee, hub) 24h `QUEUE_MAX_AGE_HOURS`.
+- `checkPriceBeforePost` antes de cada post: KaBuM/Nike/Stanley pelo `FeedPrice` (sem rede); Amazon por fetch HTTP (pulado com leilão do bot-leilao); ML/Shopee sem conferência (bloqueio). Subiu > 5% → `dropFromQueue` (tira o copy; se o preço cair de novo o scrape reavalia) e tenta a próxima (máx 8 por rodada). Na dúvida, deixa passar.
+
 ## Madrugada e Pokémon
 - Grupos PRIVADOS do Telegram (`TELEGRAM_PRIVATE_SOURCES=+HASH,...`, ex.: "Promoções Pokémon") são lidos pela conta do dono via MTProto (`telegram`/gram.js, `channels/telegram/user-client.ts`): só leitura. Credenciais `TELEGRAM_API_ID`/`TELEGRAM_API_HASH` (my.telegram.org) e sessão em `packages/.telegram-user-session` (gitignored) criada com `npm run telegram:login` (o dono digita telefone e código). Mesmo pipeline dos canais públicos (`handleSourcePost`).
 - Fora de `POST_HOURS` (8–23h) o posting só libera ofertas com source `telegram` (o que os canais garimpados postam de madrugada, a gente posta também). Os canais são lidos 24h.
