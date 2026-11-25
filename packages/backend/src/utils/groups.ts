@@ -33,7 +33,8 @@ const HOME_RE = /\b(aspirador|rob[oô] aspirador|air ?fryer|fritadeira|liquidifi
 const TECH_RE = /\b(lego|funko|hot wheels|yu-?gi-?oh|magic the gathering|one piece card|digimon card|booster|tcg|jogo (para |de )?(ps[45]|xbox|switch|nintendo)|game (ps[45]|xbox)|controle (ps[45]|xbox|dualsense|sem fio)|gamer|kindle|e-?reader|tv\b|smart tv|caixa de som|soundbar)\b/i
 
 // Lojas que vão sempre para Achadinhos, independente do título (ex.: "Tênis Nike Gamer"…)
-const ACHADINHOS_PROVIDERS = new Set(['nike', 'stanley'])
+export const BRAND_PROVIDERS = new Set(['nike', 'stanley'])
+const ACHADINHOS_PROVIDERS = BRAND_PROVIDERS
 
 export function offerGroup(o: { category?: string | null; title: string; provider?: string | null }): GroupKey {
   if (o.provider && ACHADINHOS_PROVIDERS.has(o.provider)) return 'achadinhos'

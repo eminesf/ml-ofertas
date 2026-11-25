@@ -3,7 +3,7 @@ import { classifyCategory, isBook } from '../utils/category'
 import { isHype, HYPE_MIN_DISCOUNT } from '../utils/hype'
 import { AffiliateProvider } from '../providers/base.provider'
 import { evaluateOffer, generatePostMessage, analyzeMarketValue, evaluateCouponOffer, generateCouponPostMessage, CouponContext, GeneratedPost } from '../ai'
-import { GroupKey, groupByKey, offerGroup } from '../utils/groups'
+import { GroupKey, groupByKey, offerGroup, BRAND_PROVIDERS } from '../utils/groups'
 import { publishOffer, postPriority, canPostNow, TELEGRAM_SOURCE_MAX_AGE_HOURS, ensureShortCode, shortLink, cleanTitle } from '../utils/publish'
 import { Offer } from '@prisma/client'
 import { scrapeHubProducts } from '../providers/mercadolivre/scraper-hub'
@@ -130,7 +130,8 @@ export async function processOffer(
   const isManual = source === 'manual'
   // 'telegram' = oferta já garimpada por outro canal (preço revalidado); a IA decide
   // Hype (PS5, GTA, peça de PC) raramente cai 20%: aceita a partir de 8%
-  const minDiscount = isHype(raw.title) ? HYPE_MIN_DISCOUNT : MIN_DISCOUNT
+  // Marcas que chamam (Nike, Stanley): valem a partir de 10% — Stanley quase nunca dá 20%
+  const minDiscount = isHype(raw.title) ? HYPE_MIN_DISCOUNT : BRAND_PROVIDERS.has(provider.name) ? 10 : MIN_DISCOUNT
   if (!isCoupon && !isManual && source !== 'telegram' && raw.discountPct < minDiscount) {
     console.log(`${tag} Filtrado: desconto ${raw.discountPct}% abaixo do mínimo (${minDiscount}%)`)
     return
@@ -340,7 +341,15 @@ export async function runPostingJob(maxPosts = 1, force = false, group?: GroupKe
       - 0.5 * seen.filter(r => r.provider === o.provider).length
       - 1 * seen.filter(r => kind(r.title) === kind(o.title)).length
     pool.sort((a, b) => score(b) - score(a))
-    const next = pool.shift()!
+    // Achadinhos: marcas que chamam (Nike, Stanley) aparecem com frequência garantida —
+    // 1 a cada ACHADINHOS_BRAND_EVERY posts (padrão 3) se houver oferta delas na fila
+    let idx = 0
+    if (group === 'achadinhos') {
+      const every = parseInt(process.env.ACHADINHOS_BRAND_EVERY || '3', 10)
+      const brandRecently = seen.slice(0, Math.max(every - 1, 0)).some(r => BRAND_PROVIDERS.has(r.provider))
+      if (!brandRecently) idx = Math.max(0, pool.findIndex(o => BRAND_PROVIDERS.has(o.provider)))
+    }
+    const next = pool.splice(idx, 1)[0]
     pending.push(next)
     seen.unshift(next)
   }

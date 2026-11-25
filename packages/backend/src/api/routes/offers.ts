@@ -190,10 +190,15 @@ router.post('/import', requireAdminSecret, async (req, res) => {
 // Link curto do site (/r/{code}): devolve o destino de afiliado e conta o clique.
 // count=0 quando quem pede é robô de prévia (Telegram/WhatsApp/Facebook)
 router.get('/go/:code', async (req, res) => {
-  const offer = await prisma.offer.findUnique({ where: { shortCode: req.params.code }, select: { id: true, affiliateUrl: true } })
+  const offer = await prisma.offer.findUnique({ where: { shortCode: req.params.code }, select: { id: true, affiliateUrl: true, provider: true } })
   if (!offer) return res.status(404).json({ error: 'Link não encontrado' })
   if (req.query.count !== '0') {
-    await prisma.offer.update({ where: { id: offer.id }, data: { clicks: { increment: 1 } } }).catch(() => {})
+    // src: t (Telegram), w (Tech & TCG), a (Achadinhos), i (Instagram/links) — sem = site
+    const src = /^[twai]$/.test(String(req.query.src || '')) ? String(req.query.src) : null
+    await Promise.all([
+      prisma.offer.update({ where: { id: offer.id }, data: { clicks: { increment: 1 } } }),
+      prisma.click.create({ data: { offerId: offer.id, provider: offer.provider, src } }),
+    ]).catch(() => {})
   }
   res.set('Cache-Control', 'no-store').json({ id: offer.id, url: offer.affiliateUrl })
 })

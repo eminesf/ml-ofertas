@@ -1,4 +1,5 @@
 'use client'
+import { hideSiteChrome } from '@/lib/site'
 import { useEffect, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -16,7 +17,7 @@ export default function WelcomeModal({ whatsappUrl }: { whatsappUrl?: string | n
   const [progress, setProgress] = useState(100)
 
   useEffect(() => {
-    if (pathname.startsWith('/admin')) return
+    if (hideSiteChrome(pathname)) return
     try {
       if (localStorage.getItem(STORAGE_KEY)) return
       localStorage.setItem(STORAGE_KEY, '1')

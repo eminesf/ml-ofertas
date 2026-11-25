@@ -186,13 +186,14 @@ export async function scrapeAwinFeed(advertiser: AwinAdvertiser): Promise<RawOff
   if (advertiser.discountSource === 'priceDrop') offers = await applyPriceDrops(offers, advertiser)
 
   const max = parseInt(process.env.AWIN_FEED_MAX || String(DEFAULT_MAX_PER_ADVERTISER), 10)
+  const minDiscount = advertiser.minDiscount ?? MIN_FEED_DISCOUNT
   const best = offers
-    .filter(o => o.discountPct >= (isHype(o.title) ? HYPE_MIN_DISCOUNT : MIN_FEED_DISCOUNT))
+    .filter(o => o.discountPct >= (isHype(o.title) ? HYPE_MIN_DISCOUNT : minDiscount))
     // hype (PS5, GTA, peça de PC) primeiro — entra mesmo com queda menor
     .sort((a, b) => Number(isHype(b.title)) - Number(isHype(a.title)) || b.discountPct - a.discountPct)
     .slice(0, max)
 
-  console.log(`[Awin:${advertiser.name}] ${rows.length} linhas → ${offers.length} válidas → ${best.length} com desconto ≥ ${MIN_FEED_DISCOUNT}% (máx ${max})`)
+  console.log(`[Awin:${advertiser.name}] ${rows.length} linhas → ${offers.length} válidas → ${best.length} com desconto ≥ ${minDiscount}% (máx ${max})`)
   return best
 }
 

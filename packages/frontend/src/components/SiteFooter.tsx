@@ -1,5 +1,6 @@
 'use client'
 
+import { hideSiteChrome } from '@/lib/site'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { CATEGORIES } from '@/lib/utils'
@@ -10,7 +11,7 @@ import InstagramIcon, { INSTAGRAM_URL } from './InstagramIcon'
 
 export default function SiteFooter({ whatsappUrl }: { whatsappUrl?: string | null }) {
   const pathname = usePathname()
-  if (pathname.startsWith('/admin')) return null
+  if (hideSiteChrome(pathname)) return null
 
   return (
     <footer className="mt-12 border-t bg-card">

@@ -73,3 +73,17 @@ model FeedPrice {
 
   @@index([provider])
 }
+
+// Um registro por clique no link curto /r/{code} (robôs de prévia não contam).
+// src = origem: t (canal Telegram), w (grupo Tech & TCG), a (grupo Achadinhos), null = site.
+// provider/offerId ficam soltos (sem relação) para a estatística sobreviver à limpeza de ofertas.
+model Click {
+  id       String   @id @default(cuid())
+  offerId  String
+  provider String
+  src      String?
+  at       DateTime @default(now())
+
+  @@index([at])
+  @@index([offerId])
+}

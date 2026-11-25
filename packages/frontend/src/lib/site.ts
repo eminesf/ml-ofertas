@@ -8,3 +8,8 @@ export const SITE_URL = (
 export const SITE_NAME = 'Fox Promoções'
 export const SITE_TAGLINE = 'Cupons e descontos de verdade todo dia'
 export const SITE_DESCRIPTION = 'Oferta relâmpago, cupom e preço lá embaixo, atualizados o dia todo. Achou, aproveitou — antes que acabe!'
+
+// Páginas sem cabeçalho/rodapé/botão flutuante/boas-vindas: admin e a página de links da bio
+export function hideSiteChrome(pathname: string): boolean {
+  return pathname.startsWith('/admin') || pathname === '/links'
+}

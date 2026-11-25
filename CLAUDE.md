@@ -226,6 +226,13 @@ model Post {
 - IA: o prompt tinha `{"score": 7,...}` como exemplo e a nota ficava 7 em 98% das ofertas (603/613 em 3 dias), sem diferenciar a fila. Agora: começa em 3, soma critérios, escala 9–10/7–8/6/≤5.
 - `variantWarning(title)` (ai/index.ts): título com várias capacidades (AliExpress "512GB 1TB 2TB") → avisa a IA que o preço é da versão mais barata ("a partir de"). Título do html-product sem entidades e sem "- AliExpress 7".
 
+## Análise, marcas e /links (25/11/2026)
+- Tabela `Click` (migration 20261125000000_click): 1 linha por clique em /r/ (robôs não contam), com `src` (t Telegram, w Tech & TCG, a Achadinhos, i Instagram/links, null site) e `provider` solto (sobrevive à limpeza). Links nos posts saem como `/r/CODE?t|?w|?a` (`shortLink(code, src)`); `/r` repassa `?src=` para `/api/offers/go`. `Offer.clicks` continua como total.
+- `/admin/analise` (proxy `/api/admin/analytics`, backend `api/routes/analytics.ts`): cliques por dia/origem/loja, posts por canal e por dia, funil por loja (encontradas→aprovadas→postadas), top ofertas, e relatório Awin por anunciante se `AWIN_API_TOKEN` (Awin → API Credentials) estiver no .env.
+- Prisma CLI no backend NÃO lê o .env da raiz: rodar migrate com o .env carregado (ex.: node + dotenv + spawn `npx prisma migrate deploy`).
+- Achadinhos: 1 a cada `ACHADINHOS_BRAND_EVERY` (3) posts é Nike/Stanley (`BRAND_PROVIDERS`) se houver na fila; marcas valem a partir de 10% de desconto (Stanley com `minDiscount: 10` no feed).
+- `/links`: página "link na bio" do Instagram (sem header/footer — `hideSiteChrome` em lib/site.ts): botões dos 2 grupos, Telegram, site, Pokémon e 6 destaques do dia (clique com origem `i`).
+
 ## Madrugada e Pokémon
 - Grupos PRIVADOS do Telegram (`TELEGRAM_PRIVATE_SOURCES=+HASH,...`, ex.: "Promoções Pokémon") são lidos pela conta do dono via MTProto (`telegram`/gram.js, `channels/telegram/user-client.ts`): só leitura. Credenciais `TELEGRAM_API_ID`/`TELEGRAM_API_HASH` (my.telegram.org) e sessão em `packages/.telegram-user-session` (gitignored) criada com `npm run telegram:login` (o dono digita telefone e código). Mesmo pipeline dos canais públicos (`handleSourcePost`).
 - Fora de `POST_HOURS` (8–23h) o posting só libera ofertas com source `telegram` (o que os canais garimpados postam de madrugada, a gente posta também). Os canais são lidos 24h.

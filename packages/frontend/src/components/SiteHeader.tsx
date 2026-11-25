@@ -1,5 +1,6 @@
 'use client'
 
+import { hideSiteChrome } from '@/lib/site'
 import { Suspense } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
@@ -13,7 +14,7 @@ import { CATEGORIES, cn } from '@/lib/utils'
 
 export default function SiteHeader({ whatsappUrl }: { whatsappUrl?: string | null }) {
   const pathname = usePathname()
-  if (pathname.startsWith('/admin')) return null
+  if (hideSiteChrome(pathname)) return null
 
   return (
     <header className="sticky top-0 z-40 border-b bg-background/85 backdrop-blur-md supports-[backdrop-filter]:bg-background/70">
