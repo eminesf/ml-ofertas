@@ -268,30 +268,32 @@ async function handleSourcePost(channel: string, post: ChannelPost, opts: { allo
       return
     }
 
-    // Produto que já passou por aqui: se já foi postado e a fonte divulgou de novo depois
-    // de um tempo (ou com cupom novo), é promoção nova → reposta com preço/cupom/copy atuais.
-    // Ex.: Promoções Pokémon postou o Ditto Copag em 24/11 e de novo em 25/11 com MELIAGORA.
+    // Produto que já foi postado e a fonte divulgou de novo: só reposta se for promoção
+    // NOVA — cupom diferente, preço menor que o do último post, ou já faz SOURCE_REPOST_HOURS
+    // (12h). Preço/cupom de cada post ficam em Post.price/Post.couponCode.
     const existing = await prisma.offer.findUnique({
       where: { externalId: resolved.externalId },
-      select: { couponCode: true, posts: { select: { sentAt: true }, orderBy: { sentAt: 'desc' }, take: 1 } },
+      select: {
+        salePrice: true, sourcePrice: true, couponCode: true,
+        posts: { select: { sentAt: true, price: true, couponCode: true }, orderBy: { sentAt: 'desc' }, take: 1 },
+      },
     })
-    let repost = false
+    const lastPost = existing?.posts[0]
+    let hours = 0
+    let couponChanged = false
     if (existing) {
-      const last = existing.posts[0]?.sentAt
-      if (!last) {
+      if (!lastPost) {
         console.log(`${tag} ${resolved.externalId} já está no banco (na fila)`)
         return
       }
-      const hours = (Date.now() - last.getTime()) / 3_600_000
-      const norm = (c?: string | null) => (c || '').replace(/^#/, '').toUpperCase()
-      const couponChanged = !!post.coupon && norm(post.coupon) !== norm(existing.couponCode)
-      const minHours = parseFloat(process.env.SOURCE_REPOST_HOURS || '12')
-      if (hours < minHours && !(couponChanged && hours >= 3)) {
-        console.log(`${tag} ${resolved.externalId} já postada há ${hours.toFixed(1)}h, pulando`)
+      hours = (Date.now() - lastPost.sentAt.getTime()) / 3_600_000
+      // Vários grupos divulgam a mesma promoção quase juntos: nunca repete em menos de 1h
+      if (hours < 1) {
+        console.log(`${tag} ${resolved.externalId} postada há ${Math.round(hours * 60)}min, pulando`)
         return
       }
-      repost = true
-      console.log(`${tag} ${resolved.externalId} divulgada de novo (último post há ${hours.toFixed(1)}h${couponChanged ? `, cupom novo ${post.coupon}` : ''}) → repostando`)
+      const norm = (c?: string | null) => (c || '').replace(/^#/, '').toUpperCase()
+      couponChanged = !!post.coupon && norm(post.coupon) !== norm(lastPost.couponCode ?? existing.couponCode)
     }
 
     let raw = product.raw ?? await resolved.scrapeProduct(product.url).catch(() => null)
@@ -319,12 +321,34 @@ async function handleSourcePost(channel: string, post: ChannelPost, opts: { allo
       return
     }
 
+    let repost = false
+    if (existing && lastPost) {
+      // Preço efetivo agora (o do post da fonte, com cupom/Pix, ou o da loja) × o do último post
+      const nowPrice = post.price ?? raw.salePrice
+      const lastPrice = lastPost.price ?? existing.sourcePrice ?? existing.salePrice
+      const cheaper = nowPrice <= lastPrice * 0.97 || raw.salePrice <= existing.salePrice * 0.97
+      const minHours = parseFloat(process.env.SOURCE_REPOST_HOURS || '12')
+      const reasons = [
+        couponChanged && `cupom novo ${post.coupon}`,
+        cheaper && `preço R$${lastPrice} → R$${nowPrice}`,
+        hours >= minHours && `último post há ${hours.toFixed(1)}h`,
+      ].filter(Boolean)
+      if (!reasons.length) {
+        console.log(`${tag} ${resolved.externalId} já postada há ${hours.toFixed(1)}h sem novidade (R$${nowPrice}, cupom ${post.coupon || '-'}), pulando`)
+        return
+      }
+      repost = true
+      console.log(`${tag} ${resolved.externalId} promoção nova (${reasons.join(', ')}) → repostando`)
+    }
+
     // Cupom público da loja citado no post (ex.: SITETODO2211 do ML) vai junto no nosso copy
     if (post.coupon) console.log(`${tag} cupom no post: ${post.coupon}`)
     // Texto do post (sem links) vai para o copy: cupom, preço com cupom, condições
     const sourceNote = post.text.replace(/https?:\/\/\S+/g, '').replace(/\n{3,}/g, '\n\n').trim().slice(0, 400)
     await processOffer({ ...raw, externalId: resolved.externalId, sourceNote }, resolved.provider, post.coupon || undefined, 'telegram',
       undefined, undefined, undefined, false, undefined, repost)
+    // Preço anunciado pela fonte: vai para o Post (comparação da próxima vez)
+    await prisma.offer.update({ where: { externalId: resolved.externalId }, data: { sourcePrice: post.price ?? null } }).catch(() => {})
     await sendNow(resolved.externalId, tag, repost)
   } catch (err: any) {
     console.error(`${tag} erro:`, err?.message || err)
