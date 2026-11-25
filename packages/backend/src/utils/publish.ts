@@ -20,8 +20,11 @@ function randomCode(len = 6): string {
   return s
 }
 
-export function shortLink(code: string): string {
-  return `${SITE_URL}/r/${code}`
+// src marca a origem do clique (painel de análise): 't' canal do Telegram,
+// 'w' grupo Tech & TCG, 'a' grupo Achadinhos. Sem src = site.
+export type ClickSrc = 't' | 'w' | 'a'
+export function shortLink(code: string, src?: ClickSrc): string {
+  return `${SITE_URL}/r/${code}${src ? `?${src}` : ''}`
 }
 
 // Gera (uma vez) o código curto da oferta; reaproveita se já existir
@@ -41,13 +44,13 @@ export async function ensureShortCode(externalId: string): Promise<string> {
 }
 
 // Troca o link de afiliado (cru ou com &amp; do HTML) pelo link curto — cobre copies antigos
-export function withShortLink(message: string, offer: Pick<Offer, 'affiliateUrl'>, code: string): string {
-  const short = shortLink(code)
+export function withShortLink(message: string, offer: Pick<Offer, 'affiliateUrl'>, code: string, src?: ClickSrc): string {
+  const short = shortLink(code, src)
   const raw = offer.affiliateUrl
   return message
     .split(raw.replace(/&/g, '&amp;')).join(short).split(raw).join(short)
-    // copy gerado antes da troca de domínio: atualiza o link curto para o SITE_URL atual
-    .replace(new RegExp(`https?://[^\\s"'<>]+/r/${code}\\b`, 'g'), short)
+    // link curto já no texto (domínio antigo ou outra origem): troca pelo atual, sem duplicar o ?src
+    .replace(new RegExp(`https?://[^\\s"'<>?]+/r/${code}(\\?[a-z]\\b)?`, 'g'), short)
 }
 
 // Amazon devolve miniatura 226px no /deals; pede a versão grande
@@ -144,8 +147,10 @@ async function doPublish(
 ): Promise<{ telegram: boolean; whatsapp: boolean | null }> {
   const code = await ensureShortCode(offer.externalId)
   const image = bestImage(offer.imageUrl)
-  const tgText = withShortLink(opts.telegramText ?? offer.telegramMessage ?? '', offer, code)
-  const waText = withShortLink(opts.whatsappText ?? offer.whatsappMessage ?? '', offer, code)
+  // WhatsApp: cada oferta vai para UM grupo (Tech & TCG ou Achadinhos — utils/groups.ts)
+  const group = groupByKey(offerGroup(offer))
+  const tgText = withShortLink(opts.telegramText ?? offer.telegramMessage ?? '', offer, code, 't')
+  const waText = withShortLink(opts.whatsappText ?? offer.whatsappMessage ?? '', offer, code, group.key === 'tech' ? 'w' : 'a')
   const repostedAt = opts.repost ? new Date() : undefined
 
   let telegram = false
@@ -154,8 +159,6 @@ async function doPublish(
     await prisma.post.create({ data: { offerId: offer.id, channel: 'telegram', message: tgText, whatsappMessage: waText || null, success: telegram, repostedAt } })
   }
 
-  // WhatsApp: cada oferta vai para UM grupo (Tech & TCG ou Achadinhos — utils/groups.ts)
-  const group = groupByKey(offerGroup(offer))
   const groupJid = group.jid()
   let whatsapp: boolean | null = null
   if (waText && isWhatsAppEnabled() && groupJid?.endsWith('@g.us')) {

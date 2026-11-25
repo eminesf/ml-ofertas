@@ -14,6 +14,8 @@ export interface AwinAdvertiser {
   feedIds?: string[]  // product feeds (Ferramentas → Crie um Feed → lista de feeds)
   // 'feed' (padrão) = preço "de" vem no feed | 'priceDrop' = feed sem preço "de", desconto = queda vs scrape anterior
   discountSource?: 'feed' | 'priceDrop'
+  // desconto mínimo do feed para essa loja (padrão 20%). Stanley quase nunca passa de 20%
+  minDiscount?: number
 }
 
 export const AWIN_ADVERTISERS: AwinAdvertiser[] = [
@@ -21,7 +23,7 @@ export const AWIN_ADVERTISERS: AwinAdvertiser[] = [
   { name: 'kabum', label: 'KaBuM!', mid: 17729, domains: ['kabum.com.br'], feedIds: ['46967'], discountSource: 'priceDrop' },
   // Sem feedIds de propósito: feeds BR & LATAM (47201..47257) vêm em CNY/USD e em inglês — só import por URL
   { name: 'aliexpress', label: 'AliExpress', mid: 18879, domains: ['aliexpress.com', 'pt.aliexpress.com', 'aliexpress.us'] },
-  { name: 'stanley', label: 'Stanley', mid: 30599, domains: ['stanley1913.com', 'stanley1913.com.br', 'stanley.com.br'], feedIds: ['72033'] },
+  { name: 'stanley', label: 'Stanley', mid: 30599, domains: ['stanley1913.com', 'stanley1913.com.br', 'stanley.com.br'], feedIds: ['72033'], minDiscount: 10 },
   // Nike BR (afiliação aprovada em 24/11/2026). Feed 44669 traz product_price_old (preço "de");
   // o 93360 ("Nike Product Feed - 2024") não tem preço antigo. Vai para o grupo Achadinhos.
   { name: 'nike', label: 'Nike', mid: 17652, domains: ['nike.com.br'], feedIds: ['44669'] },

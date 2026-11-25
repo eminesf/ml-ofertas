@@ -5,6 +5,7 @@ import Link from 'next/link'
 const NAV_LINKS = [
   { href: '/admin', label: 'Dashboard' },
   { href: '/admin/fila', label: 'Fila' },
+  { href: '/admin/analise', label: 'Análise' },
   { href: '/admin/import', label: 'Importar oferta' },
   { href: '/admin/stories', label: 'Stories' },
 ]

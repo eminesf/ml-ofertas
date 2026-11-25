@@ -18,7 +18,9 @@ function redirect(url: string) {
 export async function GET(req: NextRequest, { params }: { params: Promise<{ code: string }> }) {
   const { code } = await params
   const isBot = BOT_UA.test(req.headers.get('user-agent') || '')
-  const goUrl = `${API_URL}/api/offers/go/${encodeURIComponent(code)}`
+  // Origem do clique: /r/CODE?t (Telegram), ?w (Tech & TCG), ?a (Achadinhos), ?i (Instagram)
+  const src = ['t', 'w', 'a', 'i'].find(k => req.nextUrl.searchParams.has(k))
+  const goUrl = `${API_URL}/api/offers/go/${encodeURIComponent(code)}${src ? `?src=${src}` : ''}`
 
   const hit = cache.get(code)
   if (hit && Date.now() - hit.at < CACHE_TTL_MS) {
@@ -27,7 +29,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ code
   }
 
   try {
-    const res = await fetch(`${goUrl}${isBot ? '?count=0' : ''}`, { cache: 'no-store', signal: AbortSignal.timeout(8000) })
+    const res = await fetch(`${goUrl}${isBot ? `${src ? '&' : '?'}count=0` : ''}`, { cache: 'no-store', signal: AbortSignal.timeout(8000) })
     if (res.ok) {
       const { url } = (await res.json()) as { url: string }
       if (/^https?:\/\//.test(url)) {
