@@ -318,7 +318,7 @@ ${offer.discountPct > 0 ? `Desconto: ${offer.discountPct}% OFF` : 'Produto sem d
 ${couponCode ? `Cupom extra: ${couponCode}` : ''}
 ${suggestedHighlight ? `Destaque sugerido: ${suggestedHighlight}` : ''}
 ${offer.rating ? `Avaliação: ${offer.rating} ⭐` : ''}
-${offer.sourceNote ? `Informações do post original (OBRIGATÓRIO incluir no texto o que for útil ao comprador: cupom e o preço final com cupom, condição de uso do cupom, "produto em inglês", loja; nunca cite o canal de origem):
+${offer.sourceNote ? `Informações do post original (OBRIGATÓRIO incluir no texto o que for útil ao comprador e que ESTEJA escrito ali: cupom e o preço final com cupom, preço no Pix, condição de uso do cupom; nunca invente condição que não está no texto e nunca cite o canal de origem):
 """${offer.sourceNote}"""` : ''}
 Link: ${affiliateUrl}
 
@@ -332,7 +332,7 @@ Telegram (use HTML: <b>, <i>, <s>, <code>, <a href="">):
 
 ${priceBlock}
 ${couponCode ? `   🎟️ Cupom: <code>${couponCode}</code>` : ''}
-${offer.sourceNote ? `   ✅ COM CUPOM/CONDIÇÃO: 1 linha com o preço final citado no post original e a condição (ex.: "R$ 140 usando o cupom", "resgate o cupom antes", "produto em inglês")` : ''}
+${offer.sourceNote ? `   ✅ 1 linha com o preço final citado no post original e a condição real (ex.: "R$ 140 usando o cupom", "R$ 329 no Pix") — escreva "cupom" só se houver cupom de verdade` : ''}
 ${offer.rating ? `   ⭐ ${offer.rating}/5.0` : ''}
 
    👉 <a href="${affiliateUrl}">Comprar agora</a>

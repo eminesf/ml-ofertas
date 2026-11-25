@@ -238,6 +238,11 @@ model Post {
 - Fonte divulga de novo um produto JÁ postado (`handleSourcePost`): reposta (`processOffer(..., allowRepost)` + `/api/admin/offer/:id/send?repost=1`) se tiver cupom diferente do último post, preço ≥3% menor (do post da fonte ou da loja) ou se o último post foi há `SOURCE_REPOST_HOURS` (12h). Menos de 1h desde o último post: sempre pula. Sem novidade: loga "sem novidade" e pula. Nunca postado e reprovado pela IA: reavalia se a fonte trouxer preço ≥3% menor ou cupom novo; aprovado esperando na fila: pula.
 - Preço sem "R$" sozinho na linha ("115,99", "🔥 287,99") vale como preço (`parseLoosePrice`); ano solto ("2026") não.
 
+## /admin/ofertas — gerenciar oferta (25/11/2026)
+- Busca por nome, link do produto (ML/Amazon/Nike), link curto `/r/CODE` ou externalId; edita título, link (mesmo produto — ex.: trocar `?cor=` da Nike refaz o link Awin), foto, preço/“de”, cupom e os textos; “Gerar texto de novo” (IA, com instrução opcional), “Postar agora”/“Postar de novo” (`?repost=1`) e “Apagar” (oferta + posts; cliques ficam em `Click`; o `/r/` para de funcionar).
+- Backend `api/routes/admin-offers.ts` em `/api/admin/offers` (Bearer); proxy do site `app/api/admin/offers/[[...path]]`.
+- O prompt do copy tinha “produto em inglês” como exemplo e a IA copiava em produto que não era — tirado.
+
 ## Validade da fila e conferência de preço (25/11/2026)
 - Motivo: a fila chegou a ~450 aprovadas para ~90 posts/dia; ofertas venciam sem sair e saíam velhas (jogos PS5 da KaBuM a R$157 quando o feed já dizia R$384).
 - `Offer.priceSeenAt` (migration 20261125180000): última vez que o preço foi visto — `processOffer` grava ao criar/atualizar e também no "Preço inalterado". Ofertas antigas usam `createdAt`.
