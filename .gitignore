@@ -13,3 +13,8 @@ packages/livros-removidos-*.json
 .telegram-user-session
 .awin-feed-cache/
 .whatsapp-sources-queue.json
+
+# Snapshots de vitrines lidos pelo Chrome (ex.: hotsite NIKE40)
+data/nike/
+.snapshot-token
+packages/.snapshot-token
