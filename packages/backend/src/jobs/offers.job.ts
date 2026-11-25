@@ -327,7 +327,8 @@ export async function runPostingJob(maxPosts = 1, force = false, group?: GroupKe
       // limite externo; a validade real por tipo é o isFresh abaixo
       OR: [{ createdAt: { gte: new Date(Date.now() - maxAgeHours * 3600000) } }, { priceSeenAt: { gte: new Date(Date.now() - maxAgeHours * 3600000) } }],
       posts: { none: {} },
-      ...(offHours ? { source: 'telegram' } : {}),
+      // import manual só sai pelo botão "Postar" (prévia no /admin/import)
+      ...(offHours ? { source: 'telegram' } : { source: { not: 'manual' } }),
     },
     orderBy: { createdAt: 'desc' },
     take: 600,

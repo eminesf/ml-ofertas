@@ -240,6 +240,7 @@ model Post {
 
 ## /admin/ofertas — gerenciar oferta (25/11/2026)
 - Busca por nome, link do produto (ML/Amazon/Nike), link curto `/r/CODE` ou externalId; edita título, link (mesmo produto — ex.: trocar `?cor=` da Nike refaz o link Awin), foto, preço/“de”, cupom e os textos; “Gerar texto de novo” (IA, com instrução opcional), “Postar agora”/“Postar de novo” (`?repost=1`) e “Apagar” (oferta + posts; cliques ficam em `Click`; o `/r/` para de funcionar).
+- `/admin/import` não posta mais direto: manda `preview: true`, o backend salva e gera o texto e o painel mostra o mesmo editor (`components/admin/OfferEditor.tsx`) com “Postar agora”. Oferta com source `manual` fica fora da fila automática (só sai pelo botão).
 - Backend `api/routes/admin-offers.ts` em `/api/admin/offers` (Bearer); proxy do site `app/api/admin/offers/[[...path]]`.
 - O prompt do copy tinha “produto em inglês” como exemplo e a IA copiava em produto que não era — tirado.
 
