@@ -1,6 +1,8 @@
 ﻿import './env'
 import express from 'express'
 import cors from 'cors'
+import fs from 'fs'
+import path from 'path'
 import { startScheduler } from './jobs/scheduler'
 import offersRouter from './api/routes/offers'
 import postsRouter from './api/routes/posts'
@@ -12,6 +14,26 @@ const app = express()
 const PORT = process.env.PORT || 3001
 
 app.use(cors())
+
+// Snapshot de vitrine lida pelo Chrome do dono (ex.: hotsite NIKE40, que bloqueia o
+// servidor): a página manda o JSON para cá e ele vai para data/<pasta>/<nome>.json.
+// Só aceita com a chave de uso único em packages/.snapshot-token (criada na hora e apagada após o uso).
+app.post('/api/snapshot/:token/:folder/:name', express.text({ type: '*/*', limit: '20mb' }), (req, res) => {
+  const tokenFile = path.join(__dirname, '..', '..', '.snapshot-token')
+  let token = ''
+  try { token = fs.readFileSync(tokenFile, 'utf8').trim() } catch {}
+  if (!token || req.params.token !== token) return res.status(401).end()
+  const { folder, name } = req.params
+  if (!/^[a-z0-9-]+$/i.test(folder) || !/^[a-z0-9.-]+\.json$/i.test(name)) return res.status(400).end()
+  try { JSON.parse(req.body) } catch { return res.status(400).json({ error: 'JSON inválido' }) }
+  const dir = path.join(__dirname, '..', '..', '..', 'data', folder)
+  fs.mkdirSync(dir, { recursive: true })
+  fs.writeFileSync(path.join(dir, name), req.body)
+  fs.unlinkSync(tokenFile)
+  console.log(`[Snapshot] data/${folder}/${name} gravado (${req.body.length} bytes)`)
+  res.json({ saved: `data/${folder}/${name}`, bytes: req.body.length })
+})
+
 app.use(express.json())
 
 // Links públicos dos canais (botões do site). WhatsApp vem do próprio grupo via Baileys.
