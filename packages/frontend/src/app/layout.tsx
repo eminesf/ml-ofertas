@@ -8,6 +8,7 @@ import TelegramFab from '@/components/TelegramFab'
 import { getChannels } from '@/lib/api'
 import WhatsAppGroupsDialog from '@/components/WhatsAppGroups'
 import FacebookPixel from '@/components/FacebookPixel'
+import CookieConsent from '@/components/CookieConsent'
 import { SITE_DESCRIPTION, SITE_NAME, SITE_TAGLINE, SITE_URL } from '@/lib/site'
 
 const inter = Inter({
@@ -59,6 +60,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <TelegramFab whatsappUrl={whatsapp} />
         <WhatsAppGroupsDialog groups={whatsappGroups} />
         <FacebookPixel />
+        <CookieConsent />
       </body>
     </html>
   )
