@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { OfferEditor, FullOffer, offersApi } from "@/components/admin/OfferEditor";
 
 
 interface ImportResult {
@@ -51,6 +52,9 @@ export default function AdminImportPage() {
 	const [loading, setLoading] = useState(false);
 	const [result, setResult] = useState<ImportResult | null>(null);
 	const [error, setError] = useState<string | null>(null);
+	const [preview, setPreview] = useState<FullOffer | null>(null);
+	const [existingId, setExistingId] = useState<string | null>(null);
+	const [postedOk, setPostedOk] = useState(false);
 
 	const hasCoupon = couponCode.trim() !== "";
 	const hasManual = manualTitle.trim() !== "" && manualSalePrice.trim() !== "";
@@ -75,10 +79,14 @@ export default function AdminImportPage() {
 		e.preventDefault();
 		setError(null);
 		setResult(null);
+		setPreview(null);
+		setExistingId(null);
+		setPostedOk(false);
 		setLoading(true);
 
 		try {
-			const body: Record<string, unknown> = { url: url.trim() };
+			// preview: salva e gera o texto, mas só posta quando clicar em "Postar agora"
+			const body: Record<string, unknown> = { url: url.trim(), preview: true };
 			if (shortLink.trim()) body.affiliateShortLink = shortLink.trim();
 			if (hasCoupon) {
 				body.couponCode = couponCode.trim();
@@ -102,10 +110,13 @@ export default function AdminImportPage() {
 			const data = await res.json();
 			if (!res.ok) {
 				setError(data.error || "Erro desconhecido");
+				if (res.status === 409 && data.offer?.id) setExistingId(data.offer.id);
 				return;
 			}
 
 			setResult(data);
+			const full = await offersApi(`/${data.offer.id}`);
+			setPreview(full.offer);
 			resetForm();
 		} catch {
 			setError("Erro ao conectar com o servidor");
@@ -364,66 +375,42 @@ export default function AdminImportPage() {
 				</div>
 			)}
 
-			{/* Resultado */}
-			{result && (
-				<div
-					style={{
-						marginTop: "1rem",
-						background: result.posted ? "#f0fff4" : "#fffbe6",
-						border: `1px solid ${result.posted ? "#9ae6b4" : "#fbd38d"}`,
-						borderRadius: 10,
-						padding: "1rem",
-					}}
-				>
-					<p
-						style={{
-							margin: "0 0 8px",
-							fontWeight: 800,
-							fontSize: 15,
-							color: result.posted ? "#276749" : "#744210",
-						}}
-					>
-						{result.posted
-							? "✅ Postado no Telegram!"
-							: "⚠️ Salvo no banco, mas não postado (score IA baixo)"}
-					</p>
-					<p style={{ margin: "0 0 4px", fontSize: 14, fontWeight: 600 }}>
-						{result.offer.title}
-					</p>
+			{existingId && (
+				<p style={{ fontSize: 13, marginTop: 8 }}>
+					<a href={`/admin/ofertas?q=${existingId}`} style={{ color: "#1a73e8", fontWeight: 700 }}>
+						Abrir essa oferta em Ofertas (editar / postar de novo) →
+					</a>
+				</p>
+			)}
+
+			{/* Prévia: nada é postado até clicar em "Postar agora" */}
+			{result && preview && (
+				<div style={{ marginTop: "1rem" }}>
 					<div
 						style={{
-							display: "flex",
-							gap: 10,
-							flexWrap: "wrap",
-							fontSize: 13,
-							color: "#555",
+							background: postedOk ? "#f0fff4" : "#fffbe6",
+							border: `1px solid ${postedOk ? "#9ae6b4" : "#fbd38d"}`,
+							borderRadius: 10,
+							padding: "0.75rem 1rem",
 							marginBottom: 10,
+							fontSize: 14,
+							fontWeight: 700,
+							color: postedOk ? "#276749" : "#744210",
 						}}
 					>
-						<span>
-							R$ {result.offer.salePrice.toFixed(2).replace(".", ",")}
-						</span>
-						{result.offer.discountPct > 0 && (
-							<span>· -{result.offer.discountPct}% OFF</span>
-						)}
-						{result.offer.aiScore != null && (
-							<span>· IA {result.offer.aiScore}/10</span>
-						)}
-						{result.offer.couponCode && (
-							<span>· 🎟️ {result.offer.couponCode}</span>
-						)}
+						{postedOk
+							? "✅ Postado no Telegram e no grupo."
+							: preview.telegramMessage
+								? `👀 Prévia — confira preço, foto e texto. Nada foi postado ainda.${preview.aiScore != null && preview.aiScore < 6 ? ` (IA deu ${preview.aiScore}/10)` : ""}`
+								: "⚠️ Salvo, mas sem texto. Clique em “Gerar texto de novo” antes de postar."}
 					</div>
-					<a
-						href={`/oferta/${result.offer.id}`}
-						style={{
-							fontSize: 13,
-							color: "#1a73e8",
-							textDecoration: "none",
-							fontWeight: 600,
-						}}
-					>
-						Ver oferta no site →
-					</a>
+					<OfferEditor
+						offer={preview}
+						onChange={setPreview}
+						onPosted={() => setPostedOk(true)}
+						onDeleted={() => { setPreview(null); setResult(null); }}
+						sticky={false}
+					/>
 				</div>
 			)}
 		</main>

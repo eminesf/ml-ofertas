@@ -195,6 +195,13 @@ router.post('/import', requireAdminSecret, async (req, res) => {
   const offer = await prisma.offer.findUnique({ where: { externalId }, include: { posts: true } })
   if (!offer) return res.status(500).json({ error: 'Erro interno após processamento' })
 
+  // preview: true (painel /admin/import) → só salva e gera o texto; o admin confere a
+  // prévia e posta pelo botão (POST /api/admin/offers/:id/send)
+  if (req.body?.preview === true) {
+    console.log(`[Import] Prévia pronta (sem postar): "${offer.title}"`)
+    return res.json({ offer, posted: false, preview: true })
+  }
+
   let posted = false
   if (offer.telegramMessage) {
     try {
