@@ -56,8 +56,10 @@ router.get('/', async (req, res) => {
 
 // Import posta direto nos canais: só com o ADMIN_SECRET (via proxy /api/admin/import do site)
 router.post('/import', requireAdminSecret, async (req, res) => {
-  const {
+  let {
     url,
+  } = req.body
+  const {
     affiliateShortLink,
     couponCode, couponDiscount, couponMinValue, couponMaxDiscount,
     manualTitle, manualSalePrice, manualOriginalPrice, manualImageUrl,
@@ -70,7 +72,26 @@ router.post('/import', requireAdminSecret, async (req, res) => {
   const hasCoupon = !!couponCode
   const hasManualData = !!(manualTitle && manualSalePrice)
 
-  const resolved = resolveProviderByUrl(url)
+  // Link curto (meli.la, amzn.to, s.shopee…): segue até a loja. O meli.la cai no perfil
+  // "social" do afiliado — o produto vem pronto do card (mesmo resolvedor das fontes)
+  let resolved = resolveProviderByUrl(url)
+  let presolved: any = null
+  if (!resolved && !hasManualData) {
+    try {
+      const { resolveProduct } = await import('../../jobs/telegram-source')
+      const r = await resolveProduct(url)
+      if (r) {
+        resolved = resolveProviderByUrl(r.url)
+        presolved = r.raw ?? null
+        if (resolved) {
+          console.log(`[Import] Link curto ${url} → ${r.url}`)
+          url = r.url
+        }
+      }
+    } catch (err: any) {
+      console.warn(`[Import] Falha ao seguir link curto ${url}: ${err?.message}`)
+    }
+  }
   if (!resolved) {
     return res.status(400).json({
       error: 'URL não reconhecida. Plataformas suportadas: Mercado Livre, Amazon, Shopee, KaBuM!, AliExpress e Stanley.',
@@ -104,6 +125,9 @@ router.post('/import', requireAdminSecret, async (req, res) => {
       imageUrl: manualImageUrl ? String(manualImageUrl).trim() : undefined,
     }
     console.log(`[Import] Dados manuais: "${raw.title}" R$${raw.salePrice} (${raw.discountPct}% OFF)`)
+  } else if (presolved) {
+    raw = presolved
+    console.log(`[Import] Dados do link curto: "${raw.title}" R$${raw.salePrice} (${raw.discountPct}% OFF)`)
   } else {
     try {
       console.log(`[Import] Scraping (${providerLabel}): ${url}`)
