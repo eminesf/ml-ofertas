@@ -19,7 +19,8 @@ export function extractShopeeIds(url: string): { shopId: string; itemId: string 
   let m = url.match(/-?i\.(\d+)\.(\d+)/)
   if (m) return { shopId: m[1], itemId: m[2] }
   // formato /product/{shopId}/{itemId}
-  m = url.match(/\/product\/(\d+)\/(\d+)/)
+  // formato /product/{shopId}/{itemId} ou /opaanlp/{shopId}/{itemId} (destino dos links curtos de afiliado)
+  m = url.match(/\/(?:product|opaanlp)\/(\d+)\/(\d+)/)
   if (m) return { shopId: m[1], itemId: m[2] }
   return null
 }
