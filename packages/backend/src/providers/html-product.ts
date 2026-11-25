@@ -78,6 +78,17 @@ function extractFromHtml(html: string): GenericProductData | null {
   }
 
   if (!title || salePrice <= 0) return null
+
+  // 3) Preço promocional exibido na página (tema Shopify da Stanley: <span data-price>R$ 159,50</span>
+  //    <span data-compare-at>R$ 319,00</span>). Desconto automático da loja não aparece no
+  //    JSON-LD/og:price nem no /products/x.js — em 25/11/2026 o copo de R$159,50 saiu a R$319.
+  const shown = html.match(/<[^>]+\sdata-price(?:=["'][^"']*["'])?[^>]*>(?:\s*<span[^>]*>[^<]*<\/span>)?\s*(R\$\s*[\d.,]+)/i)?.[1]
+  const compare = html.match(/<[^>]+\sdata-compare-at(?:=["'][^"']*["'])?[^>]*>(?:\s*<span[^>]*>[^<]*<\/span>)?\s*(R\$\s*[\d.,]+)/i)?.[1]
+  const shownPrice = parsePrice(shown || '')
+  if (shownPrice > 0 && shownPrice < salePrice && shownPrice >= salePrice * 0.2) {
+    originalPrice = Math.max(parsePrice(compare || '') || salePrice, salePrice)
+    salePrice = shownPrice
+  }
   if (originalPrice < salePrice) originalPrice = salePrice
 
   // og:title vem com entidades HTML (&#34;) e sufixo da loja ("… - AliExpress 7")
