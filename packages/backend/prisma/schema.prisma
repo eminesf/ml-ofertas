@@ -33,6 +33,7 @@ model Offer {
   shortCode          String?   @unique   // link curto do site: /r/{shortCode}
   clicks             Int       @default(0)
   sourcePrice        Float?             // preço anunciado pela fonte (canal/grupo), com cupom/Pix
+  priceSeenAt        DateTime?          // última vez que o preço foi visto/confirmado (scrape, feed, fonte) — validade na fila
   createdAt          DateTime  @default(now())
   posts              Post[]
 }

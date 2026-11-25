@@ -7,7 +7,7 @@ const UA =
 
 // Seletores clássicos da página de produto da Amazon como primeira tentativa —
 // a Amazon não usa JSON-LD Product de forma consistente no BR.
-function extractAmazonHtml(html: string): { title: string; salePrice: number; originalPrice: number; imageUrl?: string; rating?: number } | null {
+export function extractAmazonHtml(html: string): { title: string; salePrice: number; originalPrice: number; imageUrl?: string; rating?: number } | null {
   const titleM = html.match(/<span[^>]+id="productTitle"[^>]*>([\s\S]*?)<\/span>/)
   const title = titleM ? titleM[1].replace(/\s+/g, ' ').trim() : ''
 

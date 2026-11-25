@@ -3,6 +3,7 @@ import analyticsRouter from './analytics'
 import { timingSafeEqual } from 'crypto'
 import QRCode from 'qrcode'
 import { runPostingJob, runRepostJob, cancelRepostJob, getRepostState } from '../../jobs/offers.job'
+import { isFresh } from '../../utils/freshness'
 import { prisma } from '../../utils/prisma'
 import { publishOffer, postPriority } from '../../utils/publish'
 import { GROUPS, offerGroup } from '../../utils/groups'
@@ -62,16 +63,20 @@ router.get('/queue', async (req, res) => {
     where: {
       telegramMessage: { not: null },
       aiScore: { gte: 6 },
-      createdAt: { gte: new Date(Date.now() - hours * 3600_000) },
+      OR: [{ createdAt: { gte: new Date(Date.now() - hours * 3600_000) } }, { priceSeenAt: { gte: new Date(Date.now() - hours * 3600_000) } }],
       posts: { none: {} },
     },
     select: {
       id: true, title: true, provider: true, source: true, category: true, imageUrl: true,
       salePrice: true, originalPrice: true, discountPct: true, aiScore: true, couponCode: true,
-      createdAt: true, shortCode: true,
+      createdAt: true, shortCode: true, priceSeenAt: true,
     },
-    take: 300,
+    take: 600,
   })
+  // Só o que ainda vale (mesma validade do posting — utils/freshness.ts)
+  const fresh = offers.filter(o => isFresh(o))
+  offers.length = 0
+  offers.push(...fresh.slice(0, 300))
   offers.sort((a, b) => postPriority(b) - postPriority(a))
   const withGroup = offers.map(o => ({ ...o, group: offerGroup(o) }))
   const groups = GROUPS.map(g => ({
