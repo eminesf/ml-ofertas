@@ -1,5 +1,6 @@
 import { getOffers, type Offer } from '@/lib/api'
 import { brl, storeName } from '@/lib/utils'
+import SendButton from './SendButton'
 
 export const dynamic = 'force-dynamic'
 
@@ -46,12 +47,19 @@ export default async function StoriesPage() {
               <div style={{ fontSize: 12, color: '#aaa', marginTop: 8 }}>
                 {storeName(o.provider)} · IA {o.aiScore}/10 · -{o.discountPct}% · {brl(o.salePrice)}
               </div>
-              <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+              <a href={`/oferta/${o.id}`} target="_blank" rel="noreferrer" style={{ display: 'block', fontSize: 13, fontWeight: 700, color: '#eee', marginTop: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {o.title} ↗
+              </a>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
                 <a href={`/story/${o.id}?d=1`} style={{ flex: 1, textAlign: 'center', background: '#FFE600', color: '#111', fontWeight: 800, borderRadius: 8, padding: '8px 0', fontSize: 13 }}>
                   Baixar arte
                 </a>
+                <SendButton id={o.id} alreadyPosted={(o.posts?.length ?? 0) > 0} />
               </div>
               <input readOnly value={link} style={{ width: '100%', marginTop: 8, background: '#111', color: '#ddd', border: '1px solid #333', borderRadius: 6, padding: '6px 8px', fontSize: 12 }} />
+              <a href={o.productUrl} target="_blank" rel="noreferrer" style={{ display: 'block', fontSize: 11, color: '#888', marginTop: 6 }}>
+                Abrir produto na loja ↗
+              </a>
             </div>
           )
         })}

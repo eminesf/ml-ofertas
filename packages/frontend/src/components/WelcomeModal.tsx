@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Button } from '@/components/ui/button'
 import TelegramIcon, { TELEGRAM_URL } from './TelegramIcon'
 import WhatsAppIcon, { WHATSAPP_GREEN } from './WhatsAppIcon'
+import { openWhatsAppGroups } from './WhatsAppGroups'
 
 const STORAGE_KEY = 'fox_welcomed'
 const DURATION = 6000
@@ -50,10 +51,8 @@ export default function WelcomeModal({ whatsappUrl }: { whatsappUrl?: string | n
           </DialogHeader>
           <div className="space-y-2">
             {whatsappUrl && (
-              <Button asChild size="lg" className={`w-full rounded-xl font-semibold ${WHATSAPP_GREEN}`}>
-                <a href={whatsappUrl} target="_blank" rel="noopener noreferrer" onClick={() => setOpen(false)}>
-                  <WhatsAppIcon className="size-5" /> Entrar no grupo do WhatsApp
-                </a>
+              <Button size="lg" onClick={() => { setOpen(false); openWhatsAppGroups(whatsappUrl) }} className={`w-full rounded-xl font-semibold ${WHATSAPP_GREEN}`}>
+                <WhatsAppIcon className="size-5" /> Entrar no grupo do WhatsApp
               </Button>
             )}
             <Button

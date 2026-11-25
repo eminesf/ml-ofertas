@@ -11,13 +11,14 @@ export type GroupKey = 'tech' | 'achadinhos'
 export interface WaGroup {
   key: GroupKey
   label: string
+  description: string // texto do modal do site
   channel: string // Post.channel
   jid: () => string | undefined
 }
 
 export const GROUPS: WaGroup[] = [
-  { key: 'tech', label: 'Tech & TCG', channel: 'whatsapp', jid: () => process.env.WHATSAPP_GROUP_JID },
-  { key: 'achadinhos', label: 'Achadinhos', channel: 'whatsapp-achadinhos', jid: () => process.env.WHATSAPP_GROUP_ACHADINHOS_JID },
+  { key: 'tech', label: 'Tech & TCG', description: 'Eletrônicos, PC gamer, consoles, games e Pokémon/TCG', channel: 'whatsapp', jid: () => process.env.WHATSAPP_GROUP_JID },
+  { key: 'achadinhos', label: 'Achadinhos', description: 'Casa, moda, beleza, Nike, suplementos e achadinhos em geral', channel: 'whatsapp-achadinhos', jid: () => process.env.WHATSAPP_GROUP_ACHADINHOS_JID },
 ]
 
 export const WHATSAPP_CHANNELS = GROUPS.map(g => g.channel)

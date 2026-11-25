@@ -23,7 +23,8 @@ router.get('/', async (req, res) => {
   const orderBy: any = sort === 'discount'
     ? { discountPct: 'desc' }
     : sort === 'score'
-      ? { aiScore: 'desc' }
+      // Sem "nulls last" o Postgres põe as NÃO avaliadas (aiScore null) no topo do "IA Score"
+      ? [{ aiScore: { sort: 'desc', nulls: 'last' } }, { discountPct: 'desc' }, { createdAt: 'desc' }]
       : sort === 'votes'
         ? { upvotes: 'desc' }
         : { createdAt: 'desc' }

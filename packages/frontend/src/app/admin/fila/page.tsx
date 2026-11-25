@@ -49,6 +49,7 @@ export default function FilaPage() {
   const [offers, setOffers] = useState<QueueOffer[] | null>(null)
   const [groups, setGroups] = useState<GroupTab[]>([])
   const [tab, setTab] = useState('tech')
+  const [search, setSearch] = useState('')
   const [error, setError] = useState('')
   const [state, setState] = useState<Record<string, SendState>>({})
 
@@ -79,6 +80,12 @@ export default function FilaPage() {
       setState(s => ({ ...s, [id]: { error: err.message } }))
     }
   }
+
+  // Busca por nome (sem acento, todas as palavras), dentro da aba atual
+  const norm = (t: string) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+  const terms = norm(search).split(/\s+/).filter(Boolean)
+  const visible = (offers || []).filter(o =>
+    (!groups.length || o.group === tab) && terms.every(t => norm(o.title).includes(t)))
 
   return (
     <div style={{ padding: 24, maxWidth: 960, margin: '0 auto' }}>
@@ -117,12 +124,22 @@ export default function FilaPage() {
         ))}
       </div>
 
+      <input
+        type="search"
+        value={search}
+        onChange={e => setSearch(e.target.value)}
+        placeholder="Buscar pelo nome do produto…"
+        style={{ width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #ccc', fontSize: 14, marginBottom: 14, fontFamily: 'inherit' }}
+      />
+
       {error && <p style={{ color: '#c00' }}>{error}</p>}
       {offers === null && <p>Carregando…</p>}
-      {offers && !error && !offers.some(o => !groups.length || o.group === tab) && <p>Nada na fila deste grupo. Tudo que foi aprovado já foi postado.</p>}
+      {offers && !error && visible.length === 0 && (
+        <p>{terms.length ? 'Nenhuma oferta com esse nome nesta aba.' : 'Nada na fila deste grupo. Tudo que foi aprovado já foi postado.'}</p>
+      )}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {offers?.filter(o => !groups.length || o.group === tab).map(o => {
+        {visible.map(o => {
           const st = state[o.id]
           return (
             <div key={o.id} style={{ display: 'flex', gap: 12, alignItems: 'center', background: '#fff', borderRadius: 10, padding: 10, border: '1px solid #e5e5e5', opacity: st === 'sent' ? 0.5 : 1 }}>

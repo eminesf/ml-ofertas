@@ -88,6 +88,18 @@ export interface CouponContext {
   canApplyAlone: boolean // produto sozinho atinge o valor mínimo do cupom
 }
 
+// Anúncio com várias versões no título (AliExpress/Shopee: "SSD 128GB 256GB 512GB 1TB 2TB"):
+// o preço lido é o da versão MAIS BARATA. Sem este aviso a IA escrevia "SSD 1TB por R$200"
+// quando R$200 era o de 256GB. Celular "8GB RAM 256GB" (2 capacidades + RAM) não conta.
+export function variantWarning(title: string): string {
+  const gb = (c: string) => parseFloat(c.replace(',', '.')) * (/TB$/.test(c) ? 1024 : 1)
+  const caps = [...new Set([...title.matchAll(/\b(\d+(?:[.,]\d+)?)\s?(gb|tb)\b/gi)].map(m => `${m[1]}${m[2].toUpperCase()}`))]
+    .sort((a, b) => gb(a) - gb(b))
+  const isRamPair = caps.length === 2 && /\b(ram|mem[oó]ria)\b/i.test(title)
+  if (caps.length < 2 || isRamPair) return ''
+  return `\nATENÇÃO — o anúncio tem VÁRIAS VERSÕES (${caps.join(', ')}) e o preço informado é o da versão MAIS BARATA (provavelmente ${caps[0]}). Nunca diga que a versão maior custa esse preço: no texto use "a partir de R$ X" e cite que é a versão de menor capacidade; avalie a oferta pelo preço da versão mais barata.\n`
+}
+
 export async function evaluateOffer(offer: RawOffer): Promise<OfferEvaluation> {
   const today = new Date().toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' })
 
@@ -96,7 +108,7 @@ ${TRENDS_CONTEXT}
 Avalie essa oferta de e-commerce com nota de 0 a 10.
 
 Oferta:
-- Título: ${offer.title}
+- Título: ${offer.title}${variantWarning(offer.title)}
 - Preço original: R$ ${offer.originalPrice}
 - Preço com desconto: R$ ${offer.salePrice}
 - Desconto: ${offer.discountPct}%
@@ -117,8 +129,14 @@ Critérios de pontuação:
 
 O canal privilegia ofertas FÁCEIS de comprar: ticket baixo, produto conhecido e útil. Eletrodoméstico grande ou eletrônico caro só merece nota alta se o desconto for realmente excepcional.
 
-Responda APENAS com JSON válido, sem markdown:
-{"score": 7, "shouldPost": true, "reason": "motivo breve"}`
+Como calcular: comece em 3, some/subtraia os critérios acima e limite entre 0 e 10. Use a escala inteira — a nota decide a ordem da fila de posts:
+- 9–10: oferta excepcional (desconto real alto + produto muito desejado + preço baixo ou hype)
+- 7–8: oferta boa
+- 6: mediana, posta se sobrar espaço
+- 0–5: não vale postar (shouldPost false)
+
+Responda APENAS com JSON válido, sem markdown, no formato:
+{"score": <nota de 0 a 10>, "shouldPost": <true se a nota for 6 ou mais>, "reason": "motivo breve"}`
 
   const text = await chat(prompt, 200)
   try {
@@ -135,7 +153,7 @@ export async function analyzeMarketValue(offer: RawOffer): Promise<MarketAnalysi
 ${TRENDS_CONTEXT}
 Analise esse produto:
 
-- Título: ${offer.title}
+- Título: ${offer.title}${variantWarning(offer.title)}
 - Preço atual: R$ ${offer.salePrice}
 - Desconto: ${offer.discountPct}%
 
@@ -168,7 +186,7 @@ ${TRENDS_CONTEXT}
 Avalie esse produto que possui um CUPOM DE DESCONTO EXCLUSIVO com nota de 0 a 10.
 
 Produto:
-- Título: ${offer.title}
+- Título: ${offer.title}${variantWarning(offer.title)}
 - Preço atual: R$ ${offer.salePrice.toFixed(2)}
 - Desconto do cupom: ${coupon.discount}
 ${priceInfo}
@@ -186,8 +204,10 @@ Critérios de pontuação:
 
 IMPORTANTE: O cupom aplica no CARRINHO TOTAL, não por produto isolado. Produtos abaixo do mínimo são ótimos para combinar com outros e ativar o cupom — isso NÃO penaliza a nota.
 
-Responda APENAS com JSON válido, sem markdown:
-{"score": 7, "shouldPost": true, "reason": "motivo breve considerando o cupom"}`
+Como calcular: comece em 3, some os critérios acima e limite entre 0 e 10 (9–10 excepcional, 7–8 boa, 6 mediana, 0–5 não postar).
+
+Responda APENAS com JSON válido, sem markdown, no formato:
+{"score": <nota de 0 a 10>, "shouldPost": <true se a nota for 6 ou mais>, "reason": "motivo breve considerando o cupom"}`
 
   const text = await chat(prompt, 200)
   try {
@@ -227,7 +247,7 @@ Data: ${today}
 ${TRENDS_CONTEXT}
 
 Produto com CUPOM EXCLUSIVO DE AFILIADO:
-- Produto: ${offer.title}
+- Produto: ${offer.title}${variantWarning(offer.title)}
 - Preço atual: R$ ${offer.salePrice.toFixed(2)}
 - Cupom: ${coupon.code} (${coupon.discount})
 ${coupon.canApplyAlone
@@ -293,7 +313,7 @@ export async function generatePostMessage(
 Data: ${today}
 ${TRENDS_CONTEXT}
 
-Produto: ${offer.title}
+Produto: ${offer.title}${variantWarning(offer.title)}
 ${offer.discountPct > 0 ? `Desconto: ${offer.discountPct}% OFF` : 'Produto sem desconto explícito'}
 ${couponCode ? `Cupom extra: ${couponCode}` : ''}
 ${suggestedHighlight ? `Destaque sugerido: ${suggestedHighlight}` : ''}
