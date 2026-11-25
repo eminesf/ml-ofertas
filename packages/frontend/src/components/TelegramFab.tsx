@@ -5,11 +5,12 @@ import TelegramIcon, { TELEGRAM_URL } from './TelegramIcon'
 import WhatsAppIcon from './WhatsAppIcon'
 import { openWhatsAppGroups } from './WhatsAppGroups'
 
-// Botão flutuante do canal — no mobile fica acima da área segura do iPhone
+// Botão flutuante do canal — no mobile fica acima da área segura do iPhone.
+// --cookie-bar-h (CookieConsent): sobe acima da faixa de cookies enquanto ela está aberta.
 export default function TelegramFab({ whatsappUrl }: { whatsappUrl?: string | null }) {
   const pathname = usePathname()
   if (hideSiteChrome(pathname)) return null
-  const className = `fixed right-4 bottom-[max(1rem,env(safe-area-inset-bottom))] z-40 flex size-14 cursor-pointer items-center justify-center rounded-full ${whatsappUrl ? 'bg-[#25D366]' : 'bg-[#229ED9]'} text-white shadow-lg shadow-black/20 transition-transform hover:scale-105 active:scale-95 sm:right-6 sm:bottom-6`
+  const className = `fixed right-4 bottom-[calc(max(1rem,env(safe-area-inset-bottom))+var(--cookie-bar-h,0px))] z-40 flex size-14 cursor-pointer items-center justify-center rounded-full ${whatsappUrl ? 'bg-[#25D366]' : 'bg-[#229ED9]'} text-white shadow-lg shadow-black/20 transition-[bottom,transform] duration-300 hover:scale-105 active:scale-95 sm:right-6 sm:bottom-[calc(1.5rem+var(--cookie-bar-h,0px))]`
   // WhatsApp: abre o modal de escolha de grupo (Tech & TCG / Achadinhos)
   if (whatsappUrl) {
     return (
@@ -24,7 +25,7 @@ export default function TelegramFab({ whatsappUrl }: { whatsappUrl?: string | nu
       target="_blank"
       rel="noopener noreferrer"
       aria-label={whatsappUrl ? 'Entrar no grupo de promoções no WhatsApp' : 'Seguir o canal no Telegram'}
-      className={`fixed right-4 bottom-[max(1rem,env(safe-area-inset-bottom))] z-40 flex size-14 items-center justify-center rounded-full ${whatsappUrl ? 'bg-[#25D366]' : 'bg-[#229ED9]'} text-white shadow-lg shadow-black/20 transition-transform hover:scale-105 active:scale-95 sm:right-6 sm:bottom-6`}
+      className={className}
     >
       {whatsappUrl ? <WhatsAppIcon className="size-7" /> : <TelegramIcon className="size-7" />}
     </a>
