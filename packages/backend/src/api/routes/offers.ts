@@ -204,8 +204,9 @@ router.get('/go/:code', async (req, res) => {
 })
 
 router.get('/:id', async (req, res) => {
-  const offer = await prisma.offer.findUnique({
-    where: { id: req.params.id },
+  // Aceita o id ou o código do link curto (/r/CODE) — usado pelo "story de um link" do admin
+  const offer = await prisma.offer.findFirst({
+    where: { OR: [{ id: req.params.id }, { shortCode: req.params.id }] },
     include: { posts: true }
   })
   if (!offer) return res.status(404).json({ error: 'Oferta não encontrada' })
