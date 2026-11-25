@@ -35,7 +35,13 @@ function StoryCard({ o, badge, highlight }: { o: Offer; badge?: string; highligh
       </a>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
         <a href={`/story/${o.id}?d=1`} style={{ flex: 1, textAlign: 'center', background: '#FFE600', color: '#111', fontWeight: 800, borderRadius: 8, padding: '8px 0', fontSize: 13 }}>
-          Baixar arte
+          Baixar story
+        </a>
+        <a href={`/post/${o.id}?d=1`} style={{ flex: 1, textAlign: 'center', background: '#fff', color: '#111', fontWeight: 800, borderRadius: 8, padding: '8px 0', fontSize: 13 }}>
+          Baixar post
+        </a>
+        <a href={`/post/${o.id}`} target="_blank" rel="noreferrer" style={{ width: '100%', textAlign: 'center', fontSize: 11, color: '#999' }}>
+          ver arte do post (feed 4:5) ↗
         </a>
         <SendButton id={o.id} alreadyPosted={(o.posts?.length ?? 0) > 0} />
       </div>

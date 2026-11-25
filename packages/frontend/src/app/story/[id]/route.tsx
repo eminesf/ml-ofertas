@@ -1,44 +1,13 @@
 import { ImageResponse } from 'next/og'
 import { getOffer } from '@/lib/api'
 import { brl, storeName } from '@/lib/utils'
+import { loadFonts, loadImage } from '@/lib/og-art'
 
 // Arte de story do Instagram (1080x1920) para uma oferta: /story/<id>
 // ?d=1 baixa o PNG. Gerada na hora a partir dos dados da oferta.
 
 const W = 1080
 const H = 1920
-
-// O gerador (satori) só lê PNG/JPEG: troca webp do ML por jpg e embute como data URL
-async function loadImage(url?: string): Promise<string | null> {
-  if (!url) return null
-  const candidates = /mlstatic\.com/.test(url) ? [url.replace(/\.webp(\?.*)?$/i, '.jpg'), url] : [url]
-  for (const u of candidates) {
-    try {
-      const res = await fetch(u, { signal: AbortSignal.timeout(8000) })
-      const type = res.headers.get('content-type') || ''
-      if (!res.ok || !/image\/(png|jpe?g)/i.test(type)) continue
-      const buf = Buffer.from(await res.arrayBuffer())
-      return `data:${type.split(';')[0]};base64,${buf.toString('base64')}`
-    } catch {
-      // tenta a próxima
-    }
-  }
-  return null
-}
-
-// Nunito (fonte do site) em TTF — o gerador não lê woff2. Cache em memória.
-let fontsCache: Promise<{ name: string; data: ArrayBuffer; weight: 700 | 900; style: 'normal' }[]> | null = null
-function loadFonts() {
-  fontsCache ??= (async () => {
-    const css = await (await fetch('https://fonts.googleapis.com/css2?family=Nunito:wght@700;900')).text()
-    const out: { name: string; data: ArrayBuffer; weight: 700 | 900; style: 'normal' }[] = []
-    for (const m of css.matchAll(/font-weight: (\d+);[\s\S]*?url\(([^)]+\.ttf)\)/g)) {
-      out.push({ name: 'Nunito', weight: Number(m[1]) as 700 | 900, style: 'normal', data: await (await fetch(m[2])).arrayBuffer() })
-    }
-    return out
-  })().catch(() => { fontsCache = null; return [] })
-  return fontsCache
-}
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
