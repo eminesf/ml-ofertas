@@ -91,7 +91,9 @@ export interface WhatsAppGroupLink {
 export async function getChannels(): Promise<{ whatsapp: string | null; whatsappGroups: WhatsAppGroupLink[]; telegram: string }> {
   const fallback = { whatsapp: process.env.NEXT_PUBLIC_WHATSAPP_URL || null, whatsappGroups: [], telegram: 'https://t.me/e_foxofertas' }
   try {
-    const res = await fetch(`${API_URL}/api/channels`, { next: { revalidate: 600 }, signal: AbortSignal.timeout(5000) })
+    // ?v=2: o Data Cache da Vercel sobrevive a deploys — mudar a URL descarta a resposta
+    // antiga (sem whatsappGroups) que fazia o botão ir direto para um grupo só
+    const res = await fetch(`${API_URL}/api/channels?v=2`, { next: { revalidate: 300 }, signal: AbortSignal.timeout(5000) })
     if (!res.ok) return fallback
     const data = await res.json()
     return {
