@@ -227,20 +227,27 @@ export async function generateCouponPostMessage(
   const styles = ['urgente', 'informativo', 'entusiasmado']
   const style = styles[Math.floor(Math.random() * styles.length)]
 
+  // Preço sempre no formato brasileiro (R$ 1.234,56) e o CUPOM com destaque — em 25/11/2026
+  // saía "💰 R$ 104.01 → use NIKE40 → R$ 62.41" e não ficava claro que era cupom
+  const brl = (v: number) => `R$ ${v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
   const discountLabel = coupon.maxDiscount
-    ? `${coupon.discount} (máx R$${coupon.maxDiscount.toFixed(2)})`
-    : coupon.discount
+    ? `${coupon.discount} OFF, máx ${brl(coupon.maxDiscount)}`
+    : `${coupon.discount}${/off/i.test(coupon.discount) ? '' : ' OFF'}`
   const couponBlock = coupon.canApplyAlone
-    ? `   💰 Preço: R$ ${offer.salePrice.toFixed(2)}
-   🎟️ Cupom: <code>${coupon.code}</code> → <b>${discountLabel}</b>
-   ✅ Você paga: <b>R$ ${coupon.effectivePrice.toFixed(2)}</b>`
-    : `   💰 Preço: R$ ${offer.salePrice.toFixed(2)}
-   🎟️ Cupom: <code>${coupon.code}</code> → <b>${discountLabel}</b> em compras na loja
-   ⚠️ <i>Adicione ao carrinho com outros itens${coupon.minValue ? ` (mín. R$${coupon.minValue})` : ''} para ativar o cupom</i>`
+    ? `   💰 Preço no site: ${brl(offer.salePrice)}
+   🎟️ Use o CUPOM <code>${coupon.code}</code> (${discountLabel})
+   ✅ Você paga: <b>${brl(coupon.effectivePrice)}</b>`
+    : `   💰 Preço no site: ${brl(offer.salePrice)}
+   🎟️ CUPOM <code>${coupon.code}</code> (${discountLabel}) em compras na loja
+   ⚠️ <i>Adicione ao carrinho com outros itens${coupon.minValue ? ` (mín. ${brl(coupon.minValue)})` : ''} para ativar o cupom</i>`
 
   const whatsappCouponBlock = coupon.canApplyAlone
-    ? `💰 R$ ${offer.salePrice.toFixed(2)} → use ${coupon.code} → R$ ${coupon.effectivePrice.toFixed(2)}${coupon.maxDiscount ? ` (máx R$${coupon.maxDiscount.toFixed(2)})` : ''}`
-    : `💰 R$ ${offer.salePrice.toFixed(2)} | Cupom ${coupon.code} (${discountLabel})\n⚠️ Válido combinando itens no carrinho${coupon.minValue ? ` acima de R$${coupon.minValue}` : ''}`
+    ? `💰 Preço no site: ${brl(offer.salePrice)}
+🎟️ Use o CUPOM *${coupon.code}* (${discountLabel})
+✅ Você paga: *${brl(coupon.effectivePrice)}*`
+    : `💰 Preço no site: ${brl(offer.salePrice)}
+🎟️ CUPOM *${coupon.code}* (${discountLabel})
+⚠️ Válido combinando itens no carrinho${coupon.minValue ? ` acima de ${brl(coupon.minValue)}` : ''}`
 
   const prompt = `Você é um copywriter expert em ofertas para canais do Telegram e WhatsApp no Brasil.
 Data: ${today}
@@ -259,7 +266,7 @@ ${suggestedHighlight ? `- Destaque: ${suggestedHighlight}` : ''}
 
 Estilo: ${style}
 
-Gere DUAS versões usando EXATAMENTE o bloco de preço/cupom abaixo (não invente outros valores):
+Gere DUAS versões usando EXATAMENTE o bloco de preço/cupom abaixo, linha por linha (não invente outros valores, não resuma o bloco numa linha só, preços sempre no formato R$ 1.234,56 e a palavra CUPOM em maiúsculas):
 
 Telegram (use HTML: <b>, <i>, <s>, <code>, <a href="">):
 🏷️ <b>TÍTULO CHAMATIVO AQUI</b>
