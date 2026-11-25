@@ -71,7 +71,8 @@ export default function SiteFooter({ whatsappUrl }: { whatsappUrl?: string | nul
       </div>
       <div className="border-t">
         <p className="mx-auto max-w-6xl px-4 py-4 text-xs text-muted-foreground">
-          © 2026 Fox Promoções · Podemos receber comissão por compras feitas pelos links, sem custo extra para você.
+          © 2026 Fox Promoções · Podemos receber comissão por compras feitas pelos links, sem custo extra para você. ·{' '}
+          <Link href="/privacidade" className="underline underline-offset-2 hover:text-foreground">Privacidade e cookies</Link>
         </p>
       </div>
     </footer>
