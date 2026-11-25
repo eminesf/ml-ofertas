@@ -235,7 +235,7 @@ model Post {
 
 ## Produto repetido nas fontes (25/11/2026)
 - Cada `Post` guarda `price` (preço efetivo: `Offer.sourcePrice` — o anunciado pela fonte, com cupom/Pix — ou `salePrice`) e `couponCode` do momento.
-- Fonte divulga de novo um produto JÁ postado (`handleSourcePost`): reposta (`processOffer(..., allowRepost)` + `/api/admin/offer/:id/send?repost=1`) se tiver cupom diferente do último post, preço ≥3% menor (do post da fonte ou da loja) ou se o último post foi há `SOURCE_REPOST_HOURS` (12h). Menos de 1h desde o último post: sempre pula. Sem novidade: loga "sem novidade" e pula.
+- Fonte divulga de novo um produto JÁ postado (`handleSourcePost`): reposta (`processOffer(..., allowRepost)` + `/api/admin/offer/:id/send?repost=1`) se tiver cupom diferente do último post, preço ≥3% menor (do post da fonte ou da loja) ou se o último post foi há `SOURCE_REPOST_HOURS` (12h). Menos de 1h desde o último post: sempre pula. Sem novidade: loga "sem novidade" e pula. Nunca postado e reprovado pela IA: reavalia se a fonte trouxer preço ≥3% menor ou cupom novo; aprovado esperando na fila: pula.
 - Preço sem "R$" sozinho na linha ("115,99", "🔥 287,99") vale como preço (`parseLoosePrice`); ano solto ("2026") não.
 
 ## Madrugada e Pokémon
