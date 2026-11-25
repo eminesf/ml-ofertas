@@ -257,7 +257,8 @@ async function scrapeWithPlaywright(
 
   try {
     console.log(`[ScrapeProduct] Playwright navegando para: ${navUrl}`)
-    await page.goto(navUrl, { waitUntil: 'networkidle', timeout: 60000 })
+    // networkidle nunca chega em algumas páginas /up/ (scripts de tracking ficam abertos)
+    await page.goto(navUrl, { waitUntil: 'domcontentloaded', timeout: 60000 })
     if (isMlBlockedUrl(page.url())) {
       await reportMlBlocked('import de produto')
       return null
