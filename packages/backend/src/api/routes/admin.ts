@@ -1,5 +1,6 @@
 import { Router, Request, Response, NextFunction } from 'express'
 import analyticsRouter from './analytics'
+import adminOffersRouter from './admin-offers'
 import { timingSafeEqual } from 'crypto'
 import QRCode from 'qrcode'
 import { runPostingJob, runRepostJob, cancelRepostJob, getRepostState } from '../../jobs/offers.job'
@@ -27,6 +28,9 @@ router.use(requireAdminSecret)
 
 // GET /api/admin/analytics — painel de análise (/admin/analise)
 router.use('/analytics', analyticsRouter)
+
+// /api/admin/offers — gerenciar ofertas (/admin/ofertas)
+router.use('/offers', adminOffersRouter)
 
 // Scraping (offers/hub/amazon) não roda mais no Railway — é 100% local via
 // `npm run scrape` (ver jobs/scrape-cli.ts). Endpoints remotos removidos.
