@@ -32,6 +32,7 @@ model Offer {
   upvotes            Int       @default(0)
   shortCode          String?   @unique   // link curto do site: /r/{shortCode}
   clicks             Int       @default(0)
+  sourcePrice        Float?             // preço anunciado pela fonte (canal/grupo), com cupom/Pix
   createdAt          DateTime  @default(now())
   posts              Post[]
 }
@@ -61,6 +62,8 @@ model Post {
   sentAt          DateTime  @default(now())
   repostedAt      DateTime?
   success         Boolean   @default(true)
+  price           Float?    // preço efetivo no momento do post (fonte ou loja) — detecta preço novo
+  couponCode      String?   // cupom no momento do post — detecta cupom novo
 }
 
 // Último preço visto de cada produto de feed sem preço "de" (ex: Kabum via Awin).

@@ -152,11 +152,13 @@ async function doPublish(
   const tgText = withShortLink(opts.telegramText ?? offer.telegramMessage ?? '', offer, code, 't')
   const waText = withShortLink(opts.whatsappText ?? offer.whatsappMessage ?? '', offer, code, group.key === 'tech' ? 'w' : 'a')
   const repostedAt = opts.repost ? new Date() : undefined
+  // Preço/cupom do momento: na próxima vez que o produto aparecer, dá para ver se é promoção nova
+  const snap = { price: offer.sourcePrice ?? offer.salePrice, couponCode: offer.couponCode }
 
   let telegram = false
   if (tgText) {
     telegram = image ? await sendPhoto(image, tgText) : await sendMessage(tgText)
-    await prisma.post.create({ data: { offerId: offer.id, channel: 'telegram', message: tgText, whatsappMessage: waText || null, success: telegram, repostedAt } })
+    await prisma.post.create({ data: { offerId: offer.id, channel: 'telegram', message: tgText, whatsappMessage: waText || null, success: telegram, repostedAt, ...snap } })
   }
 
   const groupJid = group.jid()
@@ -166,7 +168,7 @@ async function doPublish(
       console.warn('[Publish] WhatsApp desconectado — oferta só no Telegram')
     } else {
       whatsapp = await inWhatsAppLine(() => sendWhatsAppPost(waText, image, groupJid))
-      await prisma.post.create({ data: { offerId: offer.id, channel: group.channel, message: waText, whatsappMessage: waText, success: whatsapp, repostedAt } })
+      await prisma.post.create({ data: { offerId: offer.id, channel: group.channel, message: waText, whatsappMessage: waText, success: whatsapp, repostedAt, ...snap } })
     }
   }
 

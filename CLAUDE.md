@@ -233,6 +233,11 @@ model Post {
 - Achadinhos: 1 a cada `ACHADINHOS_BRAND_EVERY` (3) posts é Nike/Stanley (`BRAND_PROVIDERS`) se houver na fila; marcas valem a partir de 10% de desconto (Stanley com `minDiscount: 10` no feed).
 - `/links`: página "link na bio" do Instagram (sem header/footer — `hideSiteChrome` em lib/site.ts): botões dos 2 grupos, Telegram, site, Pokémon e 6 destaques do dia (clique com origem `i`).
 
+## Produto repetido nas fontes (25/11/2026)
+- Cada `Post` guarda `price` (preço efetivo: `Offer.sourcePrice` — o anunciado pela fonte, com cupom/Pix — ou `salePrice`) e `couponCode` do momento.
+- Fonte divulga de novo um produto JÁ postado (`handleSourcePost`): reposta (`processOffer(..., allowRepost)` + `/api/admin/offer/:id/send?repost=1`) se tiver cupom diferente do último post, preço ≥3% menor (do post da fonte ou da loja) ou se o último post foi há `SOURCE_REPOST_HOURS` (12h). Menos de 1h desde o último post: sempre pula. Sem novidade: loga "sem novidade" e pula.
+- Preço sem "R$" sozinho na linha ("115,99", "🔥 287,99") vale como preço (`parseLoosePrice`); ano solto ("2026") não.
+
 ## Madrugada e Pokémon
 - Grupos PRIVADOS do Telegram (`TELEGRAM_PRIVATE_SOURCES=+HASH,...`, ex.: "Promoções Pokémon") são lidos pela conta do dono via MTProto (`telegram`/gram.js, `channels/telegram/user-client.ts`): só leitura. Credenciais `TELEGRAM_API_ID`/`TELEGRAM_API_HASH` (my.telegram.org) e sessão em `packages/.telegram-user-session` (gitignored) criada com `npm run telegram:login` (o dono digita telefone e código). Mesmo pipeline dos canais públicos (`handleSourcePost`).
 - Fora de `POST_HOURS` (8–23h) o posting só libera ofertas com source `telegram` (o que os canais garimpados postam de madrugada, a gente posta também). Os canais são lidos 24h.
