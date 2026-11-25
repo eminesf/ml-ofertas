@@ -1,20 +1,41 @@
 'use client'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { getConsent, setConsent } from '@/lib/consent'
 
-// Faixa fina no rodapé da tela (estilo barra de ações): não cobre o conteúdo nem bloqueia
-// a navegação. Some depois de Aceitar/Recusar. Fora do /admin.
+// Faixa no rodapé da tela (estilo barra de ações): não bloqueia a navegação.
+// Some depois de Aceitar/Recusar. Fora do /admin.
+// Enquanto aberta, publica a própria altura em --cookie-bar-h no <html>: o botão
+// flutuante do WhatsApp e o CTA fixo da oferta sobem essa altura e voltam quando ela fecha.
 export default function CookieConsent() {
   const pathname = usePathname()
   const [open, setOpen] = useState(false)
+  const barRef = useRef<HTMLDivElement>(null)
+  const visible = open && !pathname.startsWith('/admin')
 
   useEffect(() => {
     setOpen(getConsent() === null)
   }, [])
 
-  if (!open || pathname.startsWith('/admin')) return null
+  useEffect(() => {
+    const root = document.documentElement
+    const el = barRef.current
+    if (!visible || !el) {
+      root.style.removeProperty('--cookie-bar-h')
+      return
+    }
+    const update = () => root.style.setProperty('--cookie-bar-h', `${Math.ceil(el.getBoundingClientRect().height)}px`)
+    update()
+    const ro = new ResizeObserver(update)
+    ro.observe(el)
+    return () => {
+      ro.disconnect()
+      root.style.removeProperty('--cookie-bar-h')
+    }
+  }, [visible])
+
+  if (!visible) return null
 
   function answer(v: 'ok' | 'no') {
     setConsent(v)
@@ -23,6 +44,7 @@ export default function CookieConsent() {
 
   return (
     <div
+      ref={barRef}
       role="region"
       aria-label="Aviso de cookies"
       className="fixed inset-x-0 bottom-0 z-[60] border-t border-[#bcd6f5] bg-[#e8f2fd] shadow-[0_-4px_14px_rgba(30,64,120,0.10)]"
