@@ -7,6 +7,7 @@ import { Flame } from 'lucide-react'
 import SearchBar from './SearchBar'
 import TelegramIcon, { TELEGRAM_URL } from './TelegramIcon'
 import WhatsAppIcon, { WHATSAPP_GREEN } from './WhatsAppIcon'
+import { openWhatsAppGroups } from './WhatsAppGroups'
 import { Button } from '@/components/ui/button'
 import { CATEGORIES, cn } from '@/lib/utils'
 
@@ -36,12 +37,10 @@ export default function SiteHeader({ whatsappUrl }: { whatsappUrl?: string | nul
 
         <div className="ml-auto flex shrink-0 items-center gap-1.5">
           {whatsappUrl && (
-            <Button asChild size="sm" className={cn('h-9 rounded-full px-3.5 font-semibold shadow-sm sm:px-4', WHATSAPP_GREEN)}>
-              <a href={whatsappUrl} target="_blank" rel="noopener noreferrer">
-                <WhatsAppIcon className="size-4" />
-                <span className="hidden sm:inline">Promos no WhatsApp</span>
-                <span className="sm:hidden">Entrar</span>
-              </a>
+            <Button size="sm" onClick={() => openWhatsAppGroups(whatsappUrl)} className={cn('h-9 rounded-full px-3.5 font-semibold shadow-sm sm:px-4', WHATSAPP_GREEN)}>
+              <WhatsAppIcon className="size-4" />
+              <span className="hidden sm:inline">Promos no WhatsApp</span>
+              <span className="sm:hidden">Entrar</span>
             </Button>
           )}
           <Button

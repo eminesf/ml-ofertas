@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import WhatsAppModal from '@/components/WhatsAppModal'
 
@@ -26,6 +26,27 @@ const JOBS = [
 
 export default function AdminDashboard() {
   const [whatsAppOpen, setWhatsAppOpen] = useState(false)
+  // Confirmação antes de disparar (evita clique sem querer) e andamento do repost (cancelável)
+  const [confirmJob, setConfirmJob] = useState<(typeof JOBS)[number] | null>(null)
+  const [repost, setRepost] = useState<{ running: boolean; cancel: boolean; done: number; total: number } | null>(null)
+
+  useEffect(() => {
+    let stop = false
+    async function poll() {
+      try {
+        const res = await fetch('/api/admin/repost/status', { cache: 'no-store' })
+        if (res.ok && !stop) setRepost(await res.json())
+      } catch {}
+    }
+    poll()
+    const t = setInterval(poll, 3000)
+    return () => { stop = true; clearInterval(t) }
+  }, [])
+
+  async function cancelRepost() {
+    const res = await fetch('/api/admin/repost/cancel', { method: 'POST' })
+    if (res.ok) setRepost(await res.json())
+  }
   const [statuses, setStatuses] = useState<Record<string, JobStatus>>(
     Object.fromEntries(JOBS.map(j => [j.id, { loading: false, result: null, error: null }]))
   )
@@ -131,9 +152,22 @@ export default function AdminDashboard() {
                   </p>
                 )}
               </div>
+              {job.id === 'repost' && repost?.running && (
+                <button
+                  onClick={cancelRepost}
+                  disabled={repost.cancel}
+                  style={{
+                    background: repost.cancel ? '#ccc' : '#c53030', color: '#fff', border: 'none', borderRadius: 8,
+                    padding: '8px 16px', fontWeight: 700, fontSize: 13, cursor: repost.cancel ? 'default' : 'pointer',
+                    fontFamily: 'inherit', whiteSpace: 'nowrap',
+                  }}
+                >
+                  {repost.cancel ? 'Cancelando…' : `Cancelar (${repost.done}/${repost.total || '?'})`}
+                </button>
+              )}
               <button
-                onClick={() => triggerJob(job.id)}
-                disabled={status.loading}
+                onClick={() => setConfirmJob(job)}
+                disabled={status.loading || (job.id === 'repost' && !!repost?.running)}
                 style={{
                   background: status.loading ? '#ccc' : '#1a1a2e',
                   color: '#fff', border: 'none', borderRadius: 8,
@@ -149,8 +183,36 @@ export default function AdminDashboard() {
         })}
       </div>
 
+      {confirmJob && (
+        <div
+          onClick={() => setConfirmJob(null)}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 16 }}
+        >
+          <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 14, padding: '1.5rem', maxWidth: 380, width: '100%' }}>
+            <p style={{ margin: '0 0 6px', fontWeight: 800, fontSize: 16 }}>{confirmJob.icon} {confirmJob.label}?</p>
+            <p style={{ margin: '0 0 18px', fontSize: 13, color: '#666' }}>
+              {confirmJob.description} Isso posta nos grupos do WhatsApp e no Telegram agora.
+            </p>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setConfirmJob(null)}
+                style={{ background: '#f0f0f0', color: '#333', border: 'none', borderRadius: 8, padding: '8px 16px', fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => { const id = confirmJob.id; setConfirmJob(null); triggerJob(id) }}
+                style={{ background: '#1a1a2e', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 16px', fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}
+              >
+                Sim, disparar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <p style={{ marginTop: '1.5rem', fontSize: 12, color: '#aaa', textAlign: 'center' }}>
-        Os jobs rodam em background — acompanhe o resultado pelo log do servidor no Railway.
+        Os jobs rodam em background — acompanhe o resultado pelo log do backend (pm2).
       </p>
     </main>
   )

@@ -1,7 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express'
 import { timingSafeEqual } from 'crypto'
 import QRCode from 'qrcode'
-import { runPostingJob, runRepostJob } from '../../jobs/offers.job'
+import { runPostingJob, runRepostJob, cancelRepostJob, getRepostState } from '../../jobs/offers.job'
 import { prisma } from '../../utils/prisma'
 import { publishOffer, postPriority } from '../../utils/publish'
 import { GROUPS, offerGroup } from '../../utils/groups'
@@ -35,8 +35,20 @@ router.post('/job/post', (req, res) => {
 
 // POST /api/admin/job/repost — repost de ofertas válidas
 router.post('/job/repost', (req, res) => {
+  if (getRepostState().running) return res.status(409).json({ error: 'Repost já está rodando' })
   runRepostJob().catch(console.error)
   res.json({ started: true, job: 'repost' })
+})
+
+// POST /api/admin/job/repost/cancel — para o repost em andamento (a oferta sendo enviada termina)
+router.post('/job/repost/cancel', (_req, res) => {
+  const cancelled = cancelRepostJob()
+  res.json({ cancelled, ...getRepostState() })
+})
+
+// GET /api/admin/job/repost/status — andamento do repost (painel mostra o botão Cancelar)
+router.get('/job/repost/status', (_req, res) => {
+  res.json(getRepostState())
 })
 
 // GET /api/admin/queue?hours=48 — ofertas aprovadas que ainda não foram para os grupos

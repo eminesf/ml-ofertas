@@ -217,6 +217,15 @@ model Post {
 - O backend (dono do socket) escuta `messages.upsert` desses grupos e grava em `packages/.whatsapp-sources-queue.json` (`jobs/whatsapp-source.ts`); o job das fontes (telegram-source, 5 em 5 min, processo filho) consome a fila com o mesmo `handleSourcePost` (source `telegram` → prioridade, envio imediato, madrugada). Mensagem sem preço usa o preço da loja (`allowNoPrice`).
 - Nike bloqueia leitura direta da página (403): `scrapeAwinProduct` busca o produto no feed Awin (`findInFeed`, cache em disco `packages/.awin-feed-cache/` por 3h). externalId Nike = `NIKE-{código}` (sem cor) para bater link × feed.
 
+## Ajustes de 24/11/2026 (noite)
+- Site: botões de WhatsApp (header, rodapé, FAB, boas-vindas) abrem `WhatsAppGroupsDialog` (components/WhatsAppGroups.tsx) com os dois grupos; `/api/channels` devolve `whatsappGroups` (convite por grupo via `getWhatsAppInviteLink(jid)`, cache 6h). Com 1 grupo só, vai direto.
+- `/admin/stories`: link da oferta, "Abrir produto na loja" e botão "Enviar p/ grupos" (mesmo `/api/admin/send/[id]`).
+- `/admin/fila`: busca por nome (sem acento, todas as palavras) dentro da aba.
+- `/admin`: confirmação antes de disparar job; repost cancelável (`cancelRepostJob`, flag checada entre ofertas; `/api/admin/job/repost/{status,cancel}`, proxy `/api/admin/repost/[action]`); repost não roda duas vezes ao mesmo tempo.
+- "IA Score" no site: `nulls: 'last'` — antes as ofertas NUNCA avaliadas (aiScore null) apareciam no topo.
+- IA: o prompt tinha `{"score": 7,...}` como exemplo e a nota ficava 7 em 98% das ofertas (603/613 em 3 dias), sem diferenciar a fila. Agora: começa em 3, soma critérios, escala 9–10/7–8/6/≤5.
+- `variantWarning(title)` (ai/index.ts): título com várias capacidades (AliExpress "512GB 1TB 2TB") → avisa a IA que o preço é da versão mais barata ("a partir de"). Título do html-product sem entidades e sem "- AliExpress 7".
+
 ## Madrugada e Pokémon
 - Grupos PRIVADOS do Telegram (`TELEGRAM_PRIVATE_SOURCES=+HASH,...`, ex.: "Promoções Pokémon") são lidos pela conta do dono via MTProto (`telegram`/gram.js, `channels/telegram/user-client.ts`): só leitura. Credenciais `TELEGRAM_API_ID`/`TELEGRAM_API_HASH` (my.telegram.org) e sessão em `packages/.telegram-user-session` (gitignored) criada com `npm run telegram:login` (o dono digita telefone e código). Mesmo pipeline dos canais públicos (`handleSourcePost`).
 - Fora de `POST_HOURS` (8–23h) o posting só libera ofertas com source `telegram` (o que os canais garimpados postam de madrugada, a gente posta também). Os canais são lidos 24h.

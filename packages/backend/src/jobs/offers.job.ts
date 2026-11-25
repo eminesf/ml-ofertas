@@ -359,7 +359,32 @@ export async function runPostingJob(maxPosts = 1, force = false, group?: GroupKe
   console.log('[Job] Posting job concluído')
 }
 
+// Repost pode ser cancelado no meio (botão no /admin): a flag é checada antes de cada
+// oferta — a que já está sendo enviada termina, as próximas não saem.
+let repostState: { running: boolean; cancel: boolean; done: number; total: number } = { running: false, cancel: false, done: 0, total: 0 }
+export function getRepostState() {
+  return { ...repostState }
+}
+export function cancelRepostJob(): boolean {
+  if (!repostState.running) return false
+  repostState.cancel = true
+  return true
+}
+
 export async function runRepostJob() {
+  if (repostState.running) {
+    console.log('[Job] Repost já está rodando — ignorado')
+    return
+  }
+  repostState = { running: true, cancel: false, done: 0, total: 0 }
+  try {
+    await doRepost()
+  } finally {
+    repostState.running = false
+  }
+}
+
+async function doRepost() {
   console.log('[Job] Iniciando job de repost')
   const todayStart = new Date()
   todayStart.setHours(0, 0, 0, 0)
@@ -374,8 +399,14 @@ export async function runRepostJob() {
   const maxReposts = parseInt(process.env.REPOST_MAX || '3', 10)
   const eligible = offers.filter(shouldRepost).sort((a, b) => postPriority(b) - postPriority(a)).slice(0, maxReposts)
   console.log(`[Job] Repost: ${eligible.length} de ${offers.length} ofertas de hoje`)
+  repostState.total = eligible.length
 
   for (const offer of eligible) {
+    if (repostState.cancel) {
+      console.log(`[Job] Repost CANCELADO pelo admin (${repostState.done}/${eligible.length} enviados)`)
+      return
+    }
+    repostState.done++
     try {
 
       const rawOffer = { externalId: offer.externalId, title: offer.title, originalPrice: offer.originalPrice, salePrice: offer.salePrice, discountPct: offer.discountPct, imageUrl: offer.imageUrl || undefined, productUrl: offer.productUrl, rating: offer.rating || undefined }

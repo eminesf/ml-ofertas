@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation'
 import { CATEGORIES } from '@/lib/utils'
 import TelegramIcon, { TELEGRAM_URL } from './TelegramIcon'
 import WhatsAppIcon from './WhatsAppIcon'
+import { openWhatsAppGroups } from './WhatsAppGroups'
 import InstagramIcon, { INSTAGRAM_URL } from './InstagramIcon'
 
 export default function SiteFooter({ whatsappUrl }: { whatsappUrl?: string | null }) {
@@ -41,14 +42,13 @@ export default function SiteFooter({ whatsappUrl }: { whatsappUrl?: string | nul
         <div>
           <p className="mb-3 text-sm font-semibold">Receba primeiro</p>
           {whatsappUrl && (
-            <a
-              href={whatsappUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mb-2 flex items-center gap-2 text-sm font-medium text-foreground hover:text-[#1ebe5b]"
+            <button
+              type="button"
+              onClick={() => openWhatsAppGroups(whatsappUrl)}
+              className="mb-2 flex cursor-pointer items-center gap-2 text-left text-sm font-medium text-foreground hover:text-[#1ebe5b]"
             >
-              <WhatsAppIcon className="size-4 text-[#25D366]" /> Grupo de promoções no WhatsApp
-            </a>
+              <WhatsAppIcon className="size-4 text-[#25D366]" /> Grupos de promoções no WhatsApp
+            </button>
           )}
           <a
             href={TELEGRAM_URL}

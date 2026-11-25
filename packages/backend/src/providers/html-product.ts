@@ -80,6 +80,13 @@ function extractFromHtml(html: string): GenericProductData | null {
   if (!title || salePrice <= 0) return null
   if (originalPrice < salePrice) originalPrice = salePrice
 
+  // og:title vem com entidades HTML (&#34;) e sufixo da loja ("… - AliExpress 7")
+  title = title
+    .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)))
+    .replace(/&quot;/g, '"').replace(/&#39;|&apos;/g, "'").replace(/&amp;/g, '&')
+    .replace(/\s*[-|–]\s*AliExpress(\s*\d+)?\s*$/i, '')
+    .trim()
+
   return { title, salePrice, originalPrice, imageUrl: imageUrl || undefined, rating }
 }
 

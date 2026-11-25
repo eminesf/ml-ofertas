@@ -6,6 +6,7 @@ import SiteHeader from '@/components/SiteHeader'
 import SiteFooter from '@/components/SiteFooter'
 import TelegramFab from '@/components/TelegramFab'
 import { getChannels } from '@/lib/api'
+import WhatsAppGroupsDialog from '@/components/WhatsAppGroups'
 import { SITE_DESCRIPTION, SITE_NAME, SITE_TAGLINE, SITE_URL } from '@/lib/site'
 
 const inter = Inter({
@@ -45,7 +46,7 @@ export const viewport: Viewport = {
 }
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const { whatsapp } = await getChannels()
+  const { whatsapp, whatsappGroups } = await getChannels()
   return (
     <html lang="pt-BR" className={inter.variable}>
       <body className="min-h-dvh font-sans flex flex-col">
@@ -55,6 +56,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <div className="flex-1">{children}</div>
         <SiteFooter whatsappUrl={whatsapp} />
         <TelegramFab whatsappUrl={whatsapp} />
+        <WhatsAppGroupsDialog groups={whatsappGroups} />
       </body>
     </html>
   )
