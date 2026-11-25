@@ -53,6 +53,26 @@ export function withShortLink(message: string, offer: Pick<Offer, 'affiliateUrl'
     .replace(new RegExp(`https?://[^\\s"'<>?]+/r/${code}(\\?[a-z]\\b)?`, 'g'), short)
 }
 
+// Nome da loja no post (25/11/2026: o dono quer que o grupo saiba onde é a compra).
+// Entra na hora do envio, antes da linha do link (👉) — vale para o que já está na fila.
+// Pula se o texto já diz a loja ("Loja:", "🏪", "na Amazon"…).
+const STORE_NAMES: Record<string, string> = {
+  mercadolivre: 'Mercado Livre', amazon: 'Amazon', shopee: 'Shopee', kabum: 'KaBuM!',
+  aliexpress: 'AliExpress', stanley: 'Stanley (site oficial)', nike: 'Nike (site oficial)',
+}
+export function withStoreLine(message: string, provider: string, html: boolean): string {
+  const name = STORE_NAMES[provider]
+  if (!message || !name) return message
+  const base = name.replace(/ \(.*\)$/, '').replace('!', '')
+  if (/🏪|\bloja:/i.test(message) || new RegExp(`\\b(na|no|da|do) ${base}\\b`, 'i').test(message)) return message
+  const lines = message.split('\n')
+  const at = lines.findIndex(l => l.includes('👉'))
+  if (at < 0) return message
+  const indent = lines[at].match(/^\s*/)?.[0] ?? ''
+  lines.splice(at, 0, `${indent}🏪 Loja: ${html ? `<b>${name}</b>` : `*${name}*`}`)
+  return lines.join('\n')
+}
+
 // Amazon devolve miniatura 226px no /deals; pede a versão grande
 export function bestImage(url: string | null): string | null {
   if (!url) return null
@@ -149,8 +169,8 @@ async function doPublish(
   const image = bestImage(offer.imageUrl)
   // WhatsApp: cada oferta vai para UM grupo (Tech & TCG ou Achadinhos — utils/groups.ts)
   const group = groupByKey(offerGroup(offer))
-  const tgText = withShortLink(opts.telegramText ?? offer.telegramMessage ?? '', offer, code, 't')
-  const waText = withShortLink(opts.whatsappText ?? offer.whatsappMessage ?? '', offer, code, group.key === 'tech' ? 'w' : 'a')
+  const tgText = withStoreLine(withShortLink(opts.telegramText ?? offer.telegramMessage ?? '', offer, code, 't'), offer.provider, true)
+  const waText = withStoreLine(withShortLink(opts.whatsappText ?? offer.whatsappMessage ?? '', offer, code, group.key === 'tech' ? 'w' : 'a'), offer.provider, false)
   const repostedAt = opts.repost ? new Date() : undefined
   // Preço/cupom do momento: na próxima vez que o produto aparecer, dá para ver se é promoção nova
   const snap = { price: offer.sourcePrice ?? offer.salePrice, couponCode: offer.couponCode }
