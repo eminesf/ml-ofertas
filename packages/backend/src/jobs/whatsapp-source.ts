@@ -1,6 +1,7 @@
 import fs from 'fs'
 import path from 'path'
 import { onSourceMessage, SourceMessage } from '../channels/whatsapp'
+import { logSourceMessage } from '../utils/source-links'
 
 // Grupos do WhatsApp como FONTE de ofertas (ex.: grupo de avisos da Nike), só leitura:
 // o bot está no grupo, o backend (que tem o socket) guarda as mensagens novas numa
@@ -18,6 +19,8 @@ function read(): SourceMessage[] {
 export function startWhatsAppSourceListener() {
   // sempre registrado: o handler do WhatsApp confere WHATSAPP_SOURCE_GROUPS a cada mensagem
   onSourceMessage(m => {
+    // histórico de 3 dias para o /admin/nike (a fila abaixo é consumida pelo job)
+    try { logSourceMessage(m) } catch (err: any) { console.warn('[WaSource] histórico:', err?.message) }
     const queue = read().filter(q => Date.now() - q.at < MAX_AGE_MS)
     if (queue.some(q => q.id === m.id)) return
     queue.push(m)

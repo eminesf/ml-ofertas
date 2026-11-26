@@ -66,3 +66,22 @@ export async function sendMediaGroup(
 function sleep(ms: number) {
   return new Promise(r => setTimeout(r, ms))
 }
+
+// Foto local (ex.: foto de um post de grupo-fonte, /admin/nike) — upload multipart
+export async function sendPhotoFile(filePath: string, caption: string): Promise<boolean> {
+  try {
+    const fs = await import('fs')
+    const form = new FormData()
+    form.append('chat_id', String(process.env.TELEGRAM_CHANNEL_ID))
+    form.append('caption', caption)
+    form.append('parse_mode', 'HTML')
+    form.append('photo', new Blob([fs.readFileSync(filePath)], { type: 'image/jpeg' }), 'foto.jpg')
+    const res = await fetch(`${BASE_URL}/sendPhoto`, { method: 'POST', body: form })
+    if (!res.ok) throw new Error(await res.text())
+    await sleep(1000)
+    return true
+  } catch (error: any) {
+    console.error('[Telegram] Erro ao enviar foto local:', error?.message)
+    return sendMessage(caption)
+  }
+}

@@ -12,6 +12,8 @@ import type { WASocket } from '@whiskeysockets/baileys'
 
 const AUTH_DIR = path.resolve(__dirname, '../../../../.wa-session')
 const RECONNECT_DELAY_MS = 5000
+// Fotos dos posts dos grupos-fonte (utils/source-links.ts limpa as antigas)
+export const SOURCE_MEDIA_DIR = path.resolve(__dirname, '../../../../.wa-source-media')
 
 const STATUS_LOGGED_OUT = 401
 const STATUS_CONNECTION_REPLACED = 440
@@ -93,7 +95,20 @@ async function openSocket(options: ConnectOptions): Promise<void> {
       const text: string = msg.conversation || msg.extendedTextMessage?.text || msg.imageMessage?.caption || msg.videoMessage?.caption || ''
       if (!text.trim()) continue
       const links = [msg.extendedTextMessage?.matchedText, msg.extendedTextMessage?.canonicalUrl].filter(Boolean) as string[]
-      sourceHandler({ group: jid, id: m.key.id || String(Date.now()), text, links, at: Number(m.messageTimestamp || 0) * 1000 || Date.now() })
+      const out: SourceMessage = { group: jid, id: m.key.id || String(Date.now()), text, links, at: Number(m.messageTimestamp || 0) * 1000 || Date.now() }
+      const handler = sourceHandler
+      if (!msg.imageMessage) { handler(out); continue }
+      // Foto do post (para repassar no /admin/nike): baixa antes de entregar a mensagem
+      import('@whiskeysockets/baileys')
+        .then(({ downloadMediaMessage }) => downloadMediaMessage(m, 'buffer', {}))
+        .then(buf => {
+          fs.mkdirSync(SOURCE_MEDIA_DIR, { recursive: true })
+          const file = `${out.id.replace(/[^\w-]/g, '')}.jpg`
+          fs.writeFileSync(path.join(SOURCE_MEDIA_DIR, file), buf as Buffer)
+          out.image = file
+        })
+        .catch(err => console.warn('[WhatsApp] foto do grupo-fonte não baixou:', err?.message))
+        .finally(() => handler(out))
     }
   })
 
@@ -158,7 +173,7 @@ export async function listWhatsAppGroups(): Promise<{ id: string; subject: strin
   }))
 }
 
-export interface SourceMessage { group: string; id: string; text: string; links: string[]; at: number }
+export interface SourceMessage { group: string; id: string; text: string; links: string[]; at: number; image?: string }
 let sourceHandler: ((m: SourceMessage) => void) | null = null
 export function onSourceMessage(handler: (m: SourceMessage) => void) {
   sourceHandler = handler

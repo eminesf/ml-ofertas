@@ -18,3 +18,6 @@ packages/livros-removidos-*.json
 data/nike/
 .snapshot-token
 packages/.snapshot-token
+.whatsapp-sources-log.json
+.short-links.json
+.wa-source-media/

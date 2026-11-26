@@ -249,6 +249,11 @@ model Post {
 - Botões de entrar (e os da `/links`) passam por `/entrar/<grupo>?o=<origem>` → `POST /api/channels/join` grava `Click` com provider `grupo`, offerId `grupo:<key>`, src = origem (`lp`, `lp-tech`, `lp-achadinhos`, `links`; `-ads` quando a URL tem utm/fbclid) → redireciona ao convite. O botão dispara `Lead` no pixel da Meta (o pixel só carrega com cookies aceitos). `/admin/analise` mostra "Cliques em Entrar no grupo"; os outros gráficos de clique ignoram provider `grupo`.
 - Posts: oferta de cupom tem texto montado no código (`buildCouponPost` em ai/index.ts — a IA só faz título/produto/destaque); `withStoreLine` (publish.ts) põe "🏪 Loja: X" com linha em branco antes da loja e do link.
 
+## /admin/nike — repassar posts do grupo da Nike (26/11/2026)
+- O grupo de avisos da Nike posta quase só hotsite, lista de produtos e cupom, e o pipeline automático (1 produto por post) descartava tudo. `utils/source-links.ts` guarda as mensagens dos grupos-fonte por 3 dias (`packages/.whatsapp-sources-log.json`, foto em `packages/.wa-source-media/`), troca cada link de loja Awin pelo deeplink nosso + link curto `/r/CODE` e acha o cupom (palavra em maiúsculas depois de "cupom"/"código" ou formato NIKE40).
+- Link curto sem oferta (hotsite/busca) fica em `packages/.short-links.json`; `GET /api/offers/go/:code` cai nele quando o código não é de uma Offer (Click com offerId `link:CODE`).
+- `/admin/nike` (proxy `/api/admin/sources/...`, backend `api/routes/admin-sources.ts`): mensagens recebidas + campo para colar texto, cupom e links com botão Copiar, textos editáveis de WhatsApp/Telegram e Enviar (grupo Achadinhos e/ou canal, com a foto do post).
+
 ## Validade da fila e conferência de preço (25/11/2026)
 - Motivo: a fila chegou a ~450 aprovadas para ~90 posts/dia; ofertas venciam sem sair e saíam velhas (jogos PS5 da KaBuM a R$157 quando o feed já dizia R$384).
 - `Offer.priceSeenAt` (migration 20261125180000): última vez que o preço foi visto — `processOffer` grava ao criar/atualizar e também no "Preço inalterado". Ofertas antigas usam `createdAt`.
