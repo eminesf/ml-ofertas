@@ -217,6 +217,46 @@ Responda APENAS com JSON válido, sem markdown, no formato:
   }
 }
 
+const brl = (v: number) => `R$ ${v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+
+// Texto de oferta com cupom MONTADO NO CÓDIGO: a IA só escreve o título, o nome curto do
+// produto e a frase de destaque. Em 26/11/2026 a IA ainda juntava tudo numa linha
+// ("🔥 Nike por R$94,73! De R$157,88 → use cupom NIKE40 (40% OFF)") sem destaque pro cupom.
+// A linha "🏪 Loja" entra no envio (withStoreLine), entre o bloco de preço e o link.
+export function buildCouponPost(
+  offer: { title: string; salePrice: number; rating?: number },
+  affiliateUrl: string,
+  coupon: CouponContext,
+  copy: { titulo?: string; produto?: string; destaque?: string } = {}
+): GeneratedPost {
+  const titulo = (copy.titulo || 'Oferta com cupom').trim()
+  const produto = (copy.produto || offer.title.slice(0, 70)).trim()
+  const discountLabel = coupon.maxDiscount
+    ? `${coupon.discount} OFF, máx ${brl(coupon.maxDiscount)}`
+    : `${coupon.discount}${/off/i.test(coupon.discount) ? '' : ' OFF'}`
+  const rating = offer.rating ? `⭐ ${offer.rating}/5.0` : ''
+
+  const tgPrice = coupon.canApplyAlone
+    ? [`💰 Preço no site: <s>${brl(offer.salePrice)}</s>`, `🎟️ Use o CUPOM <code>${coupon.code}</code> (${discountLabel})`, `✅ <b>Você paga: ${brl(coupon.effectivePrice)}</b>`]
+    : [`💰 Preço no site: <b>${brl(offer.salePrice)}</b>`, `🎟️ CUPOM <code>${coupon.code}</code> (${discountLabel}) em compras na loja`, `⚠️ <i>Adicione ao carrinho com outros itens${coupon.minValue ? ` (mín. ${brl(coupon.minValue)})` : ''} para ativar o cupom</i>`]
+  const waPrice = coupon.canApplyAlone
+    ? [`💰 Preço no site: ~${brl(offer.salePrice)}~`, `🎟️ Use o CUPOM: *${coupon.code}* (${discountLabel})`, `✅ *Você paga: ${brl(coupon.effectivePrice)}*`]
+    : [`💰 Preço no site: *${brl(offer.salePrice)}*`, `🎟️ CUPOM: *${coupon.code}* (${discountLabel})`, `⚠️ Válido combinando itens no carrinho${coupon.minValue ? ` acima de ${brl(coupon.minValue)}` : ''}`]
+
+  const telegram = [
+    `🏷️ <b>${titulo}</b>`, `🛒 ${produto}`, '',
+    ...tgPrice, ...(rating ? [rating] : []), '',
+    `👉 <a href="${affiliateUrl}">🔥 COMPRAR COM CUPOM AGORA</a>`,
+    ...(copy.destaque ? ['', `📌 ${copy.destaque.trim()}`] : []),
+  ].join('\n')
+  const whatsapp = [
+    `🔥 *${titulo}*`, produto, '',
+    ...waPrice, '',
+    `👉 ${affiliateUrl}`,
+  ].join('\n')
+  return { telegram, whatsapp }
+}
+
 export async function generateCouponPostMessage(
   offer: RawOffer,
   affiliateUrl: string,
@@ -227,74 +267,29 @@ export async function generateCouponPostMessage(
   const styles = ['urgente', 'informativo', 'entusiasmado']
   const style = styles[Math.floor(Math.random() * styles.length)]
 
-  // Preço sempre no formato brasileiro (R$ 1.234,56) e o CUPOM com destaque — em 25/11/2026
-  // saía "💰 R$ 104.01 → use NIKE40 → R$ 62.41" e não ficava claro que era cupom
-  const brl = (v: number) => `R$ ${v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-  const discountLabel = coupon.maxDiscount
-    ? `${coupon.discount} OFF, máx ${brl(coupon.maxDiscount)}`
-    : `${coupon.discount}${/off/i.test(coupon.discount) ? '' : ' OFF'}`
-  const couponBlock = coupon.canApplyAlone
-    ? `   💰 Preço no site: ${brl(offer.salePrice)}
-   🎟️ Use o CUPOM <code>${coupon.code}</code> (${discountLabel})
-   ✅ Você paga: <b>${brl(coupon.effectivePrice)}</b>`
-    : `   💰 Preço no site: ${brl(offer.salePrice)}
-   🎟️ CUPOM <code>${coupon.code}</code> (${discountLabel}) em compras na loja
-   ⚠️ <i>Adicione ao carrinho com outros itens${coupon.minValue ? ` (mín. ${brl(coupon.minValue)})` : ''} para ativar o cupom</i>`
-
-  const whatsappCouponBlock = coupon.canApplyAlone
-    ? `💰 Preço no site: ${brl(offer.salePrice)}
-🎟️ Use o CUPOM *${coupon.code}* (${discountLabel})
-✅ Você paga: *${brl(coupon.effectivePrice)}*`
-    : `💰 Preço no site: ${brl(offer.salePrice)}
-🎟️ CUPOM *${coupon.code}* (${discountLabel})
-⚠️ Válido combinando itens no carrinho${coupon.minValue ? ` acima de ${brl(coupon.minValue)}` : ''}`
-
-  const prompt = `Você é um copywriter expert em ofertas para canais do Telegram e WhatsApp no Brasil.
+  const prompt = `Você é um copywriter expert em ofertas para grupos de WhatsApp e Telegram no Brasil.
 Data: ${today}
 ${TRENDS_CONTEXT}
 
-Produto com CUPOM EXCLUSIVO DE AFILIADO:
+Produto com CUPOM:
 - Produto: ${offer.title}${variantWarning(offer.title)}
-- Preço atual: R$ ${offer.salePrice.toFixed(2)}
 - Cupom: ${coupon.code} (${coupon.discount})
-${coupon.canApplyAlone
-  ? `- Preço final com cupom: R$ ${coupon.effectivePrice.toFixed(2)} (cupom aplicável sozinho${coupon.maxDiscount ? `, teto R$${coupon.maxDiscount.toFixed(2)}` : ''})`
-  : `- Cupom${coupon.minValue ? ` requer carrinho mínimo de R$${coupon.minValue}` : ''} — cliente pode combinar produtos`}
 ${suggestedHighlight ? `- Destaque: ${suggestedHighlight}` : ''}
-- Avaliação: ${offer.rating ? `${offer.rating} ⭐` : 'N/A'}
-- Link: ${affiliateUrl}
-
 Estilo: ${style}
 
-Gere DUAS versões usando EXATAMENTE o bloco de preço/cupom abaixo, linha por linha (não invente outros valores, não resuma o bloco numa linha só, preços sempre no formato R$ 1.234,56 e a palavra CUPOM em maiúsculas):
-
-Telegram (use HTML: <b>, <i>, <s>, <code>, <a href="">):
-🏷️ <b>TÍTULO CHAMATIVO AQUI</b>
-
-${couponBlock}
-${offer.rating ? `   ⭐ ${offer.rating}/5.0` : ''}
-
-   👉 <a href="${affiliateUrl}">🔥 COMPRAR COM CUPOM AGORA</a>
-
-   📌 DESTAQUE (1 linha de copy motivacional)
-
-WhatsApp (apenas texto + emojis, sem HTML, máximo 6 linhas):
-${whatsappCouponBlock}
-👉 ${affiliateUrl}
+Escreva só 3 textos curtos (o preço e o cupom já entram em outro bloco — NÃO escreva preço, valor, porcentagem nem código de cupom em nenhum deles):
+- "titulo": chamada curta e chamativa, até 45 caracteres (ex.: "Tênis Nike com 40% OFF no cupom", "Achado do dia na Nike")
+- "produto": nome do produto resumido, até 60 caracteres, sem código de modelo
+- "destaque": 1 frase motivacional curta
 
 Responda APENAS com JSON válido, sem markdown:
-{"telegram": "mensagem telegram aqui", "whatsapp": "mensagem whatsapp aqui"}`
+{"titulo": "...", "produto": "...", "destaque": "..."}`
 
-  const text = await chat(prompt, 900)
+  let copy: { titulo?: string; produto?: string; destaque?: string } = {}
   try {
-    return JSON.parse(stripMarkdown(text)) as GeneratedPost
-  } catch {
-    const effectiveLine = coupon.canApplyAlone
-      ? `✅ Pague: <b>R$ ${coupon.effectivePrice.toFixed(2)}</b>`
-      : `⚠️ <i>Use no carrinho (mín. R$${coupon.minValue})</i>`
-    const fallback = `🏷️ <b>${offer.title}</b>\n\n💰 R$ ${offer.salePrice.toFixed(2)}\n🎟️ Cupom: <code>${coupon.code}</code> (${coupon.discount})\n${effectiveLine}\n\n👉 <a href="${affiliateUrl}">Comprar com cupom</a>`
-    return { telegram: fallback, whatsapp: `🏷️ ${offer.title}\nR$ ${offer.salePrice.toFixed(2)} | Cupom ${coupon.code}\n👉 ${affiliateUrl}` }
-  }
+    copy = JSON.parse(stripMarkdown(await chat(prompt, 300)))
+  } catch {}
+  return buildCouponPost(offer, affiliateUrl, coupon, copy)
 }
 
 export async function generatePostMessage(
@@ -310,11 +305,11 @@ export async function generatePostMessage(
 
   // Bloco de preço pré-formatado — o modelo NÃO deve inventar valores
   const priceBlock = offer.discountPct > 0
-    ? `   💰 De: <s>R$ ${offer.originalPrice?.toFixed(2)}</s> → <b>R$ ${offer.salePrice.toFixed(2)}</b> (-${offer.discountPct}%)`
-    : `   💰 <b>R$ ${offer.salePrice.toFixed(2)}</b>`
+    ? `   💰 De: <s>${brl(offer.originalPrice)}</s> → <b>${brl(offer.salePrice)}</b> (-${offer.discountPct}%)`
+    : `   💰 <b>${brl(offer.salePrice)}</b>`
   const wpPriceLine = offer.discountPct > 0
-    ? `💰 De R$${offer.originalPrice?.toFixed(2)} por R$${offer.salePrice.toFixed(2)} (-${offer.discountPct}%)`
-    : `💰 R$${offer.salePrice.toFixed(2)}`
+    ? `💰 De ~${brl(offer.originalPrice)}~ por *${brl(offer.salePrice)}* (-${offer.discountPct}%)`
+    : `💰 *${brl(offer.salePrice)}*`
 
   const prompt = `Você é um copywriter expert em ofertas para canais do Telegram e WhatsApp no Brasil.
 Data: ${today}
@@ -338,7 +333,7 @@ Telegram (use HTML: <b>, <i>, <s>, <code>, <a href="">):
 🛒 NOME DO PRODUTO (resumido, até 70 caracteres, sem código de modelo)
 
 ${priceBlock}
-${couponCode ? `   🎟️ Cupom: <code>${couponCode}</code>` : ''}
+${couponCode ? `   🎟️ Use o CUPOM <code>${couponCode}</code>` : ''}
 ${offer.sourceNote ? `   ✅ 1 linha com o preço final citado no post original e a condição real (ex.: "R$ 140 usando o cupom", "R$ 329 no Pix") — escreva "cupom" só se houver cupom de verdade` : ''}
 ${offer.rating ? `   ⭐ ${offer.rating}/5.0` : ''}
 
@@ -346,11 +341,13 @@ ${offer.rating ? `   ⭐ ${offer.rating}/5.0` : ''}
 
    📌 DESTAQUE (1 linha motivacional)
 
-WhatsApp (apenas texto + emojis, sem HTML, máximo 6 linhas):
+WhatsApp (apenas texto + emojis, sem HTML; mantenha as LINHAS EM BRANCO do modelo; preços no formato R$ 1.234,56; cupom sempre em negrito como *CÓDIGO* e o preço final em negrito):
 🔥 *NOME DO PRODUTO* (resumido, até 70 caracteres)
+
 ${wpPriceLine}
-${couponCode ? `🎟️ Cupom: ${couponCode}` : ''}
-${offer.sourceNote ? `✅ 1 linha com o preço final usando o cupom citado no post original e a condição, se houver` : ''}
+${couponCode ? `🎟️ Use o CUPOM: *${couponCode}*` : ''}
+${offer.sourceNote ? `✅ 1 linha com o preço final em negrito usando o cupom/Pix citado no post original e a condição, se houver (ex.: "✅ *R$ 140,00* usando o cupom")` : ''}
+
 👉 ${affiliateUrl}
 
 Responda APENAS com JSON válido, sem markdown:
