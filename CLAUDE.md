@@ -244,6 +244,11 @@ model Post {
 - Backend `api/routes/admin-offers.ts` em `/api/admin/offers` (Bearer); proxy do site `app/api/admin/offers/[[...path]]`.
 - O prompt do copy tinha “produto em inglês” como exemplo e a IA copiava em produto que não era — tirado.
 
+## Landing pages dos grupos (26/11/2026)
+- `/grupo/tech` e `/grupo/achadinhos`: uma página por grupo (no sitemap), uma ação só (entrar), vitrine com ofertas REAIS que saíram naquele grupo (`GET /api/offers?group=tech|achadinhos` = ofertas com Post no canal do grupo). `/whatsapp`: landing de anúncio (noindex) com a escolha entre os 2 grupos. Peças em `components/landing/` (visual do flyer/links), sem cabeçalho/rodapé (`hideSiteChrome`).
+- Botões de entrar (e os da `/links`) passam por `/entrar/<grupo>?o=<origem>` → `POST /api/channels/join` grava `Click` com provider `grupo`, offerId `grupo:<key>`, src = origem (`lp`, `lp-tech`, `lp-achadinhos`, `links`; `-ads` quando a URL tem utm/fbclid) → redireciona ao convite. O botão dispara `Lead` no pixel da Meta (o pixel só carrega com cookies aceitos). `/admin/analise` mostra "Cliques em Entrar no grupo"; os outros gráficos de clique ignoram provider `grupo`.
+- Posts: oferta de cupom tem texto montado no código (`buildCouponPost` em ai/index.ts — a IA só faz título/produto/destaque); `withStoreLine` (publish.ts) põe "🏪 Loja: X" com linha em branco antes da loja e do link.
+
 ## Validade da fila e conferência de preço (25/11/2026)
 - Motivo: a fila chegou a ~450 aprovadas para ~90 posts/dia; ofertas venciam sem sair e saíam velhas (jogos PS5 da KaBuM a R$157 quando o feed já dizia R$384).
 - `Offer.priceSeenAt` (migration 20261125180000): última vez que o preço foi visto — `processOffer` grava ao criar/atualizar e também no "Preço inalterado". Ofertas antigas usam `createdAt`.

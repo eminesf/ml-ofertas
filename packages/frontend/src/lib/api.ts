@@ -60,6 +60,7 @@ export async function getOffers(params?: {
   minDiscount?: number
   sort?: 'discount' | 'recent' | 'score' | 'votes'
   q?: string
+  group?: 'tech' | 'achadinhos' // só o que já saiu naquele grupo do WhatsApp
 }): Promise<OffersResponse> {
   const qs = new URLSearchParams()
   if (params?.provider) qs.set('provider', params.provider)
@@ -69,6 +70,7 @@ export async function getOffers(params?: {
   if (params?.minDiscount) qs.set('minDiscount', String(params.minDiscount))
   if (params?.sort) qs.set('sort', params.sort)
   if (params?.q) qs.set('q', params.q)
+  if (params?.group) qs.set('group', params.group)
   const res = await fetch(`${API_URL}/api/offers?${qs}`, { cache: 'no-store' })
   if (!res.ok) return { offers: [], total: 0, page: 1, limit: 24 }
   return res.json()

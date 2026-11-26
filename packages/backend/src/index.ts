@@ -9,6 +9,7 @@ import postsRouter from './api/routes/posts'
 import adminRouter from './api/routes/admin'
 import { getWhatsAppInviteLink, isWhatsAppEnabled } from './channels/whatsapp'
 import { GROUPS } from './utils/groups'
+import { prisma } from './utils/prisma'
 
 const app = express()
 const PORT = process.env.PORT || 3001
@@ -37,6 +38,20 @@ app.post('/api/snapshot/:token/:folder/:name', express.text({ type: '*/*', limit
 app.use(express.json())
 
 // Links públicos dos canais (botões do site). WhatsApp vem do próprio grupo via Baileys.
+// Clique em "Entrar no grupo" (landing pages /grupo/*, /whatsapp, /links): vai para a tabela Click
+// com provider 'grupo', offerId 'grupo:<tech|achadinhos>' e src = página de origem (ex.: 'lp-ads').
+// Chamado pelo site (rota /entrar/[grupo]) antes de redirecionar para o convite.
+app.post('/api/channels/join', express.json(), async (req, res) => {
+  const group = GROUPS.find(g => g.key === req.body?.group)
+  if (!group) return res.status(400).json({ error: 'grupo inválido' })
+  const ua = String(req.body?.ua || '')
+  if (!/bot|crawl|spider|preview|facebookexternalhit|whatsapp\/|headless/i.test(ua)) {
+    const src = String(req.body?.origin || '').replace(/[^a-z0-9_-]/gi, '').slice(0, 24) || null
+    await prisma.click.create({ data: { offerId: `grupo:${group.key}`, provider: 'grupo', src } }).catch(() => {})
+  }
+  res.json({ ok: true })
+})
+
 app.get('/api/channels', async (_req, res) => {
   const whatsapp = isWhatsAppEnabled() ? await getWhatsAppInviteLink().catch(() => null) : null
   // Os dois grupos (Tech & TCG e Achadinhos) para o modal de escolha do site
