@@ -106,7 +106,10 @@ router.post('/import', requireAdminSecret, async (req, res) => {
   console.log(`[Import] Provider detectado: ${providerLabel} (${externalId})`)
 
   const existing = await prisma.offer.findUnique({ where: { externalId } })
-  if (existing) {
+  // reanalyze (/admin/nike): produto que já está no banco (ex.: veio do feed) com cupom novo →
+  // refaz avaliação e texto com o cupom em vez de recusar
+  const reanalyze = req.body?.reanalyze === true
+  if (existing && !reanalyze) {
     return res.status(409).json({ error: 'Oferta já existe no banco', offer: existing })
   }
 
@@ -190,7 +193,10 @@ router.post('/import', requireAdminSecret, async (req, res) => {
       maxDiscountNum,
       true, // admin import sempre posta, independente do score
       affiliateOverride,
+      !!existing, // já no banco (reanalyze): refaz mesmo com o preço igual
     )
+    // Saiu da fila automática: só posta pelo botão da prévia
+    if (existing) await prisma.offer.update({ where: { externalId }, data: { source } }).catch(() => {})
   } catch (err) {
     console.error('[Import] Erro ao processar oferta:', err)
     return res.status(500).json({ error: 'Erro ao processar oferta' })
