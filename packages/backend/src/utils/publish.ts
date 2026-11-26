@@ -69,7 +69,10 @@ export function withStoreLine(message: string, provider: string, html: boolean):
   const at = lines.findIndex(l => l.includes('👉'))
   if (at < 0) return message
   const indent = lines[at].match(/^\s*/)?.[0] ?? ''
-  lines.splice(at, 0, `${indent}🏪 Loja: ${html ? `<b>${name}</b>` : `*${name}*`}`)
+  // Respiro: linha em branco antes da loja e antes do link (26/11/2026 — texto "muito junto")
+  let start = at
+  while (start > 0 && !lines[start - 1].trim()) start--
+  lines.splice(start, at - start, '', `${indent}🏪 Loja: ${html ? `<b>${name}</b>` : `*${name}*`}`, '')
   return lines.join('\n')
 }
 
