@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import { requireAdminSecret } from './admin'
 import { prisma } from '../../utils/prisma'
+import { getShortLinkEntry } from '../../utils/source-links'
 import { resolveProviderByUrl, PROVIDER_LABELS } from '../../providers/registry'
 import { processOffer } from '../../jobs/offers.job'
 import { publishOffer } from '../../utils/publish'
@@ -225,7 +226,16 @@ router.post('/import', requireAdminSecret, async (req, res) => {
 // count=0 quando quem pede é robô de prévia (Telegram/WhatsApp/Facebook)
 router.get('/go/:code', async (req, res) => {
   const offer = await prisma.offer.findUnique({ where: { shortCode: req.params.code }, select: { id: true, affiliateUrl: true, provider: true } })
-  if (!offer) return res.status(404).json({ error: 'Link não encontrado' })
+  if (!offer) {
+    // Link curto sem oferta (hotsite/busca da Nike repassado pelo /admin/nike)
+    const link = getShortLinkEntry(req.params.code)
+    if (!link) return res.status(404).json({ error: 'Link não encontrado' })
+    if (req.query.count !== '0') {
+      const src = /^[twai]$/.test(String(req.query.src || '')) ? String(req.query.src) : null
+      await prisma.click.create({ data: { offerId: `link:${req.params.code}`, provider: link.provider, src } }).catch(() => {})
+    }
+    return res.set('Cache-Control', 'no-store').json({ id: null, url: link.url })
+  }
   if (req.query.count !== '0') {
     // src: t (Telegram), w (Tech & TCG), a (Achadinhos), i (Instagram/links) — sem = site
     const src = /^[twai]$/.test(String(req.query.src || '')) ? String(req.query.src) : null

@@ -126,7 +126,7 @@ export function canPostNow(): boolean {
 // fila única, com 20–40s entre mensagens, para não parecer spam
 let lastWhatsAppAt = 0
 let waLine: Promise<unknown> = Promise.resolve()
-function inWhatsAppLine<T>(send: () => Promise<T>): Promise<T> {
+export function inWhatsAppLine<T>(send: () => Promise<T>): Promise<T> {
   const run = waLine.then(async () => {
     const gap = 20000 + Math.random() * 20000 - (Date.now() - lastWhatsAppAt)
     if (gap > 0) await new Promise(r => setTimeout(r, gap))

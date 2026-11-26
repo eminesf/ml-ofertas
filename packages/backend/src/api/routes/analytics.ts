@@ -67,7 +67,7 @@ router.get('/', async (req, res) => {
   const offerById = new Map(offers.map(o => [o.id, o]))
   const top = topClicks.map(t => ({
     clicks: t._count._all,
-    offer: offerById.get(t.offerId) || { id: t.offerId, title: '(oferta já removida)', provider: '', salePrice: 0, discountPct: 0, imageUrl: null },
+    offer: offerById.get(t.offerId) || { id: t.offerId, title: t.offerId.startsWith('link:') ? '(link do grupo da Nike — hotsite/lista)' : '(oferta já removida)', provider: '', salePrice: 0, discountPct: 0, imageUrl: null },
   }))
 
   // Cliques por post em cada canal (quanto cada post rende)
