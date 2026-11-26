@@ -109,7 +109,7 @@ export default async function LinksPage() {
           {groups.map(g => (
             <a
               key={g.key}
-              href={g.url}
+              href={`/entrar/${g.key}?o=links`}
               target="_blank"
               rel="noopener noreferrer"
               className="group flex items-center gap-3.5 rounded-3xl bg-white p-3.5 pr-4 text-neutral-900 shadow-[0_6px_24px_rgba(0,0,0,.35)] transition active:scale-[0.98] hover:-translate-y-0.5"

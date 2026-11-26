@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react'
 // funil por loja (encontradas → aprovadas → postadas), top ofertas e relatório da Awin.
 
 interface Analytics {
+  groupJoins?: { group: string; origin: string; originLabel: string; clicks: number }[]
   days: number
   totals: { clicks: number; offersPosted: number; clicksEver: number }
   daily: { day: string; clicks: number; posts: number }[]
@@ -179,6 +180,12 @@ export default function AnalisePage() {
               <HBars rows={data.byProvider.map(p => ({ label: p.label, value: p.clicks }))} />
             </Card>
           </div>
+
+          <Card title="Cliques em “Entrar no grupo”" hint="Botões das landing pages (/grupo/tech, /grupo/achadinhos, /whatsapp) e da /links. “anúncio” = veio com utm/fbclid. Conta o clique no botão; quem entrou de fato só o WhatsApp sabe.">
+            {!data.groupJoins?.length
+              ? <p style={{ fontSize: 13, color: MUTED, margin: 0 }}>Ainda sem cliques nos botões de entrar (contagem começou em 26/11/2026).</p>
+              : <HBars rows={data.groupJoins.map(j => ({ label: `${j.group === 'tech' ? 'Tech & TCG' : 'Achadinhos'} · ${j.originLabel}`, value: j.clicks }))} />}
+          </Card>
 
           <Card title="Ofertas postadas por dia" hint="Ofertas novas que saíram (a mesma oferta no Telegram e no WhatsApp conta 1).">
             <DailyBars data={data.daily} field="posts" unit="ofertas" />

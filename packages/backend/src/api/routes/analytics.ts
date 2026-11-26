@@ -11,6 +11,16 @@ const router = Router()
 const SRC_LABEL: Record<string, string> = {
   t: 'Canal Telegram', w: 'WhatsApp Tech & TCG', a: 'WhatsApp Achadinhos', i: 'Instagram (/links)', site: 'Site',
 }
+// Origem do clique em "Entrar no grupo": página + '-ads' quando veio de anúncio (utm/fbclid)
+const ORIGIN_LABEL: Record<string, string> = {
+  lp: 'Landing geral (/whatsapp)', 'lp-tech': 'Página Tech & TCG (/grupo/tech)', 'lp-achadinhos': 'Página Achadinhos (/grupo/achadinhos)', links: 'Página /links',
+}
+function originLabel(src: string | null): string {
+  if (!src) return '—'
+  const ads = src.endsWith('-ads')
+  const base = ads ? src.slice(0, -4) : src
+  return (ORIGIN_LABEL[base] || base) + (ads ? ' — anúncio' : '')
+}
 const CHANNEL_LABEL: Record<string, string> = {
   telegram: 'Canal Telegram', whatsapp: 'WhatsApp Tech & TCG', 'whatsapp-achadinhos': 'WhatsApp Achadinhos',
 }
@@ -24,10 +34,10 @@ router.get('/', async (req, res) => {
   const [clicksByDay, clicksBySrc, clicksByProvider, topClicks, postsByChannel, postsByDay, funnel, totalClicksEver] = await Promise.all([
     prisma.$queryRaw<{ day: string; n: bigint }[]>`
       SELECT to_char(("at" AT TIME ZONE 'UTC') AT TIME ZONE ${TZ}, 'YYYY-MM-DD') AS day, COUNT(*) AS n
-      FROM "Click" WHERE "at" >= ${since} GROUP BY 1 ORDER BY 1`,
-    prisma.click.groupBy({ by: ['src'], where: { at: { gte: since } }, _count: { _all: true } }),
-    prisma.click.groupBy({ by: ['provider'], where: { at: { gte: since } }, _count: { _all: true } }),
-    prisma.click.groupBy({ by: ['offerId'], where: { at: { gte: since } }, _count: { _all: true }, orderBy: { _count: { offerId: 'desc' } }, take: 15 }),
+      FROM "Click" WHERE "at" >= ${since} AND "provider" <> 'grupo' GROUP BY 1 ORDER BY 1`,
+    prisma.click.groupBy({ by: ['src'], where: { at: { gte: since }, provider: { not: 'grupo' } }, _count: { _all: true } }),
+    prisma.click.groupBy({ by: ['provider'], where: { at: { gte: since }, provider: { not: 'grupo' } }, _count: { _all: true } }),
+    prisma.click.groupBy({ by: ['offerId'], where: { at: { gte: since }, provider: { not: 'grupo' } }, _count: { _all: true }, orderBy: { _count: { offerId: 'desc' } }, take: 15 }),
     prisma.post.groupBy({ by: ['channel'], where: { sentAt: { gte: since }, success: true }, _count: { _all: true } }),
     prisma.$queryRaw<{ day: string; n: bigint }[]>`
       SELECT to_char(("sentAt" AT TIME ZONE 'UTC') AT TIME ZONE ${TZ}, 'YYYY-MM-DD') AS day, COUNT(DISTINCT "offerId") AS n
@@ -71,7 +81,14 @@ router.get('/', async (req, res) => {
     })
     .sort((a, b) => b.clicks - a.clicks)
 
+  // Cliques em "Entrar no grupo" por página de origem (landing pages)
+  const joins = await prisma.click.groupBy({ by: ['offerId', 'src'], where: { at: { gte: since }, provider: 'grupo' }, _count: { _all: true } })
+  const groupJoins = joins
+    .map(j => ({ group: j.offerId.replace('grupo:', ''), origin: j.src || '—', originLabel: originLabel(j.src), clicks: j._count._all }))
+    .sort((x, y) => y.clicks - x.clicks)
+
   res.json({
+    groupJoins,
     days,
     totals: {
       clicks: daily.reduce((s, d) => s + d.clicks, 0),

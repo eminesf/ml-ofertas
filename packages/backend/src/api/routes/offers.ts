@@ -5,11 +5,13 @@ import { resolveProviderByUrl, PROVIDER_LABELS } from '../../providers/registry'
 import { processOffer } from '../../jobs/offers.job'
 import { publishOffer } from '../../utils/publish'
 import { mlRecentlyBlocked } from '../../providers/mercadolivre/browser'
+import { GROUPS } from '../../utils/groups'
 
 const router = Router()
 
 router.get('/', async (req, res) => {
-  const { provider, category, limit = '20', page = '1', minDiscount, sort, q } = req.query
+  const { provider, category, limit = '20', page = '1', minDiscount, sort, q, group } = req.query
+  const groupChannel = GROUPS.find(g => g.key === group)?.channel
   const take = Math.min(Number(limit), 100)
   const skip = (Number(page) - 1) * take
 
@@ -18,6 +20,7 @@ router.get('/', async (req, res) => {
     ...(category ? { category: String(category) } : {}),
     ...(minDiscount ? { discountPct: { gte: Number(minDiscount) } } : {}),
     ...(q ? { title: { contains: String(q), mode: 'insensitive' } } : {}),
+    ...(groupChannel ? { posts: { some: { channel: groupChannel, success: true } } } : {}),
   }
 
   const orderBy: any = sort === 'discount'
