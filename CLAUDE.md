@@ -252,6 +252,7 @@ model Post {
 ## /admin/nike — repassar posts do grupo da Nike (26/11/2026)
 - O grupo de avisos da Nike posta quase só hotsite, lista de produtos e cupom, e o pipeline automático (1 produto por post) descartava tudo. `utils/source-links.ts` guarda as mensagens dos grupos-fonte por 3 dias (`packages/.whatsapp-sources-log.json`, foto em `packages/.wa-source-media/`), troca cada link de loja Awin pelo deeplink nosso + link curto `/r/CODE` e acha o cupom (palavra em maiúsculas depois de "cupom"/"código" ou formato NIKE40).
 - Link curto sem oferta (hotsite/busca) fica em `packages/.short-links.json`; `GET /api/offers/go/:code` cai nele quando o código não é de uma Offer (Click com offerId `link:CODE`).
+- Topo do `/admin/nike`: "Analisar produto com cupom" (link + cupom + desconto + mínimo) → `/api/offers/import` com `preview` e `reanalyze: true` (produto que já está no banco, ex. do feed, é reavaliado com o cupom em vez de dar 409; vira source `coupon`) e prévia no `OfferEditor` com "Postar agora". Botão "Analisar" nos links de produto das mensagens preenche o formulário.
 - `/admin/nike` (proxy `/api/admin/sources/...`, backend `api/routes/admin-sources.ts`): mensagens recebidas + campo para colar texto, cupom e links com botão Copiar, textos editáveis de WhatsApp/Telegram e Enviar (grupo Achadinhos e/ou canal, com a foto do post).
 
 ## Validade da fila e conferência de preço (25/11/2026)

@@ -1,5 +1,6 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { OfferEditor, offersApi, type FullOffer } from '@/components/admin/OfferEditor'
 
 // Grupo de avisos da Nike (grupo-fonte do WhatsApp): cada mensagem com os links já trocados
 // pelos nossos (Awin → /r/CODE) e o cupom em destaque. Dá para copiar, editar e mandar para o
@@ -32,7 +33,100 @@ function CopyButton({ value, label }: { value: string; label: string }) {
   )
 }
 
-function Card({ m }: { m: Message | (Converted & { id?: undefined; image?: false; text: string; at?: number }) }) {
+const input: React.CSSProperties = { background: '#111', color: '#eee', border: '1px solid #444', borderRadius: 8, padding: '9px 10px', fontSize: 13, fontFamily: 'inherit', minWidth: 0 }
+
+export interface AnalyzeRequest { url: string; coupon: string; key: number }
+
+// Link de produto + cupom → mesmo pipeline do /admin/import (lê o produto, IA, texto com o
+// cupom) e prévia editável com "Postar agora". Produto que já está no banco é reanalisado.
+function AnalyzeForm({ request }: { request: AnalyzeRequest | null }) {
+  const [url, setUrl] = useState('')
+  const [coupon, setCoupon] = useState('')
+  const [discount, setDiscount] = useState('')
+  const [minValue, setMinValue] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [offer, setOffer] = useState<FullOffer | null>(null)
+  const [posted, setPosted] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  // "Analisar" num link de uma mensagem preenche o formulário
+  useEffect(() => {
+    if (!request) return
+    setUrl(request.url)
+    setCoupon(request.coupon)
+    const pct = request.coupon.match(/(\d{2})$/)?.[1]
+    if (pct && !discount) setDiscount(`${pct}%`)
+    ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [request])
+
+  async function analyze(e: React.FormEvent) {
+    e.preventDefault()
+    setLoading(true)
+    setError('')
+    setOffer(null)
+    setPosted(false)
+    try {
+      const body: Record<string, unknown> = { url: url.trim(), preview: true, reanalyze: true }
+      if (coupon.trim()) {
+        body.couponCode = coupon.trim().toUpperCase()
+        if (discount.trim()) body.couponDiscount = /^\d+$/.test(discount.trim()) ? `${discount.trim()}%` : discount.trim()
+        if (minValue.trim()) body.couponMinValue = Number(minValue.replace(',', '.'))
+      }
+      const res = await fetch('/api/admin/import', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+      const data = await res.json()
+      if (!res.ok) {
+        const hotsite = /\/(hotsite|busca)\b/.test(url) || !/-\d{5,}\.html/.test(url)
+        throw new Error(hotsite && /nike\.com/.test(url)
+          ? 'Esse link não é de um produto só (hotsite/busca) — use o link curto da mensagem abaixo.'
+          : data.error || `Erro ${res.status}`)
+      }
+      setOffer((await offersApi(`/${data.offer.id}`)).offer)
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div ref={ref} style={{ ...box, marginBottom: 24, scrollMarginTop: 16 }}>
+      <b style={{ fontSize: 15 }}>Analisar produto com cupom</b>
+      <p style={{ color: '#999', fontSize: 12, margin: '4px 0 10px' }}>
+        Cole o link do produto e o cupom. O sistema lê o produto, a IA avalia e escreve o post com o cupom. Nada é postado até você clicar em “Postar agora”.
+      </p>
+      <form onSubmit={analyze} style={{ display: 'grid', gap: 8 }}>
+        <input value={url} onChange={e => setUrl(e.target.value)} placeholder="https://www.nike.com.br/…-123456.html?cor=XX" required style={input} />
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <input value={coupon} onChange={e => setCoupon(e.target.value)} placeholder="Cupom (ex.: NIKE40)" style={{ ...input, flex: '1 1 140px', textTransform: 'uppercase' }} />
+          <input value={discount} onChange={e => setDiscount(e.target.value)} placeholder="Desconto (40% ou R$ 50)" style={{ ...input, flex: '1 1 140px' }} />
+          <input value={minValue} onChange={e => setMinValue(e.target.value)} placeholder="Compra mínima (opcional)" inputMode="decimal" style={{ ...input, flex: '1 1 140px' }} />
+          <button type="submit" disabled={loading || !url.trim()} style={{ ...btn, background: '#FFE600', color: '#111' }}>
+            {loading ? 'Analisando… (até 1 min)' : 'Analisar'}
+          </button>
+        </div>
+      </form>
+      {error && <div style={{ color: '#f87171', fontSize: 13, marginTop: 10 }}>{error}</div>}
+      {offer && (
+        <div style={{ marginTop: 14 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 8, color: posted ? '#4ade80' : '#fbbf24' }}>
+            {posted
+              ? '✅ Postado no Telegram e no grupo.'
+              : offer.telegramMessage
+                ? `👀 Prévia — confira preço, foto e texto.${offer.aiScore != null ? ` IA: ${offer.aiScore}/10.` : ''} Nada foi postado ainda.`
+                : '⚠️ Salvo, mas sem texto. Clique em “Gerar texto de novo” antes de postar.'}
+          </div>
+          <div style={{ background: '#fff', color: '#111', borderRadius: 10, padding: 8 }}>
+            <OfferEditor offer={offer} onChange={setOffer} onPosted={() => setPosted(true)} onDeleted={() => setOffer(null)} sticky={false} />
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function Card({ m, onAnalyze }: { m: Message | (Converted & { id?: undefined; image?: false; text: string; at?: number }); onAnalyze: (url: string, coupon: string) => void }) {
   const [wa, setWa] = useState(m.whatsapp)
   const [tg, setTg] = useState(m.telegram)
   const [toWa, setToWa] = useState(true)
@@ -87,6 +181,11 @@ function Card({ m }: { m: Message | (Converted & { id?: undefined; image?: false
           {ours.map(l => (
             <div key={l.original} style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
               <CopyButton value={l.short!} label="Copiar" />
+              {/-\d{5,}\.html/.test(l.original) && (
+                <button onClick={() => onAnalyze(l.original, m.coupons[0] || '')} style={{ ...btn, padding: '6px 10px', fontSize: 12, background: '#FFE600', color: '#111' }}>
+                  Analisar
+                </button>
+              )}
               <code style={{ fontSize: 12, color: '#FFE600' }}>{l.short!.replace(/^https:\/\/(www\.)?/, '')}</code>
               <a href={l.original} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: '#888', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 380 }}>
                 {l.original.replace(/^https?:\/\/(www\.)?/, '')} ↗
@@ -141,6 +240,8 @@ export default function NikePage() {
   const [pasted, setPasted] = useState('')
   const [converted, setConverted] = useState<(Converted & { text: string; key: number }) | null>(null)
   const [converting, setConverting] = useState(false)
+  const [analyzeReq, setAnalyzeReq] = useState<AnalyzeRequest | null>(null)
+  const onAnalyze = (url: string, coupon: string) => setAnalyzeReq({ url, coupon, key: Date.now() })
 
   async function load() {
     setError('')
@@ -179,6 +280,8 @@ export default function NikePage() {
         Revise o texto e envie, ou só copie o link e o cupom.
       </p>
 
+      <AnalyzeForm request={analyzeReq} />
+
       <div style={{ ...box, marginBottom: 24 }}>
         <b style={{ fontSize: 14 }}>Colar uma mensagem</b>
         <textarea
@@ -190,7 +293,7 @@ export default function NikePage() {
         <button onClick={convert} disabled={!pasted.trim() || converting} style={{ ...btn, background: '#FFE600', color: '#111', marginTop: 8 }}>
           {converting ? 'Convertendo…' : 'Trocar links'}
         </button>
-        {converted && <div style={{ marginTop: 14 }}><Card key={converted.key} m={converted} /></div>}
+        {converted && <div style={{ marginTop: 14 }}><Card key={converted.key} m={converted} onAnalyze={onAnalyze} /></div>}
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
@@ -203,7 +306,7 @@ export default function NikePage() {
         <p style={{ color: '#999' }}>Nenhuma mensagem guardada ainda. As novas do grupo aparecem aqui assim que chegam.</p>
       )}
       <div style={{ display: 'grid', gap: 16 }}>
-        {messages?.map(m => <Card key={m.id} m={m} />)}
+        {messages?.map(m => <Card key={m.id} m={m} onAnalyze={onAnalyze} />)}
       </div>
     </div>
   )
