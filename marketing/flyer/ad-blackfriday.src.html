@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Anúncio Black Friday</title>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@700;800;900&display=swap" rel="stylesheet">
+<style>
+  /* Anúncio Meta (26/11/2026): mesmo visual do flyer v2, tema Black Friday, PS5 a R$ 2.999,90.
+     Padrão = feed 1080x1350 (4:5); #story = 1080x1920 (9:16, com área livre em cima e embaixo). */
+  :root { --w: 1080px; --h: 1350px; --hl: #ff8a1f; --green: #25D366; }
+  :root.story { --h: 1920px; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: var(--w); height: var(--h); background: #0b0b0b; }
+  body { font-family: 'Nunito', sans-serif; color: #fff; }
+  .sheet { position: relative; width: var(--w); height: var(--h); overflow: hidden;
+    background:
+      radial-gradient(900px 620px at 50% 8%, rgba(249,115,22,.34), transparent 70%),
+      radial-gradient(800px 520px at 50% 104%, rgba(249,115,22,.22), transparent 70%),
+      #0b0b0b; }
+  /* faixas diagonais discretas de "fita" */
+  .sheet::before { content: ''; position: absolute; inset: 0; opacity: .05;
+    background: repeating-linear-gradient(-45deg, #fff 0 6px, transparent 6px 34px); }
+  .safe { position: absolute; inset: 0; padding: 54px 60px 46px; display: flex; flex-direction: column; align-items: center; text-align: center; }
+  .story .safe { padding: 230px 60px 260px; }
+
+  .top { display: flex; align-items: center; gap: 22px; }
+  .logo { width: 150px; height: auto; filter: drop-shadow(0 10px 24px rgba(0,0,0,.5)); }
+  .pill { display: inline-flex; align-items: center; gap: 12px; background: var(--green); color: #08210f; font-weight: 900; font-size: 27px; letter-spacing: 1px;
+    padding: 12px 26px 12px 18px; border-radius: 60px; box-shadow: 0 6px 0 rgba(0,0,0,.35); }
+  .pill svg { width: 34px; height: 34px; }
+
+  h1 { margin-top: 26px; font-weight: 900; line-height: .86; letter-spacing: -3px; text-transform: uppercase; }
+  h1 .bf { display: block; white-space: nowrap; font-size: 112px; color: #fff; text-shadow: 0 8px 0 rgba(0,0,0,.4); }
+  h1 .dv { display: block; font-size: 76px; color: var(--hl); letter-spacing: -1px; margin-top: 8px; }
+  .story h1 .bf { font-size: 150px; white-space: normal; }
+
+  .stage { position: relative; margin-top: 40px; width: 760px; }
+  .story .stage { margin-top: 70px; } .story .pic { height: 290px; } .story .cta { margin-top: 54px; }
+  .bubble { position: relative; background: #fff; color: #111; border-radius: 14px 34px 34px 34px; padding: 24px 30px 18px; text-align: left;
+    font-size: 30px; line-height: 1.3; font-weight: 700; box-shadow: 0 0 0 8px var(--hl), 0 24px 60px rgba(0,0,0,.6); transform: rotate(-2deg); }
+  .bubble::before { content: ''; position: absolute; left: -22px; top: 0; border-top: 30px solid #fff; border-left: 24px solid transparent; }
+  .who { color: #1f9d55; font-weight: 900; font-size: 26px; margin-bottom: 6px; }
+  .pic { display: block; width: 100%; height: 250px; object-fit: contain; background: #fff; border-radius: 16px; margin: 4px 0 12px; }
+  .prod { font-weight: 900; font-size: 34px; }
+  .bubble s { color: #888; }
+  .off { display: inline-block; background: #e8212b; color: #fff; font-weight: 900; font-size: 26px; padding: 0 10px; border-radius: 8px; margin-left: 6px; vertical-align: 3px; }
+  .price { font-weight: 900; font-size: 30px; color: #111; margin-top: 2px; }
+  .price b { display: block; font-size: 92px; line-height: .95; color: #0f7a2e; letter-spacing: -2px; }
+  .meta { display: flex; justify-content: space-between; align-items: flex-end; margin-top: 6px; }
+  .lnk { color: #027eb5; font-size: 27px; }
+  .time { color: #999; font-size: 22px; }
+  .time b { color: #34b7f1; }
+
+  .burst { position: absolute; right: -54px; top: -64px; width: 230px; height: 230px; transform: rotate(14deg); filter: drop-shadow(0 10px 18px rgba(0,0,0,.45)); }
+  .burst svg { width: 100%; height: 100%; display: block; }
+  .burst .t { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #fff; font-weight: 900; line-height: .9; }
+  .burst .t small { font-size: 26px; letter-spacing: 1px; }
+  .burst .t b { font-size: 62px; letter-spacing: -2px; }
+  .burst .t i { font-style: normal; font-size: 30px; }
+
+  .cap { margin-top: 16px; font-size: 21px; font-weight: 800; color: #9a9a9a; }
+
+  .cta { margin-top: auto; display: inline-flex; align-items: center; gap: 16px; background: var(--green); color: #fff; font-weight: 900; font-size: 44px;
+    padding: 24px 54px; border-radius: 80px; box-shadow: 0 10px 0 #128c45, 0 20px 40px rgba(37,211,102,.25); }
+  .cta svg { width: 52px; height: 52px; }
+  .perks { margin-top: 22px; display: flex; gap: 34px; justify-content: center; font-weight: 900; font-size: 27px; color: #e8e8e8; }
+  .perks b { color: #7ac70c; }
+</style>
+</head>
+<body>
+<script>if (location.hash === '#story') document.documentElement.classList.add('story')</script>
+<div class="sheet">
+  <div class="safe">
+    <div class="top">
+      <img class="logo" src="../../packages/frontend/public/logo-fox.webp" alt="Fox Promoções">
+      <div class="pill"><svg viewBox="0 0 24 24" fill="currentColor"><path {{WA}}/></svg>GRUPO GRÁTIS NO WHATSAPP</div>
+    </div>
+
+    <h1><span class="bf">Black Friday</span><span class="dv">de verdade</span></h1>
+
+    <div class="stage">
+      <div class="bubble">
+        <div class="who">Fox Promoções</div>
+        <img class="pic" src="ps5.jpg" alt="">
+        <div class="prod">🔥 PlayStation 5 Slim Digital 1TB</div>
+        <div>💰 De <s>R$ 4.899,00</s> <span class="off">-39%</span></div>
+        <div class="price">por<b>R$ 2.999,90</b></div>
+        <div class="meta"><span class="lnk">👉 foxpromocoes.com.br/r/…</span><span class="time">10:42 <b>✓✓</b></span></div>
+      </div>
+      <div class="burst">
+        <svg viewBox="0 0 100 100"><polygon fill="#e8212b" stroke="#fff" stroke-width="2.5" points="50,2 58,14 72,8 74,23 89,24 84,38 97,46 86,56 93,70 79,73 78,88 64,84 56,97 46,86 33,95 29,80 14,80 18,66 4,58 15,48 6,35 21,31 21,16 36,18 42,5"/></svg>
+        <div class="t"><small>ATÉ</small><b>70%</b><i>OFF</i></div>
+      </div>
+    </div>
+    <div class="cap">exemplo de post do grupo · valores ilustrativos</div>
+
+    <div class="cta"><svg viewBox="0 0 24 24" fill="currentColor"><path {{WA}}/></svg>Entrar no grupo grátis</div>
+    <div class="perks"><span><b>✓</b> Grátis</span><span><b>✓</b> Sem spam</span><span><b>✓</b> Saia quando quiser</span></div>
+  </div>
+</div>
+</body>
+</html>

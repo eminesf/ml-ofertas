@@ -261,6 +261,10 @@ model Post {
 - `utils/freshness.ts` → `isFresh` (posting e `/admin/fila`): fonte Telegram 3h, KaBuM (queda no feed) 12h `QUEUE_MAX_AGE_FLASH_HOURS`, cupom/manual 48h `QUEUE_MAX_AGE_COUPON_HOURS`, Nike/Stanley 48h `QUEUE_MAX_AGE_BRAND_HOURS`, resto (ML, Amazon, Shopee, hub) 24h `QUEUE_MAX_AGE_HOURS`.
 - `checkPriceBeforePost` antes de cada post: KaBuM/Nike/Stanley pelo `FeedPrice` (sem rede); Amazon por fetch HTTP (pulado com leilão do bot-leilao); ML/Shopee sem conferência (bloqueio). Subiu > 5% → `dropFromQueue` (tira o copy; se o preço cair de novo o scrape reavalia) e tenta a próxima (máx 8 por rodada). Na dúvida, deixa passar.
 
+## Black Friday — posting 24h (26/11/2026)
+- `POST_24H_UNTIL` no .env (ISO, hoje `2026-11-30T08:00:00-03:00`): até essa data o posting ignora `POST_HOURS` e roda 24h; depois volta sozinho. Para estender, trocar a data e reiniciar o backend.
+- Anúncio da Black Friday: `marketing/flyer/ad-blackfriday.src.html` → `node marketing/flyer/render-ad.cjs` (feed 1080x1350 + story 1080x1920).
+
 ## Madrugada e Pokémon
 - Grupos PRIVADOS do Telegram (`TELEGRAM_PRIVATE_SOURCES=+HASH,...`, ex.: "Promoções Pokémon") são lidos pela conta do dono via MTProto (`telegram`/gram.js, `channels/telegram/user-client.ts`): só leitura. Credenciais `TELEGRAM_API_ID`/`TELEGRAM_API_HASH` (my.telegram.org) e sessão em `packages/.telegram-user-session` (gitignored) criada com `npm run telegram:login` (o dono digita telefone e código). Mesmo pipeline dos canais públicos (`handleSourcePost`).
 - Fora de `POST_HOURS` (8–23h) o posting só libera ofertas com source `telegram` (o que os canais garimpados postam de madrugada, a gente posta também). Os canais são lidos 24h.
