@@ -172,7 +172,7 @@ export default function AnalisePage() {
               : <DailyBars data={data.daily} field="clicks" unit="cliques" />}
           </Card>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(300px, 100%), 1fr))', gap: 16 }}>
             <Card title="Cliques por origem" hint="De onde a pessoa clicou · cliques por post do canal">
               <HBars rows={data.bySrc.map(s => ({ label: s.label, value: s.clicks, extra: s.perPost != null ? `${s.perPost.toFixed(1).replace('.', ',')}/post` : undefined }))} />
             </Card>
@@ -191,7 +191,7 @@ export default function AnalisePage() {
             <DailyBars data={data.daily} field="posts" unit="ofertas" />
           </Card>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 16 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(300px, 100%), 1fr))', gap: 16 }}>
             <Card title="Posts por canal" hint="Mensagens enviadas no período, incluindo reposts">
               <HBars rows={data.posts.map(p => ({ label: p.label, value: p.count })).sort((a, b) => b.value - a.value)} />
             </Card>

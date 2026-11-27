@@ -10,7 +10,7 @@ interface Link { original: string; store: string | null; short: string | null }
 interface Converted { links: Link[]; coupons: string[]; whatsapp: string; telegram: string }
 interface Message extends Converted { id: string; at: number; text: string; image: boolean }
 
-const box: React.CSSProperties = { background: '#1c1c1f', border: '1px solid #333', borderRadius: 12, padding: 14 }
+const box: React.CSSProperties = { minWidth: 0, overflowWrap: 'anywhere', background: '#1c1c1f', border: '1px solid #333', borderRadius: 12, padding: 14 }
 const btn: React.CSSProperties = { border: 'none', borderRadius: 8, padding: '8px 14px', fontWeight: 800, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }
 const area: React.CSSProperties = { width: '100%', minHeight: 150, background: '#111', color: '#eee', border: '1px solid #444', borderRadius: 8, padding: 10, fontSize: 13, fontFamily: 'inherit', lineHeight: 1.4 }
 
@@ -272,8 +272,8 @@ export default function NikePage() {
   }
 
   return (
-    <div style={{ padding: 24, color: '#eee', maxWidth: 1100 }}>
-      <style>{`@media (max-width: 760px) { .nike-grid { grid-template-columns: 1fr !important; } }`}</style>
+    <div style={{ padding: 24, color: '#eee', background: '#141417', minHeight: 'calc(100vh - 52px)' }}><div style={{ maxWidth: 1100, margin: '0 auto' }}>
+      <style>{`@media (max-width: 760px) { .nike-grid { grid-template-columns: minmax(0,1fr) !important; } .nike-grid img { max-width: 220px; } }`}</style>
       <h1 style={{ fontSize: 22, fontWeight: 800, marginBottom: 4 }}>Grupo da Nike</h1>
       <p style={{ color: '#999', marginBottom: 20, fontSize: 14 }}>
         Mensagens do grupo de avisos (últimos 3 dias) com os links trocados pelos nossos e o cupom em destaque.
@@ -308,6 +308,6 @@ export default function NikePage() {
       <div style={{ display: 'grid', gap: 16 }}>
         {messages?.map(m => <Card key={m.id} m={m} onAnalyze={onAnalyze} />)}
       </div>
-    </div>
+    </div></div>
   )
 }

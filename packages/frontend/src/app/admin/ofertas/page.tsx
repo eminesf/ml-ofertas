@@ -75,7 +75,7 @@ export default function OfertasPage() {
       </form>
       {error && <p style={{ color: '#c00', fontSize: 13 }}>{error}</p>}
 
-      <div style={{ display: 'grid', gap: 14, gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', alignItems: 'start' }}>
+      <div style={{ display: 'grid', gap: 14, gridTemplateColumns: 'repeat(auto-fit, minmax(min(320px, 100%), 1fr))', alignItems: 'start' }}>
         <div style={{ display: 'grid', gap: 8 }}>
           {rows === null && <p style={{ fontSize: 13, color: '#888' }}>Carregando…</p>}
           {rows?.length === 0 && <p style={{ fontSize: 13, color: '#888' }}>Nada encontrado.</p>}
