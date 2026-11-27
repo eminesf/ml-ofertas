@@ -157,7 +157,7 @@ function Card({ m, onAnalyze }: { m: Message | (Converted & { id?: undefined; im
   }
 
   return (
-    <div style={{ ...box, display: 'grid', gap: 12 }}>
+    <div style={{ ...box, display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 12 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
         <b style={{ fontSize: 14 }}>{m.text.split('\n')[0].replace(/[*_~]/g, '').slice(0, 90)}</b>
         {m.at && <span style={{ color: '#888', fontSize: 12 }}>{timeAgo(m.at)}</span>}
@@ -187,7 +187,7 @@ function Card({ m, onAnalyze }: { m: Message | (Converted & { id?: undefined; im
                 </button>
               )}
               <code style={{ fontSize: 12, color: '#FFE600' }}>{l.short!.replace(/^https:\/\/(www\.)?/, '')}</code>
-              <a href={l.original} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: '#888', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 380 }}>
+              <a href={l.original} target="_blank" rel="noreferrer" style={{ fontSize: 11, color: '#888', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%' }}>
                 {l.original.replace(/^https?:\/\/(www\.)?/, '')} ↗
               </a>
             </div>
@@ -305,7 +305,7 @@ export default function NikePage() {
       {messages?.length === 0 && !error && (
         <p style={{ color: '#999' }}>Nenhuma mensagem guardada ainda. As novas do grupo aparecem aqui assim que chegam.</p>
       )}
-      <div style={{ display: 'grid', gap: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 16 }}>
         {messages?.map(m => <Card key={m.id} m={m} onAnalyze={onAnalyze} />)}
       </div>
     </div></div>
