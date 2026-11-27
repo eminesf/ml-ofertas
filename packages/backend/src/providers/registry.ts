@@ -57,6 +57,10 @@ export function resolveProviderByUrl(url: string): ResolvedProvider | null {
 
   // Awin (Kabum / AliExpress / Stanley)
   const advertiser = findAwinAdvertiser(url)
+  // Link curto do AliExpress (s.click…/e/_xxx, a.aliexpress.com/_xxx) não tem o ID do item:
+  // devolve null para o import seguir o redirect (resolveProduct) até /item/{id}.html.
+  // Sem isso o externalId saía do slug e o deeplink embrulhava o link do outro afiliado.
+  if (advertiser?.name === 'aliexpress' && !/\/item\/\d+/.test(url)) return null
   if (advertiser) {
     return {
       provider: new AwinProvider(advertiser),
