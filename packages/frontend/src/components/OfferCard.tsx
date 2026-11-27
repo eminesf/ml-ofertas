@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { ShoppingBag, Sparkles, Star } from 'lucide-react'
 import { Offer } from '@/lib/api'
 import { Badge } from '@/components/ui/badge'
-import { STORES, brl, cn, timeAgo } from '@/lib/utils'
+import { STORES, brl, cn, couponGoHref, timeAgo } from '@/lib/utils'
 import VoteButton from './VoteButton'
 import CouponCopy from './CouponCopy'
 
@@ -42,7 +42,7 @@ export default function OfferCard({ offer }: { offer: Offer }) {
               <Sparkles /> Oferta especial
             </Badge>
           )}
-          {offer.couponCode && <CouponCopy code={offer.couponCode} variant="badge" minValue={offer.couponMinValue} goHref={offer.shortCode ? `/r/${offer.shortCode}` : offer.affiliateUrl} />}
+          {offer.couponCode && <CouponCopy code={offer.couponCode} variant="badge" minValue={offer.couponMinValue} goHref={couponGoHref(offer, offer.couponCode)} />}
         </div>
 
         <h3 className="line-clamp-2 text-[13px] leading-snug font-medium text-foreground sm:text-sm">

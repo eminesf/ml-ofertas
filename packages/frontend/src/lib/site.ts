@@ -11,5 +11,5 @@ export const SITE_DESCRIPTION = 'Oferta relâmpago, cupom e preço lá embaixo, 
 
 // Páginas sem cabeçalho/rodapé/botão flutuante/boas-vindas: admin e a página de links da bio
 export function hideSiteChrome(pathname: string): boolean {
-  return pathname.startsWith('/admin') || pathname === '/links' || pathname === '/whatsapp' || pathname.startsWith('/grupo/')
+  return pathname.startsWith('/admin') || pathname === '/links' || pathname === '/whatsapp' || pathname.startsWith('/grupo/') || pathname === '/ir'
 }

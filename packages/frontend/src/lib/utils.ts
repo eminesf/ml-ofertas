@@ -42,3 +42,12 @@ export const CATEGORIES = [
   { slug: 'ferramentas', label: 'Ferramentas', short: 'Ferramentas' },
   { slug: 'pokemon', label: 'Pokémon TCG', short: 'Pokémon' },
 ] as const
+
+// Link do "Copiar e ir à loja": passa pela página /ir (mostra "cupom copiado" e depois abre a loja
+// pelo nosso link curto /r/, que deixa o cookie de afiliado). Sem link curto, vai direto ao afiliado.
+export function couponGoHref(o: { shortCode?: string | null; affiliateUrl: string; provider: string }, coupon: string, src?: string): string {
+  if (!o.shortCode) return o.affiliateUrl
+  const qs = new URLSearchParams({ r: o.shortCode, cupom: coupon, loja: storeName(o.provider) })
+  if (src) qs.set('s', src)
+  return `/ir?${qs}`
+}
