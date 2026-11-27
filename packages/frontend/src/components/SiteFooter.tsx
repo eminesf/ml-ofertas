@@ -2,6 +2,7 @@
 
 import { hideSiteChrome } from '@/lib/site'
 import Link from 'next/link'
+import { STORE_PAGES } from '@/lib/seo-pages'
 import { usePathname } from 'next/navigation'
 import { CATEGORIES } from '@/lib/utils'
 import TelegramIcon, { TELEGRAM_URL } from './TelegramIcon'
@@ -15,7 +16,7 @@ export default function SiteFooter({ whatsappUrl }: { whatsappUrl?: string | nul
 
   return (
     <footer className="mt-12 border-t bg-card">
-      <div className="mx-auto grid max-w-6xl gap-8 px-4 py-10 pb-24 sm:grid-cols-[2fr_1fr_1fr] sm:pb-10">
+      <div className="mx-auto grid max-w-6xl gap-8 px-4 py-10 pb-24 sm:grid-cols-[2fr_1fr_1fr_1fr] sm:pb-10">
         <div className="space-y-3">
           <div className="flex items-center gap-3">
             <img src="/logo-fox-sm.webp" alt="" width={100} height={90} className="h-20 w-auto object-contain" />
@@ -34,6 +35,17 @@ export default function SiteFooter({ whatsappUrl }: { whatsappUrl?: string | nul
               <li key={c.slug}>
                 <Link href={`/categoria/${c.slug}`} className="hover:text-foreground">{c.short}</Link>
               </li>
+            ))}
+          </ul>
+        </div>
+
+        <div>
+          <p className="mb-3 text-sm font-semibold">Cupons</p>
+          <ul className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm text-muted-foreground sm:grid-cols-1">
+            <li><Link href="/black-friday" className="font-semibold text-foreground hover:underline">Black Friday</Link></li>
+            <li><Link href="/cupons" className="hover:text-foreground">Todos os cupons</Link></li>
+            {STORE_PAGES.map(s => (
+              <li key={s.slug}><Link href={`/cupom/${s.slug}`} className="hover:text-foreground">Cupom {s.name}</Link></li>
             ))}
           </ul>
         </div>
