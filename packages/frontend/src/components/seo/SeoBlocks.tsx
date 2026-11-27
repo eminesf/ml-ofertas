@@ -2,7 +2,7 @@ import Link from 'next/link'
 import { ChevronRight } from 'lucide-react'
 import CouponCopy from '@/components/CouponCopy'
 import WhatsAppIcon from '@/components/WhatsAppIcon'
-import { brl, storeName, timeAgo } from '@/lib/utils'
+import { brl, couponGoHref, storeName, timeAgo } from '@/lib/utils'
 import { STORE_PAGES, type CouponSummary } from '@/lib/seo-pages'
 import { SITE_URL } from '@/lib/site'
 
@@ -51,7 +51,7 @@ export function CouponCards({ coupons, showStore = false }: { coupons: CouponSum
               {showStore ? <span className="font-semibold text-foreground">{storeName(c.provider)}</span> : <span>Cupom</span>}
               <span>visto {timeAgo(c.lastSeen)}</span>
             </div>
-            <CouponCopy code={c.code} variant="box" minValue={c.minValue} goHref={first.shortCode ? `/r/${first.shortCode}?c` : first.affiliateUrl} />
+            <CouponCopy code={c.code} variant="box" minValue={c.minValue} goHref={couponGoHref(first, c.code, 'c')} />
             <Link href={`/oferta/${first.id}`} className="flex items-center gap-3 rounded-lg bg-muted/50 p-2 hover:bg-muted">
               {first.imageUrl && <img src={first.imageUrl} alt="" className="size-12 shrink-0 rounded-md bg-white object-contain" loading="lazy" />}
               <span className="min-w-0 flex-1">

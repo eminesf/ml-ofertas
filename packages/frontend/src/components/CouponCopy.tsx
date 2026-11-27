@@ -80,7 +80,7 @@ export default function CouponCopy({ code, variant, amount, minValue, goHref }: 
           <span className="truncate font-mono text-base font-bold tracking-wide text-amber-900">{code}</span>
           <span className="flex shrink-0 items-center gap-1 rounded-md bg-amber-500 px-2.5 py-1 text-xs font-bold text-white">
             {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
-            {copied ? 'Copiado!' : 'Copiar e ir à loja'}
+            {copied ? 'Copiado! Abrindo…' : 'Copiar e ir à loja'}
           </span>
         </a>
       ) : (
@@ -100,7 +100,7 @@ export default function CouponCopy({ code, variant, amount, minValue, goHref }: 
         </button>
       )}
       <p className="mt-2 text-xs text-amber-800">
-        {copied ? 'Código copiado! Cole no carrinho da loja.' : goHref ? 'Copia o código e abre a loja: é só colar no carrinho.' : 'Toque no código para copiar e aplique no checkout.'}
+        {copied ? goHref ? 'Código copiado! Abrindo a loja numa nova aba…' : 'Código copiado! Cole no carrinho da loja.' : goHref ? 'Copia o código e abre a loja: é só colar no carrinho.' : 'Toque no código para copiar e aplique no checkout.'}
       </p>
       {minValue ? (
         <p className="mt-1 text-xs font-semibold text-amber-900">

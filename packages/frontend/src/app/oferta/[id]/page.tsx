@@ -9,7 +9,7 @@ import { OfferGrid } from '@/components/Feed'
 import VoteButton from '@/components/VoteButton'
 import CouponCopy from '@/components/CouponCopy'
 import BackButton from '@/components/BackButton'
-import { STORES, brl, cn, storeName, timeAgo } from '@/lib/utils'
+import { STORES, brl, cn, couponGoHref, storeName, timeAgo } from '@/lib/utils'
 import { SITE_URL } from '@/lib/site'
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
@@ -143,7 +143,7 @@ export default async function OfertaPage({ params }: { params: Promise<{ id: str
               variant="box"
               amount={offer.couponAmount ?? undefined}
               minValue={offer.couponMinValue}
-              goHref={offer.shortCode ? `/r/${offer.shortCode}` : offer.affiliateUrl}
+              goHref={couponGoHref(offer, offer.couponCode)}
             />
           )}
 
