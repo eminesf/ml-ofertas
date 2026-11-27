@@ -29,11 +29,11 @@ export function Shell({ children }: { children: React.ReactNode }) {
 export function Logo() {
   return (
     <img
-      src="/logo_png.png"
+      src="/logo-fox.webp"
       alt={SITE_NAME}
-      width={230}
-      height={150}
-      className="h-[150px] w-[230px] object-cover object-[50%_52%] drop-shadow-[0_8px_24px_rgba(0,0,0,.45)]"
+      width={190}
+      height={171}
+      className="h-auto w-[170px] object-contain drop-shadow-[0_8px_24px_rgba(0,0,0,.45)] sm:w-[190px]"
     />
   )
 }

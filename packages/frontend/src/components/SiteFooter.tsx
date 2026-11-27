@@ -17,11 +17,9 @@ export default function SiteFooter({ whatsappUrl }: { whatsappUrl?: string | nul
     <footer className="mt-12 border-t bg-card">
       <div className="mx-auto grid max-w-6xl gap-8 px-4 py-10 pb-24 sm:grid-cols-[2fr_1fr_1fr] sm:pb-10">
         <div className="space-y-3">
-          <div className="flex items-center gap-2.5">
-            <span className="flex size-9 items-center justify-center overflow-hidden rounded-xl bg-brand">
-              <img src="/logo_png.png" alt="" className="size-8 object-contain" />
-            </span>
-            <span className="font-extrabold tracking-tight">Fox Promoções</span>
+          <div className="flex items-center gap-3">
+            <img src="/logo-fox-sm.webp" alt="" width={100} height={90} className="h-20 w-auto object-contain" />
+            <span className="text-lg font-extrabold tracking-tight">Fox Promoções</span>
           </div>
           <p className="max-w-sm text-sm text-muted-foreground">
             Garimpamos promoções o dia todo em várias lojas. Os preços podem mudar a
