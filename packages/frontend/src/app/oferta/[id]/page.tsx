@@ -143,6 +143,7 @@ export default async function OfertaPage({ params }: { params: Promise<{ id: str
               variant="box"
               amount={offer.couponAmount ?? undefined}
               minValue={offer.couponMinValue}
+              goHref={offer.shortCode ? `/r/${offer.shortCode}` : offer.affiliateUrl}
             />
           )}
 
