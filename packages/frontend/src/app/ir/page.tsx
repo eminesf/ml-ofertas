@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import GoToStore from './GoToStore'
 
 // Página de passagem do "Copiar e ir à loja": mostra que o cupom foi copiado e, depois de
-// ~2s, segue para /r/CODE (link de afiliado — o cookie da loja fica com a gente).
+// ~1,5s, segue para /r/CODE (link de afiliado — o cookie da loja fica com a gente).
 // Só aceita código de link curto (nada de URL livre: evita open redirect).
 export const metadata: Metadata = { title: 'Abrindo a loja…', robots: { index: false, follow: false } }
 
