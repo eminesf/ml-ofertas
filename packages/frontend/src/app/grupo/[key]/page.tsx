@@ -16,12 +16,12 @@ type Key = 'tech' | 'achadinhos'
 const CONTENT: Record<Key, { title: string; description: string; eyebrow: string; main: string; highlight: string; sub: string; chips: string[]; cta: string }> = {
   tech: {
     title: 'Grupo de promoções Tech & Pokémon TCG no WhatsApp',
-    description: 'Placa de vídeo, PS5, Switch, games, periféricos e Pokémon TCG com desconto de verdade, direto no seu WhatsApp. Grátis.',
+    description: 'TV, projetor, celular, PC gamer, PS5, Switch, games, Pokémon TCG e muito mais em tecnologia com desconto de verdade, direto no seu WhatsApp. Grátis.',
     eyebrow: 'Grupo grátis no WhatsApp',
-    main: 'Promoção de PC gamer, console e Pokémon TCG',
+    main: 'Promoção de tecnologia, games e Pokémon TCG',
     highlight: 'direto no seu WhatsApp',
-    sub: 'Placa de vídeo, SSD, PS5, Switch, games e cartas Pokémon com desconto de verdade. A gente garimpa o dia todo, você só aproveita.',
-    chips: ['Placa de vídeo', 'PS5 e Switch', 'Games', 'Periféricos', 'SSD e memória', 'Pokémon TCG'],
+    sub: 'TV, projetor, celular, fone, PC gamer, PS5, Switch, games, cartas Pokémon e muito mais com desconto de verdade. A gente garimpa o dia todo, você só aproveita.',
+    chips: ['TV e projetor', 'Celular e fone', 'PC gamer', 'PS5 e Switch', 'Games', 'Pokémon TCG', 'e muito mais'],
     cta: 'Entrar no grupo Tech & TCG',
   },
   achadinhos: {

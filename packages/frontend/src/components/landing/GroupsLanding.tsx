@@ -14,7 +14,7 @@ const GROUPS = [
     key: 'tech' as const,
     emoji: '🎮',
     name: 'Tech & TCG',
-    text: 'PC gamer, placa de vídeo, PS5, Switch, games, periféricos e Pokémon TCG.',
+    text: 'Tecnologia em geral: TV, projetor, celular, PC gamer, PS5, Switch, games, Pokémon TCG e muito mais.',
   },
   {
     key: 'achadinhos' as const,

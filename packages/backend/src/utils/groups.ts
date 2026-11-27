@@ -17,7 +17,7 @@ export interface WaGroup {
 }
 
 export const GROUPS: WaGroup[] = [
-  { key: 'tech', label: 'Tech & TCG', description: 'Eletrônicos, PC gamer, consoles, games e Pokémon/TCG', channel: 'whatsapp', jid: () => process.env.WHATSAPP_GROUP_JID },
+  { key: 'tech', label: 'Tech & TCG', description: 'Tecnologia em geral (TV, projetor, celular, PC gamer), consoles, games, Pokémon/TCG e muito mais', channel: 'whatsapp', jid: () => process.env.WHATSAPP_GROUP_JID },
   { key: 'achadinhos', label: 'Achadinhos', description: 'Casa, moda, beleza, Nike, suplementos e achadinhos em geral', channel: 'whatsapp-achadinhos', jid: () => process.env.WHATSAPP_GROUP_ACHADINHOS_JID },
 ]
 
