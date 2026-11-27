@@ -176,7 +176,7 @@ function Card({ m, onAnalyze }: { m: Message | (Converted & { id?: undefined; im
       )}
 
       {ours.length > 0 && (
-        <div style={{ display: 'grid', gap: 6 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 6 }}>
           <span style={{ fontSize: 12, color: '#aaa' }}>Nossos links ({ours.length}):</span>
           {ours.map(l => (
             <div key={l.original} style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
