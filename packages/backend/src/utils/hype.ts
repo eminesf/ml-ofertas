@@ -8,7 +8,7 @@ const HYPE_RE = new RegExp(
     'xbox\\s*series', 'nintendo\\s*switch', 'steam\\s*deck', 'rog\\s*ally', 'legion\\s*go',
     'placa\\s*de\\s*v[íi]deo', 'geforce', 'rtx\\s*\\d{4}', 'radeon', '\\brx\\s*\\d{4}',
     'processador\\s*(amd|intel)', 'processador.{0,15}(ryzen|core)', 'ryzen\\s*\\d', 'core\\s*(i[3579]|ultra)',
-    'ssd\\s*(m\\.?2|nvme)', 'nvme', 'mem[óo]ria\\s*(ram\\s*)?ddr[45]', 'placa[-\\s]*m[ãa]e',
+    'ssd\\s*(m\\.?2|nvme)', 'nvme', 'mem[óo]ria\\s*(ram\\s*)?ddr[45]', '\\bddr[45]\\b','placa[-\\s]*m[ãa]e',
     'water\\s*cooler', 'fonte\\s*\\d{3,4}\\s*w',
   ].join('|'),
   'i'
