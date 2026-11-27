@@ -98,8 +98,8 @@ function ago(iso: string): string {
   return h < 24 ? `há ${h}h` : `há ${Math.round(h / 24)}d`
 }
 
-// Ofertas REAIS que saíram no grupo (não "valores ilustrativos") — só vitrine, sem link:
-// a página tem uma ação só, entrar no grupo.
+// Ofertas REAIS que saíram no grupo (não "valores ilustrativos"), vindas da API a cada acesso.
+// Cada card abre a página da oferta no site.
 export function OfferProof({ offers }: { offers: Offer[] }) {
   if (!offers.length) return null
   return (
@@ -107,7 +107,11 @@ export function OfferProof({ offers }: { offers: Offer[] }) {
       {offers.map(o => {
         const sent = o.posts?.[0]?.sentAt || o.createdAt
         return (
-          <div key={o.id} className="flex flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#1e1e1e]">
+          <Link
+            key={o.id}
+            href={`/oferta/${o.id}`}
+            className="flex flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#1e1e1e] transition hover:-translate-y-0.5 hover:border-[#ff8a1f]/60"
+          >
             <div className="relative flex aspect-square items-center justify-center bg-white p-3">
               <img src={o.imageUrl!} alt="" loading="lazy" className="max-h-full max-w-full object-contain" />
               {o.discountPct > 0 && (
@@ -121,7 +125,7 @@ export function OfferProof({ offers }: { offers: Offer[] }) {
                 {storeName(o.provider)} · {ago(sent)}
               </p>
             </div>
-          </div>
+          </Link>
         )
       })}
     </div>
