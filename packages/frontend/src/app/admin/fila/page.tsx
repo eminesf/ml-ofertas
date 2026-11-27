@@ -106,7 +106,7 @@ export default function FilaPage() {
         Aprovadas pela IA, na ordem em que o bot postaria. <b>Enviar</b> posta agora no Telegram e no grupo do WhatsApp da aba.
       </p>
 
-      <div className="fila-tabs" style={{ display: 'flex', gap: 6, overflowX: 'auto', borderBottom: '2px solid #e5e5e5', marginBottom: 16 }}>
+      <div className="fila-tabs" style={{ display: 'flex', gap: 6, borderBottom: '2px solid #e5e5e5', marginBottom: 16 }}>
         {groups.map(g => (
           <button
             key={g.key}
