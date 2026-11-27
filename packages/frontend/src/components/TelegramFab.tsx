@@ -10,7 +10,12 @@ import { openWhatsAppGroups } from './WhatsAppGroups'
 export default function TelegramFab({ whatsappUrl }: { whatsappUrl?: string | null }) {
   const pathname = usePathname()
   if (hideSiteChrome(pathname)) return null
-  const className = `fixed right-4 bottom-[calc(max(1rem,env(safe-area-inset-bottom))+var(--cookie-bar-h,0px))] z-40 flex size-14 cursor-pointer items-center justify-center rounded-full ${whatsappUrl ? 'bg-[#25D366]' : 'bg-[#229ED9]'} text-white shadow-lg shadow-black/20 transition-[bottom,transform] duration-300 hover:scale-105 active:scale-95 sm:right-6 sm:bottom-[calc(1.5rem+var(--cookie-bar-h,0px))]`
+  // Página da oferta: no mobile tem a barra fixa de preço + "Ir para a loja" embaixo; o botão fica logo acima dela
+  const onOffer = pathname.startsWith('/oferta/')
+  const mobileBottom = onOffer
+    ? 'bottom-[calc(max(1rem,env(safe-area-inset-bottom))+5.25rem+var(--cookie-bar-h,0px))]'
+    : 'bottom-[calc(max(1rem,env(safe-area-inset-bottom))+var(--cookie-bar-h,0px))]'
+  const className = `fixed right-4 ${mobileBottom} z-40 flex size-14 cursor-pointer items-center justify-center rounded-full ${whatsappUrl ? 'bg-[#25D366]' : 'bg-[#229ED9]'} text-white shadow-lg shadow-black/20 transition-[bottom,transform] duration-300 hover:scale-105 active:scale-95 sm:right-6 sm:bottom-[calc(1.5rem+var(--cookie-bar-h,0px))]`
   // WhatsApp: abre o modal de escolha de grupo (Tech & TCG / Achadinhos)
   if (whatsappUrl) {
     return (
