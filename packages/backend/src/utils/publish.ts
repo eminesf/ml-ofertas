@@ -112,7 +112,15 @@ export function postPriority(o: Pick<Offer, 'aiScore' | 'salePrice' | 'discountP
   return (o.aiScore ?? 0) + priceBonus + discountBonus + sourceBonus + hypeBonus + ps5Bonus
 }
 
+// POST_24H_UNTIL (ISO, ex. 2026-11-30T08:00:00-03:00): posting 24h até essa data
+// (Black Friday). Depois volta sozinho para POST_HOURS.
+function in24hWindow(): boolean {
+  const until = Date.parse(process.env.POST_24H_UNTIL || '')
+  return Number.isFinite(until) && Date.now() < until
+}
+
 function inPostingHours(): boolean {
+  if (in24hWindow()) return true
   const [start, end] = (process.env.POST_HOURS || process.env.WHATSAPP_HOURS || '8-23').split('-').map(Number)
   const hour = new Date().getHours()
   return hour >= start && hour < end
