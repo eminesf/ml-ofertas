@@ -1,5 +1,6 @@
 import { MetadataRoute } from 'next'
 import { SITE_URL as BASE_URL } from '@/lib/site'
+import { STORE_PAGES } from '@/lib/seo-pages'
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
 
 const CATEGORIES = ['pokemon', 'eletronicos', 'esporte', 'moda', 'casa', 'beleza', 'automotivo', 'ferramentas']
@@ -10,6 +11,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const staticPages: MetadataRoute.Sitemap = [
     { url: BASE_URL, lastModified: now, changeFrequency: 'hourly', priority: 1 },
     ...['tech', 'achadinhos'].map(k => ({ url: `${BASE_URL}/grupo/${k}`, lastModified: now, changeFrequency: 'daily' as const, priority: 0.9 })),
+    { url: `${BASE_URL}/black-friday`, lastModified: now, changeFrequency: 'hourly', priority: 0.95 },
+    { url: `${BASE_URL}/cupons`, lastModified: now, changeFrequency: 'hourly', priority: 0.9 },
+    ...STORE_PAGES.map(s => ({ url: `${BASE_URL}/cupom/${s.slug}`, lastModified: now, changeFrequency: 'hourly' as const, priority: 0.85 })),
     ...CATEGORIES.map(slug => ({
       url: `${BASE_URL}/categoria/${slug}`,
       lastModified: now,
