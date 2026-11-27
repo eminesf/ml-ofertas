@@ -8,9 +8,12 @@ interface Props {
   variant: 'badge' | 'box'
   amount?: string
   minValue?: number | null
+  // Link de afiliado (/r/...): o botão vira "Copiar e ir para a loja" — copia o código e abre a
+  // loja pelo NOSSO link, senão a compra com o cupom não gera comissão
+  goHref?: string
 }
 
-export default function CouponCopy({ code, variant, amount, minValue }: Props) {
+export default function CouponCopy({ code, variant, amount, minValue, goHref }: Props) {
   const [copied, setCopied] = useState(false)
 
   async function copy(e: React.MouseEvent) {
@@ -30,12 +33,25 @@ export default function CouponCopy({ code, variant, amount, minValue }: Props) {
     setTimeout(() => setCopied(false), 2000)
   }
 
+  // Cópia síncrona (o clique segue abrindo a loja em outra aba)
+  function copyAndGo() {
+    const ta = document.createElement('textarea')
+    ta.value = code
+    document.body.appendChild(ta)
+    ta.select()
+    try { document.execCommand('copy') } catch {}
+    document.body.removeChild(ta)
+    navigator.clipboard?.writeText(code).catch(() => {})
+    setCopied(true)
+    setTimeout(() => setCopied(false), 4000)
+  }
+
   if (variant === 'badge') {
     return (
       <button
         type="button"
-        onClick={copy}
-        title={`Copiar cupom ${code}`}
+        onClick={goHref ? e => { e.preventDefault(); e.stopPropagation(); copyAndGo(); window.open(goHref, '_blank', 'noopener') } : copy}
+        title={goHref ? `Copiar cupom ${code} e abrir a loja` : `Copiar cupom ${code}`}
         className={cn(
           'relative z-10 inline-flex h-5 items-center gap-1 rounded-md px-1.5 text-[11px] font-semibold transition-colors',
           copied ? 'bg-success/10 text-success' : 'bg-amber-100 text-amber-800 hover:bg-amber-200',
@@ -53,22 +69,38 @@ export default function CouponCopy({ code, variant, amount, minValue }: Props) {
         <TicketPercent className="size-4" /> Cupom de desconto
         {amount && <span className="font-medium text-amber-700">· {amount}</span>}
       </p>
-      <button
-        type="button"
-        onClick={copy}
-        className={cn(
-          'flex w-full items-center justify-between gap-3 rounded-lg border bg-white px-4 py-2.5 font-mono text-base font-bold tracking-wide transition-colors',
-          copied ? 'border-success/40 text-success' : 'border-amber-300 text-amber-900 hover:bg-amber-100/50',
-        )}
-      >
-        <span className="truncate">{code}</span>
-        <span className="flex shrink-0 items-center gap-1 font-sans text-xs font-semibold">
-          {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
-          {copied ? 'Copiado' : 'Copiar'}
-        </span>
-      </button>
+      {goHref ? (
+        <a
+          href={goHref}
+          target="_blank"
+          rel="noopener noreferrer sponsored"
+          onClick={copyAndGo}
+          className="flex w-full items-center justify-between gap-3 rounded-lg border border-amber-300 bg-white px-4 py-2.5 transition-colors hover:bg-amber-100/50"
+        >
+          <span className="truncate font-mono text-base font-bold tracking-wide text-amber-900">{code}</span>
+          <span className="flex shrink-0 items-center gap-1 rounded-md bg-amber-500 px-2.5 py-1 text-xs font-bold text-white">
+            {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
+            {copied ? 'Copiado!' : 'Copiar e ir à loja'}
+          </span>
+        </a>
+      ) : (
+        <button
+          type="button"
+          onClick={copy}
+          className={cn(
+            'flex w-full items-center justify-between gap-3 rounded-lg border bg-white px-4 py-2.5 font-mono text-base font-bold tracking-wide transition-colors',
+            copied ? 'border-success/40 text-success' : 'border-amber-300 text-amber-900 hover:bg-amber-100/50',
+          )}
+        >
+          <span className="truncate">{code}</span>
+          <span className="flex shrink-0 items-center gap-1 font-sans text-xs font-semibold">
+            {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
+            {copied ? 'Copiado' : 'Copiar'}
+          </span>
+        </button>
+      )}
       <p className="mt-2 text-xs text-amber-800">
-        {copied ? 'Código copiado! Cole no checkout da loja.' : 'Toque no código para copiar e aplique no checkout.'}
+        {copied ? 'Código copiado! Cole no carrinho da loja.' : goHref ? 'Copia o código e abre a loja: é só colar no carrinho.' : 'Toque no código para copiar e aplique no checkout.'}
       </p>
       {minValue ? (
         <p className="mt-1 text-xs font-semibold text-amber-900">

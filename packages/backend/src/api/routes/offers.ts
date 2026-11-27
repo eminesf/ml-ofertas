@@ -237,14 +237,14 @@ router.get('/go/:code', async (req, res) => {
     const link = getShortLinkEntry(req.params.code)
     if (!link) return res.status(404).json({ error: 'Link não encontrado' })
     if (req.query.count !== '0') {
-      const src = /^[twai]$/.test(String(req.query.src || '')) ? String(req.query.src) : null
+      const src = /^[twaic]$/.test(String(req.query.src || '')) ? String(req.query.src) : null
       await prisma.click.create({ data: { offerId: `link:${req.params.code}`, provider: link.provider, src } }).catch(() => {})
     }
     return res.set('Cache-Control', 'no-store').json({ id: null, url: link.url })
   }
   if (req.query.count !== '0') {
-    // src: t (Telegram), w (Tech & TCG), a (Achadinhos), i (Instagram/links) — sem = site
-    const src = /^[twai]$/.test(String(req.query.src || '')) ? String(req.query.src) : null
+    // src: t (Telegram), w (Tech & TCG), a (Achadinhos), i (Instagram/links), c (páginas de cupom do site) — sem = site
+    const src = /^[twaic]$/.test(String(req.query.src || '')) ? String(req.query.src) : null
     await Promise.all([
       prisma.offer.update({ where: { id: offer.id }, data: { clicks: { increment: 1 } } }),
       prisma.click.create({ data: { offerId: offer.id, provider: offer.provider, src } }),

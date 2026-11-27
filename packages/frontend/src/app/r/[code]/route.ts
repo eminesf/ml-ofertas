@@ -18,8 +18,8 @@ function redirect(url: string) {
 export async function GET(req: NextRequest, { params }: { params: Promise<{ code: string }> }) {
   const { code } = await params
   const isBot = BOT_UA.test(req.headers.get('user-agent') || '')
-  // Origem do clique: /r/CODE?t (Telegram), ?w (Tech & TCG), ?a (Achadinhos), ?i (Instagram)
-  const src = ['t', 'w', 'a', 'i'].find(k => req.nextUrl.searchParams.has(k))
+  // Origem do clique: /r/CODE?t (Telegram), ?w (Tech & TCG), ?a (Achadinhos), ?i (Instagram), ?c (páginas de cupom do site)
+  const src = ['t', 'w', 'a', 'i', 'c'].find(k => req.nextUrl.searchParams.has(k))
   const goUrl = `${API_URL}/api/offers/go/${encodeURIComponent(code)}${src ? `?src=${src}` : ''}`
 
   const hit = cache.get(code)

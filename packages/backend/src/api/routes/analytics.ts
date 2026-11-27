@@ -9,7 +9,7 @@ import { PROVIDER_LABELS } from '../../providers/registry'
 const router = Router()
 
 const SRC_LABEL: Record<string, string> = {
-  t: 'Canal Telegram', w: 'WhatsApp Tech & TCG', a: 'WhatsApp Achadinhos', i: 'Instagram (/links)', site: 'Site',
+  t: 'Canal Telegram', w: 'WhatsApp Tech & TCG', a: 'WhatsApp Achadinhos', i: 'Instagram (/links)', c: 'Site — páginas de cupom', site: 'Site',
 }
 // Origem do clique em "Entrar no grupo": página + '-ads' quando veio de anúncio (utm/fbclid)
 const ORIGIN_LABEL: Record<string, string> = {

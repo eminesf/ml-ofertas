@@ -42,7 +42,7 @@ export default function OfferCard({ offer }: { offer: Offer }) {
               <Sparkles /> Oferta especial
             </Badge>
           )}
-          {offer.couponCode && <CouponCopy code={offer.couponCode} variant="badge" minValue={offer.couponMinValue} />}
+          {offer.couponCode && <CouponCopy code={offer.couponCode} variant="badge" minValue={offer.couponMinValue} goHref={offer.shortCode ? `/r/${offer.shortCode}` : offer.affiliateUrl} />}
         </div>
 
         <h3 className="line-clamp-2 text-[13px] leading-snug font-medium text-foreground sm:text-sm">
