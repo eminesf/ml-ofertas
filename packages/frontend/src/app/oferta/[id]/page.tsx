@@ -174,12 +174,12 @@ export default async function OfertaPage({ params }: { params: Promise<{ id: str
 
       {/* CTA fixo no mobile — sempre ao alcance do polegar */}
       <div className="fixed inset-x-0 bottom-[var(--cookie-bar-h,0px)] z-30 border-t bg-background/95 px-4 pt-3 pb-safe backdrop-blur transition-[bottom] duration-300 sm:hidden">
-        <div className="flex items-center gap-3 pr-16">
-          <div className="min-w-0">
+        <div className="flex items-center gap-3">
+          <div className="shrink-0">
             <p className="text-lg leading-none font-extrabold">{brl(offer.salePrice)}</p>
             {hasDiscount && <p className="text-xs font-semibold text-deal">-{offer.discountPct}% OFF</p>}
           </div>
-          <div className="flex-1">{cta}</div>
+          <div className="min-w-0 flex-1">{cta}</div>
         </div>
       </div>
     </main>
