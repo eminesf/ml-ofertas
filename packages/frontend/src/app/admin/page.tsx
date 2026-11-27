@@ -77,9 +77,9 @@ export default function AdminDashboard() {
 
       {/* Ação rápida */}
       <div style={{
-        background: '#fff', borderRadius: 14, padding: '1.25rem 1.5rem',
+        background: '#fff', borderRadius: 14, padding: '1rem 1.1rem',
         border: '1px solid #e5e5e5', marginBottom: '1.5rem',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+        display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 12,
       }}>
         <div>
           <p style={{ margin: '0 0 2px', fontWeight: 700, fontSize: 14 }}>📥 Importar oferta manualmente</p>
@@ -101,9 +101,9 @@ export default function AdminDashboard() {
 
       {/* WhatsApp */}
       <div style={{
-        background: '#fff', borderRadius: 14, padding: '1.25rem 1.5rem',
+        background: '#fff', borderRadius: 14, padding: '1rem 1.1rem',
         border: '1px solid #e5e5e5', marginBottom: '1.5rem',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
+        display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 12,
       }}>
         <div>
           <p style={{ margin: '0 0 2px', fontWeight: 700, fontSize: 14 }}>💬 WhatsApp</p>
@@ -132,9 +132,9 @@ export default function AdminDashboard() {
             <div
               key={job.id}
               style={{
-                background: '#fff', borderRadius: 14, padding: '1.25rem 1.5rem',
+                background: '#fff', borderRadius: 14, padding: '1rem 1.1rem',
                 border: '1px solid #e5e5e5',
-                display: 'flex', alignItems: 'center', gap: 16,
+                display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12,
               }}
             >
               <span style={{ fontSize: 28, lineHeight: 1 }}>{job.icon}</span>

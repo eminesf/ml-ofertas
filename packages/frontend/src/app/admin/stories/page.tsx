@@ -76,7 +76,7 @@ export default async function StoriesPage({ searchParams }: { searchParams: Prom
     : ''
 
   return (
-    <div style={{ padding: 24, color: '#eee' }}>
+    <div style={{ padding: 24, color: '#eee', background: '#141417', minHeight: 'calc(100vh - 52px)' }}>
       <h1 style={{ fontSize: 22, fontWeight: 800, marginBottom: 4 }}>Stories do Instagram</h1>
       <p style={{ color: '#999', marginBottom: 6 }}>
         Melhores ofertas das últimas 24h. Baixe a arte, poste no story e adicione a figurinha de <b>Link</b> com o link curto.
@@ -119,7 +119,7 @@ export default async function StoriesPage({ searchParams }: { searchParams: Prom
 
       {best.length === 0 && <p>Nenhuma oferta boa nas últimas 24h.</p>}
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 20 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(220px, 100%), 1fr))', gap: 20 }}>
         {best.map((o, i) => (
           <StoryCard key={o.id} o={o} badge={i === 0 ? '★ MELHOR DO DIA' : undefined} highlight={i === 0} />
         ))}

@@ -89,8 +89,9 @@ export default function FilaPage() {
 
   return (
     <div style={{ padding: 24, maxWidth: 960, margin: '0 auto' }}>
+      <style>{'@media (max-width: 640px) { .fila-card > button { flex: 1 1 100% !important; padding: 12px !important; } .fila-tabs button { padding: 8px 10px !important; } }'}</style>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 6 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 800, margin: 0, flex: 1 }}>Fila — ofertas que não foram para os grupos</h1>
+        <h1 style={{ fontSize: 22, fontWeight: 800, margin: 0, flex: '1 1 100%' }}>Fila — ofertas que não foram para os grupos</h1>
         <select value={hours} onChange={e => setHours(Number(e.target.value))} style={{ padding: '6px 8px', borderRadius: 6, border: '1px solid #ccc' }}>
           <option value={6}>Últimas 6h</option>
           <option value={24}>Últimas 24h</option>
@@ -105,7 +106,7 @@ export default function FilaPage() {
         Aprovadas pela IA, na ordem em que o bot postaria. <b>Enviar</b> posta agora no Telegram e no grupo do WhatsApp da aba.
       </p>
 
-      <div style={{ display: 'flex', gap: 6, borderBottom: '2px solid #e5e5e5', marginBottom: 16 }}>
+      <div className="fila-tabs" style={{ display: 'flex', gap: 6, overflowX: 'auto', borderBottom: '2px solid #e5e5e5', marginBottom: 16 }}>
         {groups.map(g => (
           <button
             key={g.key}
@@ -142,12 +143,12 @@ export default function FilaPage() {
         {visible.map(o => {
           const st = state[o.id]
           return (
-            <div key={o.id} style={{ display: 'flex', gap: 12, alignItems: 'center', background: '#fff', borderRadius: 10, padding: 10, border: '1px solid #e5e5e5', opacity: st === 'sent' ? 0.5 : 1 }}>
+            <div key={o.id} className="fila-card" style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'center', background: '#fff', borderRadius: 10, padding: 10, border: '1px solid #e5e5e5', opacity: st === 'sent' ? 0.5 : 1 }}>
               {o.imageUrl
                 ? <img src={o.imageUrl} alt="" style={{ width: 64, height: 64, objectFit: 'contain', flexShrink: 0 }} />
                 : <div style={{ width: 64, height: 64, background: '#f3f3f3', flexShrink: 0 }} />}
               <div style={{ flex: 1, minWidth: 0 }}>
-                <a href={`/oferta/${o.id}`} target="_blank" rel="noreferrer" style={{ fontWeight: 700, fontSize: 14, color: '#111', textDecoration: 'none', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                <a href={`/oferta/${o.id}`} target="_blank" rel="noreferrer" style={{ fontWeight: 700, fontSize: 14, color: '#111', textDecoration: 'none', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', lineHeight: 1.3 }}>
                   {o.title}
                 </a>
                 <div style={{ fontSize: 13, marginTop: 3 }}>

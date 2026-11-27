@@ -120,7 +120,7 @@ export function OfferEditor({ offer, onChange, onDeleted, onPosted, sticky = tru
   const link = offer.shortCode ? `${SITE}/r/${offer.shortCode}` : null
 
   return (
-    <div style={{ ...box, ...(sticky ? { position: 'sticky' as const, top: 10 } : {}) }}>
+    <div className="offer-editor" style={{ ...box, ...(sticky ? { position: 'sticky' as const, top: 10 } : {}) }}>
       <div style={{ display: 'flex', gap: 12 }}>
         {f.imageUrl && <img src={f.imageUrl} alt="" style={{ width: 90, height: 90, objectFit: 'contain', borderRadius: 8, background: '#fafafa', flexShrink: 0 }} />}
         <div style={{ fontSize: 12, color: '#555', lineHeight: 1.6, minWidth: 0 }}>
@@ -147,15 +147,15 @@ export function OfferEditor({ offer, onChange, onDeleted, onPosted, sticky = tru
       <input value={f.imageUrl} onChange={set('imageUrl')} style={input} />
 
       <div style={{ display: 'flex', gap: 8 }}>
-        <div style={{ flex: 1 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
           <label style={label}>Preço (R$)</label>
           <input value={f.salePrice} onChange={set('salePrice')} inputMode="decimal" style={input} />
         </div>
-        <div style={{ flex: 1 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
           <label style={label}>Preço “de” (R$)</label>
           <input value={f.originalPrice} onChange={set('originalPrice')} inputMode="decimal" style={input} />
         </div>
-        <div style={{ flex: 1 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
           <label style={label}>Cupom</label>
           <input value={f.couponCode} onChange={set('couponCode')} style={input} />
         </div>
