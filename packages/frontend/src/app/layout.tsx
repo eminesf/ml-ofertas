@@ -34,9 +34,9 @@ export const metadata: Metadata = {
 const siteJsonLd = {
   '@context': 'https://schema.org',
   '@graph': [
-    { '@type': 'Organization', '@id': `${SITE_URL}/#org`, name: SITE_NAME, url: SITE_URL, logo: `${SITE_URL}/logo_png.png`, sameAs: ['https://t.me/e_foxofertas', 'https://www.instagram.com/fox_promocoes_/'] },
+    { '@type': 'Organization', '@id': `${SITE_URL}/#org`, name: SITE_NAME, url: SITE_URL, logo: { '@type': 'ImageObject', url: `${SITE_URL}/logo-fox-512.png`, width: 512, height: 512 }, sameAs: ['https://t.me/e_foxofertas', 'https://www.instagram.com/fox_promocoes_/'] },
     {
-      '@type': 'WebSite', '@id': `${SITE_URL}/#site`, name: SITE_NAME, url: SITE_URL, inLanguage: 'pt-BR', publisher: { '@id': `${SITE_URL}/#org` },
+      '@type': 'WebSite', '@id': `${SITE_URL}/#site`, name: SITE_NAME, alternateName: ['Fox Promocoes', 'foxpromocoes'], url: SITE_URL, inLanguage: 'pt-BR', publisher: { '@id': `${SITE_URL}/#org` },
       potentialAction: { '@type': 'SearchAction', target: `${SITE_URL}/?q={search_term_string}`, 'query-input': 'required name=search_term_string' },
     },
   ],
