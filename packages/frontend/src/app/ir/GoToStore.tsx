@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { Check, Copy, ExternalLink } from 'lucide-react'
 
-const DELAY_MS = 2200
+const DELAY_MS = 1500
 
 export default function GoToStore({ target, coupon, store }: { target: string; coupon: string; store: string }) {
   const [copiedAgain, setCopiedAgain] = useState(false)
