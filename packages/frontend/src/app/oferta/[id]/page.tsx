@@ -9,6 +9,7 @@ import { OfferGrid } from '@/components/Feed'
 import VoteButton from '@/components/VoteButton'
 import CouponCopy from '@/components/CouponCopy'
 import BackButton from '@/components/BackButton'
+import ShareOffer from '@/components/ShareOffer'
 import { STORES, brl, cn, couponGoHref, storeName, timeAgo } from '@/lib/utils'
 import { SITE_URL } from '@/lib/site'
 
@@ -161,6 +162,11 @@ export default async function OfertaPage({ params }: { params: Promise<{ id: str
             <VoteButton offerId={offer.id} initialVotes={offer.upvotes ?? 0} size="lg" />
             <span className="text-sm text-muted-foreground">Essa oferta está boa? Esquente ela!</span>
           </div>
+
+          <ShareOffer
+            url={`${SITE_URL}/oferta/${offer.id}`}
+            text={`🔥 ${offer.title} por ${brl(offer.salePrice)}${offer.couponCode ? ` com o cupom ${offer.couponCode}` : ''} na ${storeName(offer.provider)}`}
+          />
         </div>
       </div>
 
